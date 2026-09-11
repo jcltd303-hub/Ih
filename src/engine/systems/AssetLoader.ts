@@ -103,9 +103,9 @@ export class AssetLoader {
     Assets.cache.set('shockwave_ring', Texture.from(shockCanvas));
     reportStep();
 
-    // Step 6: Load User Uploaded Cybernetic Tetra Fish Sprite Texture from /tetra_fish.png
+    // Step 6: Load Tetra Fish Sprite Texture from /leviathan_boss.png (User assigned golden dragon for tetra)
     try {
-      const userTexture = await Assets.load('tetra_fish.png');
+      const userTexture = await Assets.load('leviathan_boss.png');
       if (userTexture) {
         Assets.cache.set('tetra_sprite', userTexture);
       }
@@ -119,9 +119,9 @@ export class AssetLoader {
       Assets.cache.set('tetra_sprite', Texture.from(tetraCanvas));
     }
 
-    // Step 7: Load User Uploaded Leviathan Boss Sprite Texture from /leviathan_boss.png
+    // Step 7: Load Leviathan Boss Sprite Texture from /leviathan_boss_alt.png
     try {
-      const leviTexture = await Assets.load('leviathan_boss.png');
+      const leviTexture = await Assets.load('leviathan_boss_alt.png');
       if (leviTexture) {
         Assets.cache.set('leviathan_sprite', leviTexture);
       }

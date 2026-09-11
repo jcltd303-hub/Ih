@@ -326,14 +326,19 @@ export class WeaponController {
       const nearbyEntities = this.spatialGrid.query(proj.x - 14, proj.y - 14, 28, 28);
       if (nearbyEntities.length > 0) {
         const hitEntity = nearbyEntities[0];
-        const hitResult = this.fishManager.inflictDamage(hitEntity.id, proj.betAmount * 1.2);
+        const hitResult = this.fishManager.inflictDamage(hitEntity.id, proj.betAmount * 1.5);
 
-        // Particle hit sparks
+        // Pay per hit reward (instant fractional win on every hit)
+        const hitPayout = proj.betAmount * 0.28;
         this.particleFX.spawnExplosion(proj.x, proj.y, proj.currencyType === 'SC' ? 0x00ffcc : 0xffb703, 8);
         SoundManager.playSound('hit');
 
+        if (this.onWinCallback) {
+          this.onWinCallback(hitPayout, proj.currencyType);
+        }
+
         if (hitResult.killed) {
-          const winAmount = proj.betAmount * hitResult.multiplier;
+          const winAmount = proj.betAmount * hitResult.multiplier * 0.65;
           this.particleFX.emitCoinExplosion(hitResult.x, hitResult.y, 16);
           this.particleFX.spawnExplosion(hitResult.x, hitResult.y, 0xffd700, 25);
           SoundManager.playSound('coin');

@@ -16,8 +16,8 @@ export class UIManager {
   private soundBtn!: HTMLElement;
   private modalContainer!: HTMLElement;
 
-  private currentBetIndex: number = 2; // Default 5 SC
-  private betTiers: number[] = [1, 2, 5, 10, 25, 50, 100];
+  private currentBetIndex: number = 4; // Default 1.00 SC
+  private betTiers: number[] = [0.05, 0.10, 0.25, 0.50, 1.00, 2.50, 5.00, 10.00];
   private gcBalance: number = 10000;
   private scBalance: number = 50.00;
   private activeCurrency: 'GC' | 'SC' = 'SC';

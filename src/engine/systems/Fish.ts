@@ -43,9 +43,9 @@ export class Fish {
     this.vx = Math.cos(angle) * baseSpeed;
     this.vy = Math.sin(angle) * (baseSpeed * 0.5);
 
-    this.health = isBoss ? 2500 : isSmall ? 80 : 350;
+    this.health = isBoss ? 2000 : isSmall ? 60 : 280;
     this.maxHealth = this.health;
-    this.multiplier = isBoss ? 35 : isSmall ? 1.8 : 6;
+    this.multiplier = isBoss ? 25 : isSmall ? 1.2 : 4;
     this.worth = this.multiplier;
 
     this.container = new Container();
@@ -54,18 +54,11 @@ export class Fish {
       this.bossInstance = new BossManager(2500);
       this.container.addChild(this.bossInstance);
     } else if (isSmall) {
-      try {
-        const sprite = Sprite.from('tetra_sprite');
-        sprite.anchor.set(0.5, 0.5);
-        sprite.width = radius * 2.6;
-        sprite.height = radius * 1.5;
-        this.container.addChild(sprite);
-      } catch (e) {
-        this.graphics = new Graphics();
-        this.graphics.ellipse(0, 0, radius, radius * 0.55);
-        this.graphics.fill({ color: 0x00d4ff, alpha: 0.95 });
-        this.container.addChild(this.graphics);
-      }
+      const sprite = Sprite.from('tetra_sprite');
+      sprite.anchor.set(0.5, 0.5);
+      sprite.width = radius * 2.6;
+      sprite.height = radius * 1.5;
+      this.container.addChild(sprite);
     } else {
       this.graphics = new Graphics();
       const primaryColor = isSmall ? 0x00f0ff : 0xff9900;
