@@ -202,8 +202,15 @@ export class UIManager {
   }
 
   public closeModal(): void {
+    SoundManager.playUiSound('modal_close');
     this.modalContainer.style.display = 'none';
     this.modalContainer.innerHTML = '';
+  }
+
+  private openModal(html: string): void {
+    SoundManager.playUiSound('modal_open');
+    this.modalContainer.innerHTML = html;
+    this.modalContainer.style.display = 'flex';
   }
 
   private async showStreakModal(): Promise<void> {
@@ -241,6 +248,7 @@ export class UIManager {
       </div>
     `;
 
+    SoundManager.playUiSound('modal_open');
     this.modalContainer.style.display = 'flex';
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
     document.getElementById('modal-claim-streak-btn')?.addEventListener('click', async () => {
@@ -248,6 +256,7 @@ export class UIManager {
       try {
         const res = await streakManager.claimDailyLoginReward('player_local');
         this.addBalance(0, res.rewardSC);
+        SoundManager.playCoinDrop('medium', res.rewardSC);
         const statusEl = document.getElementById('modal-streak-status');
         if (statusEl) statusEl.textContent = `✓ Successfully claimed ${res.rewardSC} SC! Day ${res.streak} active.`;
         const claimBtn = document.getElementById('modal-claim-streak-btn') as HTMLButtonElement;
@@ -317,12 +326,17 @@ export class UIManager {
             const isEquipped = currentLoadout.activeCannonSkin === skin.id;
             return `
               <div style="background: ${isEquipped ? 'rgba(225, 29, 72, 0.18)' : '#1e293b'}; border: 1.5px solid ${isEquipped ? '#f43f5e' : skin.border}; border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                <div style="flex: 1;">
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
-                    <span style="font-size: 14px; font-weight: 800; color: ${skin.color};">${skin.name}</span>
-                    <span style="font-size: 10px; font-weight: 700; background: rgba(0,0,0,0.4); border: 1px solid ${skin.color}; color: ${skin.color}; padding: 1px 6px; border-radius: 4px;">${skin.badge}</span>
+                <div style="display: flex; align-items: center; gap: 14px; flex: 1;">
+                  <div style="width: 46px; height: 46px; border-radius: 8px; background: rgba(0,0,0,0.55); border: 1px solid ${skin.color}; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+                    <img src="skins/${skin.id}/idle_0.png" alt="${skin.name}" style="width: 42px; height: 42px; object-fit: contain;" />
                   </div>
-                  <div style="font-size: 11px; color: #94a3b8; line-height: 1.3;">${skin.desc}</div>
+                  <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                      <span style="font-size: 14px; font-weight: 800; color: ${skin.color};">${skin.name}</span>
+                      <span style="font-size: 10px; font-weight: 700; background: rgba(0,0,0,0.4); border: 1px solid ${skin.color}; color: ${skin.color}; padding: 1px 6px; border-radius: 4px;">${skin.badge}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #94a3b8; line-height: 1.3;">${skin.desc}</div>
+                  </div>
                 </div>
                 <button class="armory-equip-btn" data-skin="${skin.id}" style="background: ${isEquipped ? '#f43f5e' : '#334155'}; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; transition: background 0.15s;">
                   ${isEquipped ? '✓ EQUIPPED' : 'EQUIP'}
@@ -337,6 +351,7 @@ export class UIManager {
       </div>
     `;
 
+    SoundManager.playUiSound('modal_open');
     this.modalContainer.style.display = 'flex';
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
     document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
@@ -344,6 +359,7 @@ export class UIManager {
     const equipButtons = this.modalContainer.querySelectorAll('.armory-equip-btn');
     equipButtons.forEach(btn => {
       btn.addEventListener('click', (e) => {
+        SoundManager.playUiSound('autofire_on');
         const targetSkin = (e.currentTarget as HTMLElement).getAttribute('data-skin')!;
         LoadoutManager.saveLoadout({
           ...currentLoadout,
@@ -394,6 +410,7 @@ export class UIManager {
       </div>
     `;
 
+    SoundManager.playUiSound('modal_open');
     this.modalContainer.style.display = 'flex';
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
     document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
@@ -439,6 +456,7 @@ export class UIManager {
       </div>
     `;
 
+    SoundManager.playUiSound('modal_open');
     this.modalContainer.style.display = 'flex';
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
     document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
@@ -604,6 +622,7 @@ export class UIManager {
       </div>
     `;
 
+    SoundManager.playUiSound('modal_open');
     this.modalContainer.style.display = 'flex';
     document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
     document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
@@ -716,6 +735,9 @@ export class UIManager {
 
   private adjustBet(direction: number): void {
     const newIndex = Math.max(0, Math.min(this.betTiers.length - 1, this.currentBetIndex + direction));
+    if (newIndex !== this.currentBetIndex) {
+      SoundManager.playUiSound(direction > 0 ? 'chip_up' : 'chip_down');
+    }
     this.currentBetIndex = newIndex;
     this.betDisplayEl.textContent = `${this.getCurrentBet()} ${this.activeCurrency}`;
     if (this.onBetChangeCallback) {
@@ -724,6 +746,7 @@ export class UIManager {
   }
 
   private toggleCurrency(): void {
+    SoundManager.playUiSound('currency_toggle');
     this.activeCurrency = this.activeCurrency === 'SC' ? 'GC' : 'SC';
     this.currencyBtn.textContent = `MODE: ${this.activeCurrency}`;
     this.currencyBtn.style.color = this.activeCurrency === 'SC' ? '#00ffcc' : '#fbbf24';
@@ -735,6 +758,7 @@ export class UIManager {
 
   private toggleAutoFire(): void {
     this.autoFireEnabled = !this.autoFireEnabled;
+    SoundManager.playUiSound(this.autoFireEnabled ? 'autofire_on' : 'autofire_off');
     this.autoFireBtn.textContent = `AUTO-FIRE: ${this.autoFireEnabled ? 'ON' : 'OFF'}`;
     this.autoFireBtn.style.background = this.autoFireEnabled ? '#00ffcc' : '#1e293b';
     this.autoFireBtn.style.color = this.autoFireEnabled ? '#000000' : '#94a3b8';
@@ -754,6 +778,9 @@ export class UIManager {
 
   private toggleSound(): void {
     const enabled = SoundManager.toggleSound();
+    if (enabled) {
+      SoundManager.playUiSound('click');
+    }
     this.soundBtn.textContent = enabled ? '🔊 ON' : '🔇 OFF';
     this.soundBtn.style.color = enabled ? '#e2e8f0' : '#ef4444';
   }

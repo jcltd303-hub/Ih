@@ -1,6 +1,7 @@
 import { Container } from 'pixi.js';
 import { SpatialHashGrid, EntityBounds } from './SpatialHashGrid';
 import { Fish } from './Fish';
+import { SoundManager } from '../../audio/SoundManager';
 
 export type FishEntity = Fish;
 
@@ -11,6 +12,7 @@ export class FishManager {
   private screenWidth: number;
   private screenHeight: number;
   private fishIdCounter = 0;
+  private currentTheme: 'light' | 'dark' = 'light';
 
   constructor(stage: Container, spatialGrid: SpatialHashGrid, screenWidth: number, screenHeight: number) {
     this.stage = stage;
@@ -21,6 +23,13 @@ export class FishManager {
     // Initial seed wave
     for (let i = 0; i < 6; i++) {
       this.spawnRandomWave();
+    }
+  }
+
+  public setTheme(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+    for (const fish of this.activeFish.values()) {
+      fish.setTheme(theme);
     }
   }
 
@@ -37,10 +46,13 @@ export class FishManager {
     const startX = isLeftToRight ? -100 : this.screenWidth + 100;
     const startY = Math.random() * (this.screenHeight * 0.6) + 80;
 
-    const fish = new Fish(id, type, startX, startY, this.screenWidth, this.screenHeight);
+    const fish = new Fish(id, type, startX, startY, this.screenWidth, this.screenHeight, this.currentTheme);
     this.stage.addChild(fish.container);
 
     this.activeFish.set(id, fish);
+    if (type === 'boss') {
+      SoundManager.playBossWarning();
+    }
     return fish;
   }
 

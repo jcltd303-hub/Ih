@@ -53,6 +53,7 @@ export class GameScene {
       onThemeChange: (theme) => {
         this.themeManager.setTheme(theme);
         this.animatedBackground.setTheme(theme);
+        this.fishManager.setTheme(theme);
       },
       onAutoFireToggle: (enabled) => {
         this.autoFireActive = enabled;

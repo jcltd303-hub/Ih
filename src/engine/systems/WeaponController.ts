@@ -19,6 +19,7 @@ export interface Projectile {
   sessionId: string;
   currencyType: 'GC' | 'SC';
   betAmount: number;
+  turretSkin: TurretSkinId;
   x: number;
   y: number;
   vx: number;
@@ -264,8 +265,12 @@ export class WeaponController {
       graphics.stroke({ width: 1.5, color: 0xffffff, alpha: 0.95 });
     }
 
-    container.x = this.cannonX;
-    container.y = this.cannonY - 15;
+    const barrelLength = 48;
+    const muzzleX = this.cannonX + Math.cos(angle) * barrelLength;
+    const muzzleY = this.cannonY + Math.sin(angle) * barrelLength;
+
+    container.x = muzzleX;
+    container.y = muzzleY;
     this.stage.addChild(container);
 
     const projectile: Projectile = {
@@ -274,8 +279,9 @@ export class WeaponController {
       sessionId,
       currencyType,
       betAmount,
-      x: this.cannonX,
-      y: this.cannonY - 15,
+      turretSkin: skin,
+      x: muzzleX,
+      y: muzzleY,
       vx,
       vy,
       container
@@ -286,8 +292,8 @@ export class WeaponController {
     // Record wager in PayoutEngine telemetry
     PayoutEngine.recordWager(betAmount);
 
-    // Audio & Haptic feedback
-    SoundManager.playCannonShot(betAmount);
+    // Per-turret audio & haptic feedback
+    SoundManager.playTurretFire(skin, betAmount, currencyType);
     HapticManager.triggerShotImpact(betAmount).catch(() => {});
 
     // Cryptographic dispatch & offline fallback
@@ -344,7 +350,7 @@ export class WeaponController {
       proj.container.x = proj.x;
       proj.container.y = proj.y;
 
-      // Screen boundary cleanup -> recycle into object pool
+      // Screen boundary cleanup -> recycle into object pool (Miss sound)
       if (
         proj.x < -30 ||
         proj.x > this.screenWidth + 30 ||
@@ -354,6 +360,7 @@ export class WeaponController {
         this.stage.removeChild(proj.container);
         this.projectilePool.release(proj.container);
         this.activeProjectiles.delete(id);
+        SoundManager.playTurretMiss(proj.turretSkin);
         continue;
       }
 
@@ -378,16 +385,16 @@ export class WeaponController {
         const hitPayout = evalHit.hitPayout;
         PayoutEngine.recordPayout(hitPayout);
 
-        // Visual floating text & audio for special gamble hits
+        // Visual floating text & acoustic feedback for special gamble hits & per-turret crits
         if (evalHit.isInstantKill) {
           this.particleFX.spawnFloatingText(proj.x, proj.y - 15, '⚡ INSTANT CAPTURE!', 0x00ffcc, true);
-          SoundManager.playSound('crit');
+          SoundManager.playTurretCrit(proj.turretSkin, 'instant_kill');
         } else if (evalHit.isSuperCrit) {
           this.particleFX.spawnFloatingText(proj.x, proj.y - 15, '🔥 SUPER CRIT!', 0xff0055, true);
-          SoundManager.playSound('crit');
+          SoundManager.playTurretCrit(proj.turretSkin, 'super_crit');
         } else if (evalHit.isCrit) {
           this.particleFX.spawnFloatingText(proj.x, proj.y - 12, 'CRITICAL HIT', 0xffd700, false);
-          SoundManager.playSound('crit');
+          SoundManager.playTurretCrit(proj.turretSkin, 'crit');
         } else if (evalHit.isLuckyHit) {
           this.particleFX.spawnFloatingText(proj.x, proj.y - 12, `LUCKY HIT! +${hitPayout.toFixed(2)}`, 0x34d399, false);
         }
@@ -398,10 +405,14 @@ export class WeaponController {
           evalHit.isSuperCrit ? 0xff0055 : (evalHit.isCrit ? 0xffd700 : (proj.currencyType === 'SC' ? 0x00ffcc : 0xffb703)),
           evalHit.isSuperCrit ? 22 : (evalHit.isCrit ? 15 : 8)
         );
-        SoundManager.playSound('hit');
 
+        // Per-turret acoustic impact (with boss forcefield shield deflection layer)
+        SoundManager.playTurretHit(proj.turretSkin, fishType, fishType === 'boss');
+
+        // Pay-per-hit coin drop on win
         if (this.onWinCallback && hitPayout > 0) {
           this.onWinCallback(hitPayout, proj.currencyType);
+          SoundManager.playCoinDrop('small', hitPayout);
         }
 
         if (hitResult.killed) {
@@ -414,8 +425,9 @@ export class WeaponController {
           this.particleFX.emitCoinExplosion(hitResult.x, hitResult.y, killGamble.isJackpot ? 32 : 16);
           this.particleFX.spawnExplosion(hitResult.x, hitResult.y, 0xffd700, killGamble.isJackpot ? 40 : 25);
 
-          if (killGamble.isJackpot) {
-            SoundManager.playSound('jackpot');
+          // Tiered arcade coin drop on win
+          if (killGamble.isJackpot || fishType === 'boss' || winAmount >= proj.betAmount * 12) {
+            SoundManager.playCoinDrop('jackpot', winAmount);
             this.particleFX.spawnFloatingText(
               hitResult.x,
               hitResult.y - 25,
@@ -423,8 +435,17 @@ export class WeaponController {
               0xffd700,
               true
             );
+          } else if (winAmount >= proj.betAmount * 3.5 || fishType === 'medium') {
+            SoundManager.playCoinDrop('medium', winAmount);
+            this.particleFX.spawnFloatingText(
+              hitResult.x,
+              hitResult.y - 15,
+              `+${winAmount.toFixed(2)} ${proj.currencyType}`,
+              0x34d399,
+              false
+            );
           } else {
-            SoundManager.playSound('coin');
+            SoundManager.playCoinDrop('small', winAmount);
             this.particleFX.spawnFloatingText(
               hitResult.x,
               hitResult.y - 15,

@@ -21,21 +21,31 @@ export class Fish {
   public animRig?: FishAnimationRig;
   public facing: 'left' | 'right' = 'right';
   public isAlive: boolean = true;
+  public theme: 'light' | 'dark' = 'light';
   private maxSpeed: number;
   private maxForce: number;
   private panicTimer: number = 0;
   private miniHealthBar?: Graphics;
 
-  constructor(id: string, type: 'small' | 'medium' | 'boss', startX: number, startY: number, screenWidth: number, screenHeight: number) {
+  constructor(
+    id: string,
+    type: 'small' | 'medium' | 'boss',
+    startX: number,
+    startY: number,
+    screenWidth: number,
+    screenHeight: number,
+    theme: 'light' | 'dark' = 'light'
+  ) {
     this.id = id;
     this.typeId = type;
     this.x = startX;
     this.y = startY;
+    this.theme = theme;
 
     const isSmall = type === 'small';
     const isBoss = type === 'boss';
 
-    const radius = isBoss ? 85 : isSmall ? 28 : 52;
+    const radius = isBoss ? 110 : isSmall ? 28 : 52;
     this.width = radius * 2;
     this.height = radius * 1.3;
 
@@ -57,15 +67,15 @@ export class Fish {
     this.container = new Container();
 
     if (isBoss) {
-      this.bossInstance = new BossManager(28);
+      this.bossInstance = new BossManager(28, theme);
       this.container.addChild(this.bossInstance);
     } else {
-      // Create animated sprite sheet rig for swimming and 3D turning
-      this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type);
+      // Create animated sprite sheet rig for swimming and 3D turning with species and theme fidelity
+      this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
       this.container.addChild(this.animRig.container);
 
-      if (type === 'medium') {
-        // Distinct electric cobalt/neon tint for medium cyber lionfish
+      if (type === 'medium' && theme === 'light') {
+        // Distinct electric cobalt/neon tint for medium cyber lionfish in light mode
         this.animRig.tint(0xa5f3fc);
       }
 
@@ -75,6 +85,21 @@ export class Fish {
 
     this.container.x = this.x;
     this.container.y = this.y;
+  }
+
+  public setTheme(theme: 'light' | 'dark'): void {
+    this.theme = theme;
+    if (this.animRig) {
+      this.animRig.setTheme(theme);
+      if (theme === 'light' && this.typeId === 'medium') {
+        this.animRig.tint(0xa5f3fc);
+      } else {
+        this.animRig.resetTint();
+      }
+    }
+    if (this.bossInstance) {
+      this.bossInstance.setTheme(theme);
+    }
   }
 
   public updateSteering(
@@ -209,9 +234,9 @@ export class Fish {
 
       // Dynamic animation playback rate based on velocity
       this.animRig.setSpeed(Math.max(0.7, currentSpeed / this.maxSpeed));
-    } else if (Math.abs(this.vx) > 0.1) {
-      // Fallback orientation for Boss
-      this.container.scale.x = this.vx > 0 ? 1 : -1;
+    } else if (this.bossInstance) {
+      // Articulated serpentine spine simulation & kinetic animation
+      this.bossInstance.update(dtScale, this.vx, this.vy);
     }
   }
 

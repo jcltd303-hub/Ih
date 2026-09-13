@@ -10,7 +10,7 @@ export class AssetLoader {
       return;
     }
 
-    const steps = 5;
+    const steps = 6;
     let completed = 0;
     const reportStep = () => {
       completed++;
@@ -104,36 +104,11 @@ export class AssetLoader {
     Assets.cache.set('shockwave_ring', Texture.from(shockCanvas));
     reportStep();
 
-    // Step 6: Load Tetra Fish Sprite Texture from /leviathan_boss.png (User assigned golden dragon for tetra)
-    try {
-      const userTexture = await Assets.load('leviathan_boss.png');
-      if (userTexture) {
-        Assets.cache.set('tetra_sprite', userTexture);
-      }
-    } catch (e) {
-      const tetraCanvas = document.createElement('canvas');
-      tetraCanvas.width = 64;
-      tetraCanvas.height = 32;
-      const tCtx = tetraCanvas.getContext('2d')!;
-      tCtx.fillStyle = '#0284c7';
-      tCtx.fillRect(0, 0, 64, 32);
-      Assets.cache.set('tetra_sprite', Texture.from(tetraCanvas));
-    }
-
-    // Step 7: Load Leviathan Boss Sprite Texture from /leviathan_boss_alt.png
-    try {
-      const leviTexture = await Assets.load('leviathan_boss_alt.png');
-      if (leviTexture) {
-        Assets.cache.set('leviathan_sprite', leviTexture);
-      }
-    } catch (e) {
-      // Fallback
-    }
-
-    // Step 8: Initialize Sprite Sheet Animations (Mechanical Lionfish & Sci-Fi Turret)
+    // Step 6: Initialize Procedural Sprite Sheet Animations (Mechanical Lionfish, Tetra, Angler & Sci-Fi Turret)
     await SpriteSheetManager.getInstance().initialize();
+    reportStep();
 
     this.assetsReady = true;
-    console.log('[AssetLoader] Game assets and animated sprite sheets loaded successfully.');
+    console.log('[AssetLoader] Game assets, textures, and animated rigs loaded successfully.');
   }
 }

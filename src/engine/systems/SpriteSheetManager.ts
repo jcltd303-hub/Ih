@@ -1,15 +1,26 @@
 import { Texture, Rectangle, AnimatedSprite, Container, Graphics } from 'pixi.js';
 
 export type FishAnimState = 'swim_left' | 'swim_right' | 'turn_left' | 'turn_right';
+export type FishSpecies = 'small' | 'medium' | 'angler' | 'boss';
 export type TurretSkinId = 'default' | 'plasma_neon' | 'abyssal_dread' | 'cyber_gold';
+
+export interface FishFrameset {
+  swimLeft: Texture[];
+  swimRight: Texture[];
+  turnLeft: Texture[];
+  turnRight: Texture[];
+}
 
 export interface FishAnimationRig {
   container: Container;
   sprite: AnimatedSprite;
   currentState: FishAnimState;
+  currentTheme: 'light' | 'dark';
+  species: FishSpecies;
   isTurning: boolean;
   playState: (state: FishAnimState, onComplete?: () => void) => void;
   setSpeed: (speedMultiplier: number) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
   tint: (color: number) => void;
   resetTint: () => void;
 }
@@ -48,6 +59,10 @@ export class SpriteSheetManager {
   private fishTurnLeftFrames: Texture[] = [];
   private fishTurnRightFrames: Texture[] = [];
 
+  // Multi-species & multi-theme frame sets:
+  // Keys: "small_light", "small_dark", "medium_light", "medium_dark", "angler_light", "angler_dark"
+  private fishFrameSets: Map<string, FishFrameset> = new Map();
+
   // Turret skins frame maps
   private turretSkins: Map<TurretSkinId, TurretSkinData> = new Map();
 
@@ -73,53 +88,114 @@ export class SpriteSheetManager {
   }
 
   /**
-   * Generates the 32-frame Mechanical Steampunk Lionfish sprite sheet
-   * - Row 1: Left Swim Loop (8 frames)
-   * - Row 2: Right Swim Loop (8 frames)
-   * - Row 3: Turn Left Transition (8 frames)
-   * - Row 4: Turn Right Transition (8 frames)
+   * Generates high-detail animated sprite sheets for all fish species across Light and Dark themes:
+   * 1. Small: Cyber Neon Tetra (Can-Tech Light) vs Ghostly Spectral Tetra (Abyssal Dark)
+   * 2. Medium: Steampunk Armored Lionfish (Can-Tech Light) vs Rusted Corroded Dread Lionfish (Abyssal Dark)
+   * 3. Angler: High-Tech Submersible Angler (Can-Tech Light) vs Nightmarish Deep-Trench Angler (Abyssal Dark)
    */
   private buildFishSpriteSheets(): void {
-    const frameW = 128;
-    const frameH = 96;
+    const speciesList: Array<'small' | 'medium' | 'angler'> = ['small', 'medium', 'angler'];
+    const themes: Array<'light' | 'dark'> = ['light', 'dark'];
 
-    // Left Swim Loop (8 frames)
-    for (let f = 0; f < 8; f++) {
-      const phase = (f / 8) * Math.PI * 2;
-      const canvas = this.renderLionfishFrame('left', phase, 0);
-      this.fishSwimLeftFrames.push(Texture.from(canvas));
+    for (const species of speciesList) {
+      for (const theme of themes) {
+        const swimLeft: Texture[] = [];
+        const swimRight: Texture[] = [];
+        const turnLeft: Texture[] = [];
+        const turnRight: Texture[] = [];
+
+        // 8 frames left swim
+        for (let f = 0; f < 8; f++) {
+          const phase = (f / 8) * Math.PI * 2;
+          const canvas = this.renderSpeciesFrame(species, theme, 'left', phase, 0);
+          swimLeft.push(Texture.from(canvas));
+        }
+
+        // 8 frames right swim
+        for (let f = 0; f < 8; f++) {
+          const phase = (f / 8) * Math.PI * 2;
+          const canvas = this.renderSpeciesFrame(species, theme, 'right', phase, 0);
+          swimRight.push(Texture.from(canvas));
+        }
+
+        // 8 frames turn left (transitions right-facing to left-facing)
+        for (let f = 0; f < 8; f++) {
+          const progress = f / 7;
+          const phase = progress * Math.PI;
+          const canvas = this.renderSpeciesTurnFrame(species, theme, 'turn_left', progress, phase);
+          turnLeft.push(Texture.from(canvas));
+        }
+
+        // 8 frames turn right (transitions left-facing to right-facing)
+        for (let f = 0; f < 8; f++) {
+          const progress = f / 7;
+          const phase = progress * Math.PI;
+          const canvas = this.renderSpeciesTurnFrame(species, theme, 'turn_right', progress, phase);
+          turnRight.push(Texture.from(canvas));
+        }
+
+        this.fishFrameSets.set(`${species}_${theme}`, {
+          swimLeft,
+          swimRight,
+          turnLeft,
+          turnRight
+        });
+      }
     }
 
-    // Right Swim Loop (8 frames)
-    for (let f = 0; f < 8; f++) {
-      const phase = (f / 8) * Math.PI * 2;
-      const canvas = this.renderLionfishFrame('right', phase, 0);
-      this.fishSwimRightFrames.push(Texture.from(canvas));
-    }
+    // Default legacy pointers
+    const defaultSet = this.fishFrameSets.get('medium_light')!;
+    this.fishSwimLeftFrames = defaultSet.swimLeft;
+    this.fishSwimRightFrames = defaultSet.swimRight;
+    this.fishTurnLeftFrames = defaultSet.turnLeft;
+    this.fishTurnRightFrames = defaultSet.turnRight;
+  }
 
-    // Turn Left (8 frames): transitions from facing right to facing left through a smooth 3D yaw rotation
-    for (let f = 0; f < 8; f++) {
-      const turnProgress = f / 7; // 0 = right-facing, 0.5 = facing forward/quarter, 1.0 = left-facing
-      const phase = turnProgress * Math.PI;
-      const canvas = this.renderLionfishTurnFrame('turn_left', turnProgress, phase);
-      this.fishTurnLeftFrames.push(Texture.from(canvas));
+  private renderSpeciesFrame(
+    species: 'small' | 'medium' | 'angler',
+    theme: 'light' | 'dark',
+    direction: 'left' | 'right',
+    phase: number,
+    yawAngle: number
+  ): HTMLCanvasElement {
+    if (species === 'small') {
+      return this.renderTetraFrame(theme, direction, phase, yawAngle);
+    } else if (species === 'angler') {
+      return this.renderAnglerFrame(theme, direction, phase, yawAngle);
+    } else {
+      return this.renderLionfishFrame(theme, direction, phase, yawAngle);
     }
+  }
 
-    // Turn Right (8 frames): transitions from facing left to facing right
-    for (let f = 0; f < 8; f++) {
-      const turnProgress = f / 7; // 0 = left-facing, 0.5 = facing forward/quarter, 1.0 = right-facing
-      const phase = turnProgress * Math.PI;
-      const canvas = this.renderLionfishTurnFrame('turn_right', turnProgress, phase);
-      this.fishTurnRightFrames.push(Texture.from(canvas));
+  private renderSpeciesTurnFrame(
+    species: 'small' | 'medium' | 'angler',
+    theme: 'light' | 'dark',
+    type: 'turn_left' | 'turn_right',
+    progress: number,
+    phase: number
+  ): HTMLCanvasElement {
+    if (species === 'small') {
+      return this.renderTetraTurnFrame(theme, type, progress, phase);
+    } else if (species === 'angler') {
+      return this.renderAnglerTurnFrame(theme, type, progress, phase);
+    } else {
+      return this.renderLionfishTurnFrame(theme, type, progress, phase);
     }
   }
 
   /**
-   * Renders a single crisp high-detail mechanical lionfish frame
+   * 1. NEON TETRA FRAME RENDERER (Crisp 112x80 resolution)
+   * Light Theme: Electric cyan lateral stripe, magenta gradient belly, translucent turquoise fins, specular eye.
+   * Dark Theme: Ghostly translucent skeletal bone white, pulsing exposed scarlet spinal vein, hollow red eye.
    */
-  private renderLionfishFrame(direction: 'left' | 'right', phase: number, yawAngle: number = 0): HTMLCanvasElement {
-    const w = 128;
-    const h = 96;
+  private renderTetraFrame(
+    theme: 'light' | 'dark',
+    direction: 'left' | 'right',
+    phase: number,
+    yawAngle: number = 0
+  ): HTMLCanvasElement {
+    const w = 112;
+    const h = 80;
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
@@ -129,219 +205,231 @@ export class SpriteSheetManager {
     ctx.translate(w / 2, h / 2);
 
     const isLeft = direction === 'left';
-    // Mirror if facing right
-    if (!isLeft) {
-      ctx.scale(-1, 1);
+    if (!isLeft) ctx.scale(-1, 1);
+    if (yawAngle !== 0) ctx.scale(Math.cos(yawAngle), 1);
+
+    const tailAngle = Math.sin(phase) * 0.35;
+    const finFlutter = Math.sin(phase * 1.5) * 0.25;
+
+    // Ambient bioluminescent aura
+    const aura = ctx.createRadialGradient(0, 0, 8, 0, 0, 42);
+    if (theme === 'light') {
+      aura.addColorStop(0, 'rgba(6, 182, 212, 0.28)');
+      aura.addColorStop(1, 'rgba(6, 182, 212, 0)');
+    } else {
+      aura.addColorStop(0, 'rgba(239, 68, 68, 0.25)');
+      aura.addColorStop(1, 'rgba(239, 68, 68, 0)');
     }
-
-    // Subtle 3D yaw perspective
-    if (yawAngle !== 0) {
-      ctx.scale(Math.cos(yawAngle), 1);
-    }
-
-    // Undulation offsets
-    const tailAngle = Math.sin(phase) * 0.28;
-    const finWave = Math.sin(phase + 1.2) * 0.25;
-    const gillPuff = (Math.sin(phase * 2) + 1) * 0.5;
-
-    // Outer subtle atmospheric glow
-    const glow = ctx.createRadialGradient(0, 0, 10, 0, 0, 48);
-    glow.addColorStop(0, 'rgba(245, 158, 11, 0.18)');
-    glow.addColorStop(1, 'rgba(245, 158, 11, 0)');
-    ctx.fillStyle = glow;
+    ctx.fillStyle = aura;
     ctx.beginPath();
-    ctx.arc(0, 0, 48, 0, Math.PI * 2);
+    ctx.arc(0, 0, 42, 0, Math.PI * 2);
     ctx.fill();
 
-    // 1. Spined Tail Fin (with animated sway)
+    // 1. Animated Caudal (Tail) Fin
     ctx.save();
-    ctx.translate(28, 2);
+    ctx.translate(24, 0);
     ctx.rotate(tailAngle);
 
-    // Tail fin rays
-    ctx.fillStyle = '#b45309';
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 1.5;
-
     ctx.beginPath();
-    ctx.moveTo(0, -6);
-    ctx.quadraticCurveTo(24, -24 + Math.sin(phase) * 4, 34, -18);
-    ctx.quadraticCurveTo(18, 0, 36, 12 + Math.cos(phase) * 4);
-    ctx.quadraticCurveTo(20, 22, 0, 6);
+    ctx.moveTo(0, -3);
+    ctx.quadraticCurveTo(18, -16 + Math.sin(phase) * 3, 26, -12);
+    ctx.quadraticCurveTo(14, 0, 26, 12 + Math.cos(phase) * 3);
+    ctx.quadraticCurveTo(18, 16, 0, 3);
     ctx.closePath();
+
+    if (theme === 'light') {
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.45)';
+      ctx.strokeStyle = '#38bdf8';
+    } else {
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.4)';
+      ctx.strokeStyle = '#ef4444';
+    }
+    ctx.lineWidth = 1.2;
     ctx.fill();
     ctx.stroke();
 
-    // Tail membrane lines
-    ctx.strokeStyle = 'rgba(253, 230, 138, 0.6)';
+    // Delicate fin rays
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(24, -10);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(24, 10);
+    ctx.strokeStyle = theme === 'light' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(248, 113, 113, 0.7)';
     ctx.lineWidth = 1;
-    for (let i = -3; i <= 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(0, i * 1.8);
-      ctx.lineTo(26, i * 6 + Math.sin(phase + i) * 3);
-      ctx.stroke();
-    }
+    ctx.stroke();
     ctx.restore();
 
-    // 2. Majestic Spiked Dorsal Fin (multi-rib steampunk fin)
+    // 2. Dorsal Fin
     ctx.save();
-    ctx.translate(0, -18);
-    const numSpines = 7;
-    for (let i = 0; i < numSpines; i++) {
-      const spineProgress = i / (numSpines - 1);
-      const spineX = (spineProgress - 0.5) * 46;
-      const spineHeight = 22 + Math.sin(spineProgress * Math.PI) * 16;
-      const spineFlex = Math.sin(phase + spineProgress * 2) * 3;
+    ctx.translate(2, -10);
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.quadraticCurveTo(0, -18, 12, -14);
+    ctx.quadraticCurveTo(6, -4, 4, 0);
+    ctx.closePath();
+    ctx.fillStyle = theme === 'light' ? 'rgba(14, 165, 233, 0.5)' : 'rgba(153, 27, 27, 0.5)';
+    ctx.strokeStyle = theme === 'light' ? '#38bdf8' : '#dc2626';
+    ctx.lineWidth = 1;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
 
-      ctx.strokeStyle = '#d97706';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(spineX, 4);
-      ctx.lineTo(spineX + spineFlex - 4, -spineHeight);
+    // 3. Ventral (Pelvic) Fin
+    ctx.save();
+    ctx.translate(4, 9);
+    ctx.beginPath();
+    ctx.moveTo(-6, 0);
+    ctx.quadraticCurveTo(4, 14, 10, 10);
+    ctx.lineTo(2, 0);
+    ctx.closePath();
+    ctx.fillStyle = theme === 'light' ? 'rgba(14, 165, 233, 0.45)' : 'rgba(153, 27, 27, 0.4)';
+    ctx.strokeStyle = theme === 'light' ? '#00f0ff' : '#dc2626';
+    ctx.lineWidth = 1;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // 4. Sleek Aerodynamic Fish Hull
+    ctx.beginPath();
+    ctx.moveTo(-28, 0); // Snout
+    ctx.quadraticCurveTo(-14, -15, 6, -11); // Dorsal slope
+    ctx.quadraticCurveTo(18, -6, 26, 0); // Peduncle top
+    ctx.quadraticCurveTo(18, 6, 6, 11); // Peduncle bottom
+    ctx.quadraticCurveTo(-14, 15, -28, 0); // Belly slope
+    ctx.closePath();
+
+    const bodyGrad = ctx.createLinearGradient(-28, -12, 26, 12);
+    if (theme === 'light') {
+      bodyGrad.addColorStop(0, '#0c4a6e');
+      bodyGrad.addColorStop(0.3, '#0284c7');
+      bodyGrad.addColorStop(0.7, '#1e1b4b');
+      bodyGrad.addColorStop(1.0, '#312e81');
+    } else {
+      bodyGrad.addColorStop(0, '#334155');
+      bodyGrad.addColorStop(0.3, '#cbd5e1');
+      bodyGrad.addColorStop(0.7, '#1e293b');
+      bodyGrad.addColorStop(1.0, '#0f172a');
+    }
+    ctx.fillStyle = bodyGrad;
+    ctx.fill();
+    ctx.strokeStyle = theme === 'light' ? '#38bdf8' : '#64748b';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // 5. High-Voltage Lateral Stripe / Exposed Vein
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-24, 0);
+    ctx.quadraticCurveTo(-10, -5, 6, -1);
+    ctx.quadraticCurveTo(16, 1, 24, 0);
+
+    if (theme === 'light') {
+      // Glow underlay
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.5)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      // Core laser stripe
+      const stripeGrad = ctx.createLinearGradient(-24, 0, 24, 0);
+      stripeGrad.addColorStop(0, '#00ffff');
+      stripeGrad.addColorStop(0.5, '#38bdf8');
+      stripeGrad.addColorStop(1, '#ec4899');
+      ctx.strokeStyle = stripeGrad;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+    } else {
+      // Horror: exposed blood spinal cord & necrotic nodes
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      const veinGrad = ctx.createLinearGradient(-24, 0, 24, 0);
+      veinGrad.addColorStop(0, '#ef4444');
+      veinGrad.addColorStop(0.6, '#b91c1c');
+      veinGrad.addColorStop(1, '#84cc16');
+      ctx.strokeStyle = veinGrad;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Golden spine tip
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.arc(spineX + spineFlex - 4, -spineHeight, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Translucent webbing between spines
-      if (i > 0) {
-        const prevProgress = (i - 1) / (numSpines - 1);
-        const prevX = (prevProgress - 0.5) * 46;
-        const prevHeight = 22 + Math.sin(prevProgress * Math.PI) * 16;
-        const prevFlex = Math.sin(phase + prevProgress * 2) * 3;
-
-        ctx.fillStyle = 'rgba(217, 119, 6, 0.25)';
+      // Skeletal bone ribs along body
+      ctx.strokeStyle = 'rgba(241, 245, 249, 0.6)';
+      ctx.lineWidth = 1;
+      for (let i = -16; i <= 16; i += 6) {
         ctx.beginPath();
-        ctx.moveTo(prevX, 4);
-        ctx.lineTo(prevX + prevFlex - 4, -prevHeight + 4);
-        ctx.lineTo(spineX + spineFlex - 4, -spineHeight + 4);
-        ctx.lineTo(spineX, 4);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(i, -6);
+        ctx.lineTo(i + 2, 6);
+        ctx.stroke();
       }
     }
     ctx.restore();
 
-    // 3. Ventral Spines (bottom fins)
+    // 6. Fluttering Pectoral Fin
     ctx.save();
-    ctx.translate(4, 18);
-    for (let i = 0; i < 4; i++) {
-      const vx = (i - 1.5) * 12;
-      const vh = 14 + Math.sin(phase + i) * 3;
-      ctx.strokeStyle = '#b45309';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(vx, 0);
-      ctx.lineTo(vx + 4, vh);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // 4. Armored Steampunk Hull (Main Body)
-    const bodyGrad = ctx.createLinearGradient(-36, -20, 36, 20);
-    bodyGrad.addColorStop(0, '#78350f');
-    bodyGrad.addColorStop(0.3, '#d97706');
-    bodyGrad.addColorStop(0.7, '#b45309');
-    bodyGrad.addColorStop(1, '#451a03');
-
-    ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-    // Torpedo profile of the mechanical lionfish
-    ctx.moveTo(-32, 2);
-    ctx.quadraticCurveTo(-26, -24, 6, -20);
-    ctx.quadraticCurveTo(34, -14, 30, 2);
-    ctx.quadraticCurveTo(26, 20, 2, 22);
-    ctx.quadraticCurveTo(-26, 20, -32, 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Armor Plate Seams and Rivets
-    ctx.strokeStyle = '#78350f';
-    ctx.lineWidth = 1.2;
-    for (let r = -16; r <= 20; r += 12) {
-      ctx.beginPath();
-      ctx.arc(r, 0, 18, -Math.PI * 0.4, Math.PI * 0.4);
-      ctx.stroke();
-
-      // Tiny brass rivets
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.arc(r + 8, -10, 1.2, 0, Math.PI * 2);
-      ctx.arc(r + 8, 10, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 5. Flowing Pectoral Wing Fin
-    ctx.save();
-    ctx.translate(-4, 4);
-    ctx.rotate(finWave);
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.7)';
-    ctx.strokeStyle = '#fde68a';
-    ctx.lineWidth = 1.2;
+    ctx.translate(-10, 4);
+    ctx.rotate(finFlutter);
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(18, 14, 28, 28);
-    ctx.quadraticCurveTo(12, 22, -4, 18);
-    ctx.closePath();
+    ctx.quadraticCurveTo(-10, 10, -18, 8);
+    ctx.quadraticCurveTo(-10, 2, 0, 0);
+    ctx.fillStyle = theme === 'light' ? 'rgba(56, 189, 248, 0.6)' : 'rgba(239, 68, 68, 0.45)';
+    ctx.strokeStyle = theme === 'light' ? '#38bdf8' : '#ef4444';
+    ctx.lineWidth = 1;
     ctx.fill();
     ctx.stroke();
     ctx.restore();
 
-    // 6. Glowing Steampunk Optic Eye
+    // 7. Eye Lens
     ctx.save();
-    ctx.translate(-20, -4);
-
-    // Eye socket bevel
-    ctx.fillStyle = '#1c1917';
+    ctx.translate(-20, -2);
     ctx.beginPath();
-    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? '#082f49' : '#09090b';
     ctx.fill();
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = theme === 'light' ? '#00f0ff' : '#dc2626';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Fiery glowing core
-    const eyeGrad = ctx.createRadialGradient(-1, -1, 1, 0, 0, 6);
-    eyeGrad.addColorStop(0, '#ffffff');
-    eyeGrad.addColorStop(0.3, '#ffedd5');
-    eyeGrad.addColorStop(0.6, '#f97316');
-    eyeGrad.addColorStop(1, '#c2410c');
-    ctx.fillStyle = eyeGrad;
     ctx.beginPath();
-    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? '#00ffff' : '#ff0033';
     ctx.fill();
 
-    // Lens glint
-    ctx.fillStyle = '#ffffff';
+    // Specular highlight glint
     ctx.beginPath();
-    ctx.arc(-2, -2, 1.5, 0, Math.PI * 2);
+    ctx.arc(-1, -1, 1, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.restore();
-
-    // 7. Mechanical Gill Slits
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(-8 + gillPuff * 2, 2, 8, -Math.PI * 0.3, Math.PI * 0.3);
-    ctx.stroke();
 
     ctx.restore();
     return canvas;
   }
 
   /**
-   * Renders the 3D perspective turn transition frames
+   * Tetra 3D Turn Transition
    */
-  private renderLionfishTurnFrame(type: 'turn_left' | 'turn_right', progress: number, phase: number): HTMLCanvasElement {
-    const w = 128;
-    const h = 96;
+  private renderTetraTurnFrame(
+    theme: 'light' | 'dark',
+    type: 'turn_left' | 'turn_right',
+    progress: number,
+    phase: number
+  ): HTMLCanvasElement {
+    const yawAngle = type === 'turn_left' ? progress * Math.PI : Math.PI - progress * Math.PI;
+    const direction = Math.cos(yawAngle) >= 0 ? 'left' : 'right';
+    return this.renderTetraFrame(theme, direction, phase, yawAngle);
+  }
+
+  /**
+   * 2. ARMORED STEAMPUNK LIONFISH FRAME RENDERER (144x104)
+   * Light Theme: Gilded brass, copper, golden hex rivets, 7 towering spines with warm amber webbing, glowing azure steam gills.
+   * Dark Theme: Corroded blackened iron, rust oxide, toxic dripping barbed bone needles, cracked molten core fissures.
+   */
+  private renderLionfishFrame(
+    theme: 'light' | 'dark',
+    direction: 'left' | 'right',
+    phase: number,
+    yawAngle: number = 0
+  ): HTMLCanvasElement {
+    const w = 144;
+    const h = 104;
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
@@ -350,107 +438,413 @@ export class SpriteSheetManager {
     ctx.save();
     ctx.translate(w / 2, h / 2);
 
-    // Calculate simulated 3D yaw angle:
-    // For turn_left: starts facing right (yaw = 0), turns towards front (yaw = PI/2), ends facing left (yaw = PI)
-    // For turn_right: starts facing left (yaw = PI), turns towards front (yaw = PI/2), ends facing right (yaw = 0)
-    let yaw = type === 'turn_left' ? progress * Math.PI : (1 - progress) * Math.PI;
+    const isLeft = direction === 'left';
+    if (!isLeft) ctx.scale(-1, 1);
+    if (yawAngle !== 0) ctx.scale(Math.cos(yawAngle), 1);
 
-    // Horizontal scale compresses as it faces forward
-    const scaleX = Math.cos(yaw);
-    const facingFrontAmount = Math.sin(yaw); // 1 = fully front facing, 0 = profile
+    const tailAngle = Math.sin(phase) * 0.3;
+    const finWave = Math.sin(phase + 1.2) * 0.25;
+    const gillPuff = (Math.sin(phase * 2) + 1) * 0.5;
 
-    const bodyWidth = 32 * (1 - facingFrontAmount * 0.4);
-    const bodyHeight = 24 + facingFrontAmount * 6;
-
-    // Outer glow
-    const glow = ctx.createRadialGradient(0, 0, 10, 0, 0, 48);
-    glow.addColorStop(0, 'rgba(245, 158, 11, 0.18)');
-    glow.addColorStop(1, 'rgba(245, 158, 11, 0)');
+    // Atmospheric outer glow
+    const glow = ctx.createRadialGradient(0, 0, 10, 0, 0, 52);
+    if (theme === 'light') {
+      glow.addColorStop(0, 'rgba(245, 158, 11, 0.22)');
+      glow.addColorStop(1, 'rgba(245, 158, 11, 0)');
+    } else {
+      glow.addColorStop(0, 'rgba(34, 197, 94, 0.2)');
+      glow.addColorStop(1, 'rgba(34, 197, 94, 0)');
+    }
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(0, 0, 48, 0, Math.PI * 2);
+    ctx.arc(0, 0, 52, 0, Math.PI * 2);
     ctx.fill();
 
-    // Dorsal spines spread out when facing towards camera
-    ctx.strokeStyle = '#d97706';
-    ctx.lineWidth = 2;
-    for (let s = -3; s <= 3; s++) {
-      const sx = s * (8 - facingFrontAmount * 2) * scaleX;
-      const sy = -bodyHeight + Math.abs(s) * 3;
-      ctx.beginPath();
-      ctx.moveTo(sx * 0.5, -bodyHeight * 0.5);
-      ctx.lineTo(sx, sy - 14);
-      ctx.stroke();
-
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.arc(sx, sy - 14, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Body ellipse with dynamic 3D yaw scale
-    const bodyGrad = ctx.createLinearGradient(-bodyWidth, -bodyHeight, bodyWidth, bodyHeight);
-    bodyGrad.addColorStop(0, '#78350f');
-    bodyGrad.addColorStop(0.5, '#d97706');
-    bodyGrad.addColorStop(1, '#451a03');
-    ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 2;
+    // 1. Spined Tail Fin
+    ctx.save();
+    ctx.translate(32, 2);
+    ctx.rotate(tailAngle);
 
     ctx.beginPath();
-    ctx.ellipse(0, 0, Math.max(10, Math.abs(bodyWidth * scaleX)), bodyHeight, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Eye positions shift in 3D
-    // Profile has 1 eye visible, front facing reveals both optic eyes!
-    const eyeOffsetX = (facingFrontAmount > 0.3)
-      ? 12 * scaleX
-      : (scaleX < 0 ? -18 : 18);
-
-    const renderEye = (ex: number, ey: number) => {
-      ctx.fillStyle = '#1c1917';
-      ctx.beginPath();
-      ctx.arc(ex, ey, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-
-      const eyeGrad = ctx.createRadialGradient(ex - 1, ey - 1, 1, ex, ey, 5);
-      eyeGrad.addColorStop(0, '#ffffff');
-      eyeGrad.addColorStop(0.4, '#f97316');
-      eyeGrad.addColorStop(1, '#7c2d12');
-      ctx.fillStyle = eyeGrad;
-      ctx.beginPath();
-      ctx.arc(ex, ey, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-    };
-
-    if (facingFrontAmount > 0.4) {
-      // Both eyes visible during turn facing front
-      renderEye(-12, -4);
-      renderEye(12, -4);
-    } else {
-      renderEye(eyeOffsetX, -4);
-    }
-
-    // Pectoral fins flare during turn
-    const flare = Math.sin(phase) * 6;
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.65)';
-    ctx.strokeStyle = '#fde68a';
-    ctx.lineWidth = 1.2;
-
-    ctx.beginPath();
-    ctx.moveTo(-10 * scaleX, 6);
-    ctx.lineTo((-28 - flare) * scaleX, 18);
-    ctx.lineTo(-8 * scaleX, 16);
+    ctx.moveTo(0, -6);
+    ctx.quadraticCurveTo(24, -26 + Math.sin(phase) * 4, 38, -18);
+    ctx.quadraticCurveTo(20, 0, 40, 14 + Math.cos(phase) * 4);
+    ctx.quadraticCurveTo(22, 24, 0, 6);
     ctx.closePath();
+
+    if (theme === 'light') {
+      ctx.fillStyle = '#b45309';
+      ctx.strokeStyle = '#f59e0b';
+    } else {
+      ctx.fillStyle = '#1c1917';
+      ctx.strokeStyle = '#ef4444';
+    }
+    ctx.lineWidth = 1.5;
     ctx.fill();
     ctx.stroke();
+
+    // Tail rays
+    ctx.strokeStyle = theme === 'light' ? 'rgba(253, 230, 138, 0.6)' : 'rgba(248, 113, 113, 0.5)';
+    ctx.lineWidth = 1;
+    for (let i = -3; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, i * 2);
+      ctx.lineTo(34, i * 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 2. Towering Dorsal Spines (7 majestic articulated spines)
+    const spineOffsets = [-24, -16, -8, 0, 8, 16, 24];
+    const spineHeights = [26, 36, 44, 46, 42, 34, 24];
+
+    for (let i = 0; i < spineOffsets.length; i++) {
+      const sx = spineOffsets[i];
+      const sh = spineHeights[i];
+      const spineSway = Math.sin(phase + i * 0.4) * 3.5;
+      const tipX = sx + 12 + spineSway;
+      const tipY = -sh;
+
+      // Webbing membrane between spines
+      if (i > 0) {
+        const prevSx = spineOffsets[i - 1];
+        const prevSh = spineHeights[i - 1];
+        const prevTipX = prevSx + 12 + Math.sin(phase + (i - 1) * 0.4) * 3.5;
+        const prevTipY = -prevSh;
+
+        ctx.beginPath();
+        ctx.moveTo(prevSx, -12);
+        ctx.lineTo(prevTipX, prevTipY);
+        ctx.quadraticCurveTo((prevTipX + tipX) / 2, Math.max(prevTipY, tipY) + 6, tipX, tipY);
+        ctx.lineTo(sx, -12);
+        ctx.closePath();
+
+        if (theme === 'light') {
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+        } else {
+          ctx.fillStyle = 'rgba(153, 27, 27, 0.35)';
+        }
+        ctx.fill();
+      }
+
+      // Individual spine rod
+      ctx.beginPath();
+      ctx.moveTo(sx, -10);
+      ctx.lineTo(tipX, tipY);
+      ctx.strokeStyle = theme === 'light' ? '#fde68a' : '#78716c';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Sharp glowing tip / venom droplet
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = theme === 'light' ? '#f59e0b' : '#22c55e';
+      ctx.fill();
+    }
+
+    // 3. Armored Carapace Body Hull
+    ctx.beginPath();
+    ctx.moveTo(-36, 0); // Snout
+    ctx.quadraticCurveTo(-22, -22, 10, -18);
+    ctx.quadraticCurveTo(28, -12, 34, 0);
+    ctx.quadraticCurveTo(28, 14, 10, 18);
+    ctx.quadraticCurveTo(-20, 22, -36, 0);
+    ctx.closePath();
+
+    const hullGrad = ctx.createLinearGradient(-36, -20, 34, 20);
+    if (theme === 'light') {
+      hullGrad.addColorStop(0, '#f59e0b');
+      hullGrad.addColorStop(0.4, '#d97706');
+      hullGrad.addColorStop(0.8, '#b45309');
+      hullGrad.addColorStop(1.0, '#78350f');
+    } else {
+      hullGrad.addColorStop(0, '#27272a');
+      hullGrad.addColorStop(0.4, '#18181b');
+      hullGrad.addColorStop(0.8, '#78350f');
+      hullGrad.addColorStop(1.0, '#09090b');
+    }
+    ctx.fillStyle = hullGrad;
+    ctx.fill();
+    ctx.strokeStyle = theme === 'light' ? '#fde68a' : '#b91c1c';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 4. Riveted Armor Plating Seams & Molten Fissures
+    ctx.beginPath();
+    ctx.moveTo(-16, -18);
+    ctx.quadraticCurveTo(-6, 0, -12, 18);
+    ctx.moveTo(4, -18);
+    ctx.quadraticCurveTo(12, 0, 8, 18);
+    ctx.strokeStyle = theme === 'light' ? 'rgba(254, 240, 138, 0.6)' : 'rgba(239, 68, 68, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Hex Rivets
+    const rivetPoints = [
+      { x: -14, y: -12 }, { x: -10, y: 0 }, { x: -12, y: 12 },
+      { x: 6, y: -12 }, { x: 10, y: 0 }, { x: 8, y: 12 }
+    ];
+    for (const r of rivetPoints) {
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = theme === 'light' ? '#fef08a' : '#ef4444';
+      ctx.fill();
+    }
+
+    // 5. Fan-Shaped Mechanical Pectoral Fin
+    ctx.save();
+    ctx.translate(-8, 6);
+    ctx.rotate(finWave);
+
+    const fanCount = 5;
+    for (let f = 0; f < fanCount; f++) {
+      const angle = (f / (fanCount - 1)) * 0.85 + 0.2;
+      const length = 26 + (f === 2 ? 6 : 0);
+      const fx = Math.cos(angle) * length;
+      const fy = Math.sin(angle) * length;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(fx, fy);
+      ctx.strokeStyle = theme === 'light' ? '#fde68a' : '#ef4444';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(fx, fy, 2, 0, Math.PI * 2);
+      ctx.fillStyle = theme === 'light' ? '#38bdf8' : '#22c55e';
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 6. Mechanical Gill Vents (Steam / Toxic Fumes)
+    ctx.save();
+    ctx.translate(-18, 6);
+    ctx.beginPath();
+    ctx.moveTo(0, -6);
+    ctx.lineTo(3, -2);
+    ctx.lineTo(0, 2);
+    ctx.lineTo(3, 6);
+    ctx.strokeStyle = theme === 'light' ? '#38bdf8' : '#22c55e';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Puff
+    ctx.beginPath();
+    ctx.arc(6 + gillPuff * 3, 0, 3 + gillPuff * 2, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? 'rgba(56, 189, 248, 0.4)' : 'rgba(34, 197, 94, 0.4)';
+    ctx.fill();
+    ctx.restore();
+
+    // 7. Optical Sensor Eye
+    ctx.save();
+    ctx.translate(-26, -4);
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? '#78350f' : '#09090b';
+    ctx.fill();
+    ctx.strokeStyle = theme === 'light' ? '#fef08a' : '#ef4444';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? '#dc2626' : '#ff0033';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(-1, -1, 1, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.restore();
 
     ctx.restore();
     return canvas;
+  }
+
+  /**
+   * Lionfish 3D Perspective Turn Transition
+   */
+  private renderLionfishTurnFrame(
+    theme: 'light' | 'dark',
+    type: 'turn_left' | 'turn_right',
+    progress: number,
+    phase: number
+  ): HTMLCanvasElement {
+    const yawAngle = type === 'turn_left' ? progress * Math.PI : Math.PI - progress * Math.PI;
+    const direction = Math.cos(yawAngle) >= 0 ? 'left' : 'right';
+    return this.renderLionfishFrame(theme, direction, phase, yawAngle);
+  }
+
+  /**
+   * 3. ABYSSAL ANGLERFISH FRAME RENDERER (144x112)
+   * Light Theme: Deep cobalt submersible hull with gleaming cyber lure antenna and blinding cyan plasma photophore bulb.
+   * Dark Theme: Pitch-black abyssal nightmare beast with jagged bone horns, protruding needle fangs, and a pulsating toxic orange/violet lure bulb.
+   */
+  private renderAnglerFrame(
+    theme: 'light' | 'dark',
+    direction: 'left' | 'right',
+    phase: number,
+    yawAngle: number = 0
+  ): HTMLCanvasElement {
+    const w = 144;
+    const h = 112;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+
+    const isLeft = direction === 'left';
+    if (!isLeft) ctx.scale(-1, 1);
+    if (yawAngle !== 0) ctx.scale(Math.cos(yawAngle), 1);
+
+    const tailAngle = Math.sin(phase) * 0.32;
+    const lureSway = Math.sin(phase * 1.2) * 4;
+    const lureGlowPulse = (Math.sin(phase * 3) + 1) * 0.5;
+
+    // Ambient halo
+    const halo = ctx.createRadialGradient(-32, -32, 4, -32, -32, 40);
+    if (theme === 'light') {
+      halo.addColorStop(0, 'rgba(6, 182, 212, 0.45)');
+      halo.addColorStop(1, 'rgba(6, 182, 212, 0)');
+    } else {
+      halo.addColorStop(0, 'rgba(234, 88, 12, 0.45)');
+      halo.addColorStop(1, 'rgba(234, 88, 12, 0)');
+    }
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(-32, -32, 40, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 1. Tail Fin
+    ctx.save();
+    ctx.translate(28, 4);
+    ctx.rotate(tailAngle);
+    ctx.beginPath();
+    ctx.moveTo(0, -6);
+    ctx.quadraticCurveTo(18, -20, 26, -14);
+    ctx.quadraticCurveTo(14, 0, 28, 14);
+    ctx.quadraticCurveTo(16, 20, 0, 6);
+    ctx.closePath();
+    ctx.fillStyle = theme === 'light' ? '#1e3a8a' : '#18181b';
+    ctx.strokeStyle = theme === 'light' ? '#38bdf8' : '#f97316';
+    ctx.lineWidth = 1.5;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Heavy Angler Body Hull
+    ctx.beginPath();
+    ctx.moveTo(-34, 4); // Jaw tip
+    ctx.quadraticCurveTo(-38, -14, -20, -26); // Forehead
+    ctx.quadraticCurveTo(8, -26, 26, -6); // Dorsal slope
+    ctx.quadraticCurveTo(28, 10, 18, 22); // Belly
+    ctx.quadraticCurveTo(-14, 30, -34, 4);
+    ctx.closePath();
+
+    const anglerGrad = ctx.createLinearGradient(-38, -26, 28, 26);
+    if (theme === 'light') {
+      anglerGrad.addColorStop(0, '#172554');
+      anglerGrad.addColorStop(0.5, '#1e3a8a');
+      anglerGrad.addColorStop(1, '#0f172a');
+    } else {
+      anglerGrad.addColorStop(0, '#18181b');
+      anglerGrad.addColorStop(0.5, '#09090b');
+      anglerGrad.addColorStop(1, '#27272a');
+    }
+    ctx.fillStyle = anglerGrad;
+    ctx.fill();
+    ctx.strokeStyle = theme === 'light' ? '#38bdf8' : '#ea580c';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 3. Protruding Needle Fangs along Gaping Jaw
+    ctx.beginPath();
+    ctx.moveTo(-34, 4);
+    ctx.lineTo(-14, 10);
+    ctx.strokeStyle = theme === 'light' ? '#0f172a' : '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Fangs
+    const fangs = [
+      { x: -32, y: 5, h: -8 },
+      { x: -26, y: 7, h: -10 },
+      { x: -20, y: 9, h: -7 },
+      { x: -15, y: 10, h: -6 }
+    ];
+    for (const f of fangs) {
+      ctx.beginPath();
+      ctx.moveTo(f.x, f.y);
+      ctx.lineTo(f.x + 1, f.y + f.h);
+      ctx.lineTo(f.x + 3, f.y);
+      ctx.closePath();
+      ctx.fillStyle = theme === 'light' ? '#e2e8f0' : '#fef08a';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    // 4. Flexible Lure Stalk (Illicium)
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-16, -24); // Crown origin
+    ctx.bezierCurveTo(-26, -42, -42 + lureSway, -46, -34 + lureSway, -32);
+    ctx.strokeStyle = theme === 'light' ? '#38bdf8' : '#78716c';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Lure Photophore Bulb (Esca)
+    const bx = -34 + lureSway;
+    const by = -32;
+
+    // Glowing core
+    ctx.beginPath();
+    ctx.arc(bx, by, 5 + lureGlowPulse * 2, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? '#00f0ff' : '#f97316';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(bx, by, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.restore();
+
+    // 5. Predatory Eye
+    ctx.save();
+    ctx.translate(-22, -12);
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? '#0284c7' : '#f59e0b';
+    ctx.fill();
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Slit pupil
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 1.2, 3.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+    return canvas;
+  }
+
+  private renderAnglerTurnFrame(
+    theme: 'light' | 'dark',
+    type: 'turn_left' | 'turn_right',
+    progress: number,
+    phase: number
+  ): HTMLCanvasElement {
+    const yawAngle = type === 'turn_left' ? progress * Math.PI : Math.PI - progress * Math.PI;
+    const direction = Math.cos(yawAngle) >= 0 ? 'left' : 'right';
+    return this.renderAnglerFrame(theme, direction, phase, yawAngle);
   }
 
   /**
@@ -478,101 +872,51 @@ export class SpriteSheetManager {
   }
 
   private async loadExternalSpriteSheets(): Promise<void> {
-    try {
-      // Async slice and enhance plasma sheet
-      this.trySliceTurretSheet('turret_plasma_sheet.jpg', -Math.PI / 2).then((frames) => {
-        if (frames.length >= 16) {
-          const skin = this.turretSkins.get('plasma_neon');
-          if (skin) {
-            skin.idleFrames = [frames[0], frames[14], frames[15], frames[19]];
-            skin.chargeFrames = [frames[1], frames[2], frames[3], frames[4]];
-            skin.fireFrames = [frames[6], frames[7], frames[8]];
-            skin.fullFireSequence = [
-              frames[1], frames[3], frames[4], frames[6], frames[7], frames[8],
-              frames[9], frames[10], frames[11], frames[12]
-            ];
-          }
-        }
-      });
+    const skins: { id: TurretSkinId; file: string }[] = [
+      { id: 'plasma_neon', file: 'skins/plasma_neon_sheet.png' },
+      { id: 'cyber_gold', file: 'skins/cyber_gold_sheet.png' },
+      { id: 'abyssal_dread', file: 'skins/abyssal_dread_sheet.png' },
+      { id: 'default', file: 'skins/default_sheet.png' }
+    ];
 
-      // Async slice and enhance dread sheet
-      this.trySliceTurretSheet('turret_dread_sheet.jpg', -Math.PI / 2).then((frames) => {
-        if (frames.length >= 16) {
-          const skin = this.turretSkins.get('abyssal_dread');
+    for (const item of skins) {
+      this.loadCalibratedSheet(item.file).then((frames) => {
+        if (frames.length >= 12) {
+          const skin = this.turretSkins.get(item.id);
           if (skin) {
-            skin.idleFrames = [frames[0], frames[1], frames[2], frames[17]];
-            skin.chargeFrames = [frames[3], frames[4]];
-            skin.fireFrames = [frames[5], frames[6], frames[7]];
+            skin.idleFrames = [frames[0], frames[1], frames[2], frames[3]];
+            skin.chargeFrames = [frames[4], frames[5], frames[6]];
+            skin.fireFrames = [frames[7], frames[8]];
             skin.fullFireSequence = [
-              frames[3], frames[4], frames[5], frames[6], frames[7],
-              frames[8], frames[9], frames[10], frames[11]
+              frames[4], frames[5], frames[7], frames[8],
+              frames[9], frames[10], frames[11], frames[0]
             ];
+            console.log(`[SpriteSheetManager] Loaded calibrated high-res sprite sheet for ${item.id}`);
           }
         }
+      }).catch((e) => {
+        console.warn(`[SpriteSheetManager] Fallback active for ${item.id}`, e);
       });
-
-      // Async slice and enhance solar gold sheet
-      this.trySliceTurretSheet('turret_gold_sheet.jpg', -Math.PI / 2).then((frames) => {
-        if (frames.length >= 16) {
-          const skin = this.turretSkins.get('cyber_gold');
-          if (skin) {
-            skin.idleFrames = [frames[0], frames[1], frames[2], frames[18]];
-            skin.chargeFrames = [frames[5], frames[6]];
-            skin.fireFrames = [frames[7], frames[8], frames[15]];
-            skin.fullFireSequence = [
-              frames[5], frames[6], frames[7], frames[8], frames[15],
-              frames[9], frames[10], frames[11], frames[14]
-            ];
-          }
-        }
-      });
-    } catch {
-      // Procedural fallbacks remain active and complete
     }
   }
 
-  private trySliceTurretSheet(url: string, rotateAngle: number): Promise<Texture[]> {
+  private loadCalibratedSheet(url: string): Promise<Texture[]> {
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
-        const cols = 5;
-        const rows = 4;
-        const cw = img.width / cols;
-        const ch = img.height / rows;
+        const frameW = 192;
+        const frameH = 192;
+        const cols = Math.floor(img.width / frameW);
         const textures: Texture[] = [];
-        const outSize = 140;
 
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const canvas = document.createElement('canvas');
-            canvas.width = outSize;
-            canvas.height = outSize;
-            const ctx = canvas.getContext('2d')!;
-
-            ctx.save();
-            ctx.translate(outSize / 2, outSize / 2);
-            ctx.rotate(rotateAngle);
-            ctx.drawImage(img, c * cw, r * ch, cw, ch, -outSize / 2, -outSize / 2, outSize, outSize);
-            ctx.restore();
-
-            // Make dark background tiles transparent
-            try {
-              const imgData = ctx.getImageData(0, 0, outSize, outSize);
-              const d = imgData.data;
-              for (let p = 0; p < d.length; p += 4) {
-                const maxVal = Math.max(d[p], d[p + 1], d[p + 2]);
-                if (maxVal < 42) {
-                  d[p + 3] = 0;
-                } else if (maxVal < 70) {
-                  d[p + 3] = Math.round(((maxVal - 42) / 28) * 255);
-                }
-              }
-              ctx.putImageData(imgData, 0, 0);
-            } catch {
-              // Canvas tainted or security restriction fallback
-            }
-
+        for (let i = 0; i < cols; i++) {
+          const canvas = document.createElement('canvas');
+          canvas.width = frameW;
+          canvas.height = frameH;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, i * frameW, 0, frameW, frameH, 0, 0, frameW, frameH);
             textures.push(Texture.from(canvas));
           }
         }
@@ -1272,28 +1616,55 @@ export class SpriteSheetManager {
     });
   }
 
+  public getFishFrameset(species: 'small' | 'medium' | 'angler', theme: 'light' | 'dark'): FishFrameset {
+    return this.fishFrameSets.get(`${species}_${theme}`) || this.fishFrameSets.get('medium_light')!;
+  }
+
   /**
    * Creates an animated fish rig with state transitions (swim, turn, hit)
+   * tailored to species (small Neon Tetra, medium Armored Lionfish, or angler Abyssal Anglerfish)
+   * and responsive to theme (Light tech vs Dark horror).
    */
-  public createFishAnimationRig(type: 'small' | 'medium' | 'boss'): FishAnimationRig {
+  public createFishAnimationRig(type: 'small' | 'medium' | 'boss' | 'angler', initialTheme: 'light' | 'dark' = 'light'): FishAnimationRig {
     const container = new Container();
+    const species: 'small' | 'medium' | 'angler' = type === 'small' ? 'small' : (type === 'medium' ? 'medium' : 'angler');
+    let currentTheme: 'light' | 'dark' = initialTheme;
+    let currentSet = this.getFishFrameset(species, currentTheme);
 
     // Start with swim_right or swim_left
-    const sprite = new AnimatedSprite(this.fishSwimRightFrames);
+    const sprite = new AnimatedSprite(currentSet.swimRight);
     sprite.anchor.set(0.5, 0.5);
     sprite.animationSpeed = 0.22;
     sprite.play();
     container.addChild(sprite);
 
     // Scaling based on fish type
-    const scale = type === 'boss' ? 2.4 : type === 'medium' ? 1.25 : 0.8;
+    const scale = type === 'boss' ? 2.2 : type === 'angler' ? 1.4 : type === 'medium' ? 1.15 : 0.85;
     container.scale.set(scale);
 
     const rig: FishAnimationRig = {
       container,
       sprite,
       currentState: 'swim_right',
+      currentTheme,
+      species,
       isTurning: false,
+      setTheme: (theme: 'light' | 'dark') => {
+        currentTheme = theme;
+        rig.currentTheme = theme;
+        currentSet = this.getFishFrameset(species, currentTheme);
+        const currentFrameIndex = sprite.currentFrame % 8;
+        if (rig.currentState === 'swim_left') {
+          sprite.textures = currentSet.swimLeft;
+        } else if (rig.currentState === 'swim_right') {
+          sprite.textures = currentSet.swimRight;
+        } else if (rig.currentState === 'turn_left') {
+          sprite.textures = currentSet.turnLeft;
+        } else {
+          sprite.textures = currentSet.turnRight;
+        }
+        sprite.gotoAndPlay(currentFrameIndex);
+      },
       playState: (state: FishAnimState, onComplete?: () => void) => {
         if (rig.currentState === state && !rig.isTurning) return;
 
@@ -1302,19 +1673,19 @@ export class SpriteSheetManager {
         let speed = 0.22;
 
         if (state === 'swim_left') {
-          frames = this.fishSwimLeftFrames;
+          frames = currentSet.swimLeft;
           rig.isTurning = false;
         } else if (state === 'swim_right') {
-          frames = this.fishSwimRightFrames;
+          frames = currentSet.swimRight;
           rig.isTurning = false;
         } else if (state === 'turn_left') {
-          frames = this.fishTurnLeftFrames;
+          frames = currentSet.turnLeft;
           loop = false;
           speed = 0.35;
           rig.isTurning = true;
         } else {
           // turn_right
-          frames = this.fishTurnRightFrames;
+          frames = currentSet.turnRight;
           loop = false;
           speed = 0.35;
           rig.isTurning = true;
@@ -1369,7 +1740,8 @@ export class SpriteSheetManager {
     const initialTextures = skinData.idleFrames.length > 0 ? skinData.idleFrames : skinData.fullFireSequence;
 
     const turretSprite = new AnimatedSprite(initialTextures);
-    turretSprite.anchor.set(0.5, 0.5);
+    turretSprite.anchor.set(0.5, 0.78125);
+    turretSprite.scale.set(0.68, 0.68);
     turretSprite.animationSpeed = 0.1;
     turretSprite.play();
     headContainer.addChild(turretSprite);
@@ -1392,6 +1764,8 @@ export class SpriteSheetManager {
         turretSprite.textures = data.idleFrames.length > 0 ? data.idleFrames : data.fullFireSequence;
         turretSprite.loop = true;
         turretSprite.animationSpeed = 0.1;
+        turretSprite.anchor.set(0.5, 0.78125);
+        turretSprite.scale.set(0.68, 0.68);
         turretSprite.play();
         turretSprite.tint = 0xffffff;
         data.drawBase(baseSprite);
@@ -1401,7 +1775,8 @@ export class SpriteSheetManager {
         const seq = data.fullFireSequence.length > 0 ? data.fullFireSequence : data.fireFrames;
         turretSprite.textures = seq;
         turretSprite.loop = false;
-        turretSprite.animationSpeed = 0.55;
+        turretSprite.animationSpeed = 0.45;
+        turretSprite.anchor.set(0.5, 0.78125);
         turretSprite.gotoAndPlay(0);
 
         if (onMuzzleFlash) onMuzzleFlash();
