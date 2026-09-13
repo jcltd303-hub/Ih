@@ -10,6 +10,8 @@ import { LoadoutManager } from '../../network/LoadoutManager';
 import { ObjectPool } from './ObjectPool';
 import { functions } from '../../network/FirebaseClient';
 import { httpsCallable } from 'firebase/functions';
+import { PayoutEngine } from './PayoutEngine';
+import { SpriteSheetManager, TurretAnimationRig, TurretSkinId } from './SpriteSheetManager';
 
 export interface Projectile {
   id: string;
@@ -38,6 +40,7 @@ export class WeaponController {
   private lastFiredTime: number = 0;
   private fireCooldownMs: number = 140; // Rate of fire limiter
   private cannonGraphic: Graphics;
+  public turretRig: TurretAnimationRig;
   public cannonX: number;
   public cannonY: number;
   private onWinCallback?: (winAmount: number, currencyType: 'GC' | 'SC') => void;
@@ -80,12 +83,16 @@ export class WeaponController {
       60
     );
 
-    // Tactical Turret base & barrel
+    // Legacy fallback graphic
     this.cannonGraphic = new Graphics();
+
+    // Animated Sci-Fi Turret Rig from Sprite Sheet
+    const initialSkin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
+    this.turretRig = SpriteSheetManager.getInstance().createTurretRig(initialSkin);
+    this.turretRig.container.x = this.cannonX;
+    this.turretRig.container.y = this.cannonY;
+    this.stage.addChild(this.turretRig.container);
     this.refreshCannonSkin();
-    this.cannonGraphic.x = this.cannonX;
-    this.cannonGraphic.y = this.cannonY;
-    this.stage.addChild(this.cannonGraphic);
 
     // Setup offline sync callback
     this.offlineQueue.setSyncHandler(async (queued) => {
@@ -127,60 +134,25 @@ export class WeaponController {
     this.cannonY = height - 40;
     this.cannonGraphic.x = this.cannonX;
     this.cannonGraphic.y = this.cannonY;
+    if (this.turretRig) {
+      this.turretRig.container.x = this.cannonX;
+      this.turretRig.container.y = this.cannonY;
+    }
   }
 
   public updateAim(targetX: number, targetY: number): void {
     const angle = Math.atan2(targetY - this.cannonY, targetX - this.cannonX);
     this.cannonGraphic.rotation = angle + Math.PI / 2;
+    if (this.turretRig) {
+      this.turretRig.headContainer.rotation = angle + Math.PI / 2;
+    }
   }
 
   public refreshCannonSkin(): void {
-    const skin = LoadoutManager.getLoadout().activeCannonSkin || 'default';
-    this.cannonGraphic.clear();
-
-    let baseColor = 0x1e293b;
-    let strokeColor = 0x00ffcc;
-    let coreColor = 0x00ffcc;
-    let barrelColor = 0x334155;
-    let accentColor = 0x60a5fa;
-
-    if (skin === 'abyssal_dread') {
-      baseColor = 0x0f051d;
-      strokeColor = 0xff0055;
-      coreColor = 0xff0033;
-      barrelColor = 0x1a0b2e;
-      accentColor = 0xff3366;
-    } else if (skin === 'cyber_gold') {
-      baseColor = 0x1c1917;
-      strokeColor = 0xfbbf24;
-      coreColor = 0xf59e0b;
-      barrelColor = 0x292524;
-      accentColor = 0xfde047;
-    } else if (skin === 'plasma_neon') {
-      baseColor = 0x090d16;
-      strokeColor = 0x00ffcc;
-      coreColor = 0xff007f;
-      barrelColor = 0x1e1b4b;
-      accentColor = 0x00ffcc;
+    const skin = (LoadoutManager.getLoadout().activeCannonSkin || 'default') as TurretSkinId;
+    if (this.turretRig) {
+      this.turretRig.setSkin(skin);
     }
-
-    // Base pedestal
-    this.cannonGraphic.circle(0, 0, 32);
-    this.cannonGraphic.fill({ color: baseColor, alpha: 0.95 });
-    this.cannonGraphic.stroke({ width: 3, color: strokeColor, alpha: 0.9 });
-
-    // Inner energy reactor
-    this.cannonGraphic.circle(0, 0, 16);
-    this.cannonGraphic.fill({ color: coreColor, alpha: 0.85 });
-
-    // Twin plasma barrels
-    this.cannonGraphic.rect(-10, -52, 6, 38);
-    this.cannonGraphic.fill({ color: barrelColor, alpha: 1.0 });
-    this.cannonGraphic.stroke({ width: 1.5, color: accentColor });
-
-    this.cannonGraphic.rect(4, -52, 6, 38);
-    this.cannonGraphic.fill({ color: barrelColor, alpha: 1.0 });
-    this.cannonGraphic.stroke({ width: 1.5, color: accentColor });
   }
 
   public async fireCannon(
@@ -199,6 +171,11 @@ export class WeaponController {
 
     this.updateAim(targetX, targetY);
 
+    // Trigger dual-barrel animated muzzle flashes, recoil and shell ejection
+    if (this.turretRig) {
+      this.turretRig.playFire();
+    }
+
     this.projectileIdCounter++;
     const projectileId = `proj_${this.projectileIdCounter}`;
 
@@ -212,25 +189,80 @@ export class WeaponController {
     const graphics = container.children[0] as Graphics;
     graphics.clear();
 
-    const skin = LoadoutManager.getLoadout().activeCannonSkin;
-    let bulletColor = currencyType === 'SC' ? (betAmount >= 50 ? 0xff0066 : 0x00ffcc) : 0xffb703;
-    let strokeColor = 0xffffff;
+    const skin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
 
-    if (skin === 'abyssal_dread') {
-      bulletColor = 0xff0033;
-      strokeColor = 0xff6688;
+    // Rotate container to match flight trajectory
+    container.rotation = angle + Math.PI / 2;
+
+    if (skin === 'plasma_neon') {
+      // Streamlined Kinetic-Ion Slug with Cyan-Magenta Dual Energy Plume
+      graphics.poly([
+        { x: 0, y: -16 },
+        { x: 5, y: -4 },
+        { x: 4, y: 12 },
+        { x: -4, y: 12 },
+        { x: -5, y: -4 }
+      ]);
+      graphics.fill({ color: 0x00f0ff, alpha: 0.95 });
+      graphics.stroke({ width: 2, color: 0xff007f, alpha: 0.9 });
+
+      // Core ion tracer
+      graphics.circle(0, 0, 3.5);
+      graphics.fill({ color: 0xffffff, alpha: 1.0 });
+
+      // Dual exhaust ion trails
+      graphics.circle(-2, 14, 2);
+      graphics.circle(2, 14, 2);
+      graphics.fill({ color: 0x00ffcc, alpha: 0.8 });
+    } else if (skin === 'abyssal_dread') {
+      // Heavy Spiked Armor-Piercing Artillery Slug with Crimson Rocket Plume
+      graphics.poly([
+        { x: 0, y: -18 },
+        { x: 6, y: -6 },
+        { x: 5, y: 10 },
+        { x: -5, y: 10 },
+        { x: -6, y: -6 }
+      ]);
+      graphics.fill({ color: 0xef4444, alpha: 1.0 });
+      graphics.stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
+
+      // Incandescent yellow-white core
+      graphics.circle(0, -6, 3);
+      graphics.fill({ color: 0xfef08a, alpha: 1.0 });
+
+      // Rocket fire exhaust
+      graphics.poly([
+        { x: -4, y: 10 },
+        { x: 0, y: 20 },
+        { x: 4, y: 10 }
+      ]);
+      graphics.fill({ color: 0xea580c, alpha: 0.85 });
     } else if (skin === 'cyber_gold') {
-      bulletColor = 0xfbbf24;
-      strokeColor = 0xfffbeb;
-    } else if (skin === 'plasma_neon') {
-      bulletColor = 0x00ffcc;
-      strokeColor = 0xff007f;
-    }
+      // Radiant Solar Sunstone Lance / Topaz Energy Orb with Starburst Corona
+      graphics.circle(0, 0, betAmount >= 50 ? 8 : 6);
+      graphics.fill({ color: 0xfbbf24, alpha: 0.95 });
+      graphics.stroke({ width: 2, color: 0xfffbeb, alpha: 0.95 });
 
-    // Glowing plasma bolt
-    graphics.circle(0, 0, betAmount >= 50 ? 6 : 4.5);
-    graphics.fill({ color: bulletColor, alpha: 1.0 });
-    graphics.stroke({ width: 1.5, color: strokeColor, alpha: 0.95 });
+      // Blinding white-gold center
+      graphics.circle(0, 0, 3.5);
+      graphics.fill({ color: 0xffffff, alpha: 1.0 });
+
+      // 4-point star lens flare
+      graphics.poly([
+        { x: 0, y: -14 }, { x: 3, y: 0 },
+        { x: 14, y: 0 }, { x: 3, y: 0 },
+        { x: 0, y: 14 }, { x: -3, y: 0 },
+        { x: -14, y: 0 }, { x: -3, y: 0 }
+      ]);
+      graphics.fill({ color: 0xfef08a, alpha: 0.75 });
+    } else {
+      // Default Tactical Dual-Bolt Plasma
+      const bulletColor = currencyType === 'SC' ? (betAmount >= 50 ? 0xff0066 : 0x00ffcc) : 0xffb703;
+      graphics.circle(-4, 0, 4);
+      graphics.circle(4, 0, 4);
+      graphics.fill({ color: bulletColor, alpha: 1.0 });
+      graphics.stroke({ width: 1.5, color: 0xffffff, alpha: 0.95 });
+    }
 
     container.x = this.cannonX;
     container.y = this.cannonY - 15;
@@ -250,6 +282,9 @@ export class WeaponController {
     };
 
     this.activeProjectiles.set(projectileId, projectile);
+
+    // Record wager in PayoutEngine telemetry
+    PayoutEngine.recordWager(betAmount);
 
     // Audio & Haptic feedback
     SoundManager.playCannonShot(betAmount);
@@ -326,22 +361,78 @@ export class WeaponController {
       const nearbyEntities = this.spatialGrid.query(proj.x - 14, proj.y - 14, 28, 28);
       if (nearbyEntities.length > 0) {
         const hitEntity = nearbyEntities[0];
-        const hitResult = this.fishManager.inflictDamage(hitEntity.id, proj.betAmount * 1.5);
+        const fish = this.fishManager.getFish(hitEntity.id);
+        const fishType = fish?.typeId || 'small';
 
-        // Pay per hit reward (instant fractional win on every hit)
-        const hitPayout = proj.betAmount * 0.28;
-        this.particleFX.spawnExplosion(proj.x, proj.y, proj.currencyType === 'SC' ? 0x00ffcc : 0xffb703, 8);
+        // Loadout bonus
+        const activeSkin = LoadoutManager.getLoadout().activeCannonSkin;
+        const skinBonus = activeSkin ? 1.25 : 1.0;
+
+        // Evaluate gamble hit via PayoutEngine (governed by Admin Looseness slider)
+        const evalHit = PayoutEngine.evaluateHit(proj.betAmount, fishType, skinBonus);
+
+        // Inflict damage with optional instant gamble kill
+        const hitResult = this.fishManager.inflictDamage(hitEntity.id, evalHit.damage, evalHit.isInstantKill);
+
+        // Pay-per-hit payout
+        const hitPayout = evalHit.hitPayout;
+        PayoutEngine.recordPayout(hitPayout);
+
+        // Visual floating text & audio for special gamble hits
+        if (evalHit.isInstantKill) {
+          this.particleFX.spawnFloatingText(proj.x, proj.y - 15, '⚡ INSTANT CAPTURE!', 0x00ffcc, true);
+          SoundManager.playSound('crit');
+        } else if (evalHit.isSuperCrit) {
+          this.particleFX.spawnFloatingText(proj.x, proj.y - 15, '🔥 SUPER CRIT!', 0xff0055, true);
+          SoundManager.playSound('crit');
+        } else if (evalHit.isCrit) {
+          this.particleFX.spawnFloatingText(proj.x, proj.y - 12, 'CRITICAL HIT', 0xffd700, false);
+          SoundManager.playSound('crit');
+        } else if (evalHit.isLuckyHit) {
+          this.particleFX.spawnFloatingText(proj.x, proj.y - 12, `LUCKY HIT! +${hitPayout.toFixed(2)}`, 0x34d399, false);
+        }
+
+        this.particleFX.spawnExplosion(
+          proj.x,
+          proj.y,
+          evalHit.isSuperCrit ? 0xff0055 : (evalHit.isCrit ? 0xffd700 : (proj.currencyType === 'SC' ? 0x00ffcc : 0xffb703)),
+          evalHit.isSuperCrit ? 22 : (evalHit.isCrit ? 15 : 8)
+        );
         SoundManager.playSound('hit');
 
-        if (this.onWinCallback) {
+        if (this.onWinCallback && hitPayout > 0) {
           this.onWinCallback(hitPayout, proj.currencyType);
         }
 
         if (hitResult.killed) {
-          const winAmount = proj.betAmount * hitResult.multiplier * 0.65;
-          this.particleFX.emitCoinExplosion(hitResult.x, hitResult.y, 16);
-          this.particleFX.spawnExplosion(hitResult.x, hitResult.y, 0xffd700, 25);
-          SoundManager.playSound('coin');
+          // Gamble bonus multiplier on kill (1.5x up to 10x jackpot, scaled by Looseness)
+          const killGamble = PayoutEngine.evaluateKillMultiplier(hitResult.multiplier, fishType);
+          const winAmount = proj.betAmount * killGamble.finalMultiplier * 0.70;
+
+          PayoutEngine.recordPayout(winAmount);
+
+          this.particleFX.emitCoinExplosion(hitResult.x, hitResult.y, killGamble.isJackpot ? 32 : 16);
+          this.particleFX.spawnExplosion(hitResult.x, hitResult.y, 0xffd700, killGamble.isJackpot ? 40 : 25);
+
+          if (killGamble.isJackpot) {
+            SoundManager.playSound('jackpot');
+            this.particleFX.spawnFloatingText(
+              hitResult.x,
+              hitResult.y - 25,
+              `${killGamble.bonusLabel} +${winAmount.toFixed(2)} ${proj.currencyType}`,
+              0xffd700,
+              true
+            );
+          } else {
+            SoundManager.playSound('coin');
+            this.particleFX.spawnFloatingText(
+              hitResult.x,
+              hitResult.y - 15,
+              `+${winAmount.toFixed(2)} ${proj.currencyType}`,
+              0x34d399,
+              false
+            );
+          }
 
           if (this.onWinCallback) {
             this.onWinCallback(winAmount, proj.currencyType);
@@ -352,6 +443,10 @@ export class WeaponController {
         this.projectilePool.release(proj.container);
         this.activeProjectiles.delete(id);
       }
+    }
+
+    if (this.turretRig) {
+      this.turretRig.update(dtScale);
     }
   }
 }

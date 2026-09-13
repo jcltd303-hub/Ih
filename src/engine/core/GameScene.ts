@@ -4,6 +4,7 @@ import { FishManager } from '../systems/FishManager';
 import { WeaponController } from '../systems/WeaponController';
 import { ParticleFXManager } from '../systems/ParticleFXManager';
 import { ThemeManager } from '../systems/ThemeManager';
+import { AnimatedBackground } from '../systems/AnimatedBackground';
 import { AbyssalPostProcessor } from '../systems/AbyssalPostProcessor';
 import { UIManager } from '../../ui/UIManager';
 import { MultiplayerTableManager } from '../../network/MultiplayerTableManager';
@@ -12,6 +13,7 @@ import { TournamentManager } from '../../network/TournamentManager';
 export class GameScene {
   private app: Application;
   private worldContainer: Container;
+  private animatedBackground: AnimatedBackground;
   private spatialGrid: SpatialHashGrid;
   private fishManager: FishManager;
   private weaponController: WeaponController;
@@ -29,11 +31,16 @@ export class GameScene {
 
   constructor(app: Application, uiRoot: HTMLElement) {
     this.app = app;
-    this.worldContainer = new Container();
-    this.app.stage.addChild(this.worldContainer);
-
     const width = this.app.screen.width;
     const height = this.app.screen.height;
+
+    // Layer 0: Animated living background (caustics, god rays, marine snow, rising bubbles)
+    this.animatedBackground = new AnimatedBackground(width, height);
+    this.app.stage.addChild(this.animatedBackground.container);
+
+    // Layer 1: Game world (entities, projectiles, fx)
+    this.worldContainer = new Container();
+    this.app.stage.addChild(this.worldContainer);
 
     this.themeManager = new ThemeManager(app);
     this.postProcessor = new AbyssalPostProcessor();
@@ -45,6 +52,7 @@ export class GameScene {
     this.uiManager = new UIManager(uiRoot, {
       onThemeChange: (theme) => {
         this.themeManager.setTheme(theme);
+        this.animatedBackground.setTheme(theme);
       },
       onAutoFireToggle: (enabled) => {
         this.autoFireActive = enabled;
@@ -114,6 +122,7 @@ export class GameScene {
       const width = this.app.screen.width;
       const height = this.app.screen.height;
 
+      this.animatedBackground.resize(width, height);
       this.fishManager.resize(width, height);
       this.weaponController.resize(width, height);
       this.particleFX.resize(width, height);
@@ -166,6 +175,7 @@ export class GameScene {
     }
 
     // Update systems
+    this.animatedBackground.update(deltaTime);
     this.fishManager.update(deltaTime, this.lastTargetX, this.lastTargetY);
     this.weaponController.update(deltaTime);
     this.particleFX.update(deltaTime);

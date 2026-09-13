@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { BossManager } from './BossManager';
+import { SpriteSheetManager, FishAnimationRig } from './SpriteSheetManager';
 
 export class Fish {
   public id: string;
@@ -17,10 +18,13 @@ export class Fish {
   public container: Container;
   public graphics?: Graphics;
   public bossInstance?: BossManager;
+  public animRig?: FishAnimationRig;
+  public facing: 'left' | 'right' = 'right';
   public isAlive: boolean = true;
   private maxSpeed: number;
   private maxForce: number;
   private panicTimer: number = 0;
+  private miniHealthBar?: Graphics;
 
   constructor(id: string, type: 'small' | 'medium' | 'boss', startX: number, startY: number, screenWidth: number, screenHeight: number) {
     this.id = id;
@@ -31,7 +35,7 @@ export class Fish {
     const isSmall = type === 'small';
     const isBoss = type === 'boss';
 
-    const radius = isBoss ? 85 : isSmall ? 24 : 48;
+    const radius = isBoss ? 85 : isSmall ? 28 : 52;
     this.width = radius * 2;
     this.height = radius * 1.3;
 
@@ -42,8 +46,10 @@ export class Fish {
     const angle = Math.random() * Math.PI * 2;
     this.vx = Math.cos(angle) * baseSpeed;
     this.vy = Math.sin(angle) * (baseSpeed * 0.5);
+    this.facing = this.vx < 0 ? 'left' : 'right';
 
-    this.health = isBoss ? 2000 : isSmall ? 60 : 280;
+    // Reduced HP for high-impact arcade gameplay
+    this.health = isBoss ? 28 : isSmall ? 2 : 6;
     this.maxHealth = this.health;
     this.multiplier = isBoss ? 25 : isSmall ? 1.2 : 4;
     this.worth = this.multiplier;
@@ -51,78 +57,20 @@ export class Fish {
     this.container = new Container();
 
     if (isBoss) {
-      this.bossInstance = new BossManager(2500);
+      this.bossInstance = new BossManager(28);
       this.container.addChild(this.bossInstance);
-    } else if (isSmall) {
-      const sprite = Sprite.from('tetra_sprite');
-      sprite.anchor.set(0.5, 0.5);
-      sprite.width = radius * 2.6;
-      sprite.height = radius * 1.5;
-      this.container.addChild(sprite);
     } else {
-      this.graphics = new Graphics();
-      const primaryColor = isSmall ? 0x00f0ff : 0xff9900;
-      const accentColor = isSmall ? 0x3b82f6 : 0xff3366;
-      const glowColor = isSmall ? 0x00ffcc : 0xffd700;
+      // Create animated sprite sheet rig for swimming and 3D turning
+      this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type);
+      this.container.addChild(this.animRig.container);
 
-      // Drop shadow / glow aura
-      this.graphics.ellipse(0, 2, radius * 0.95, radius * 0.5);
-      this.graphics.fill({ color: glowColor, alpha: 0.18 });
+      if (type === 'medium') {
+        // Distinct electric cobalt/neon tint for medium cyber lionfish
+        this.animRig.tint(0xa5f3fc);
+      }
 
-      // Main streamlined armored hull
-      this.graphics.ellipse(0, 0, radius, radius * 0.52);
-      this.graphics.fill({ color: primaryColor, alpha: 0.9 });
-      this.graphics.stroke({ width: 2.5, color: glowColor, alpha: 0.95 });
-
-      // Segmented cyber armor plates
-      this.graphics.poly([
-        { x: -radius * 0.2, y: -radius * 0.48 },
-        { x: radius * 0.1, y: -radius * 0.52 },
-        { x: radius * 0.2, y: radius * 0.52 },
-        { x: -radius * 0.1, y: radius * 0.48 }
-      ]);
-      this.graphics.fill({ color: accentColor, alpha: 0.4 });
-
-      // Bioluminescent neon stripe
-      this.graphics.moveTo(-radius * 0.6, 0);
-      this.graphics.bezierCurveTo(-radius * 0.2, -radius * 0.25, radius * 0.3, -radius * 0.2, radius * 0.7, 0);
-      this.graphics.bezierCurveTo(radius * 0.3, radius * 0.2, -radius * 0.2, radius * 0.25, -radius * 0.6, 0);
-      this.graphics.fill({ color: 0xffffff, alpha: 0.85 });
-
-      // Sleek multi-rib dorsal fin
-      this.graphics.poly([
-        { x: -radius * 0.3, y: -radius * 0.5 },
-        { x: -radius * 0.1, y: -radius * 0.85 },
-        { x: radius * 0.2, y: -radius * 0.52 }
-      ]);
-      this.graphics.fill({ color: accentColor, alpha: 0.85 });
-      this.graphics.stroke({ width: 1.5, color: glowColor, alpha: 0.9 });
-
-      // Pectoral fin
-      this.graphics.poly([
-        { x: 0, y: radius * 0.2 },
-        { x: radius * 0.25, y: radius * 0.65 },
-        { x: radius * 0.4, y: radius * 0.3 }
-      ]);
-      this.graphics.fill({ color: accentColor, alpha: 0.75 });
-
-      // Graceful flowing tail fin with energy membrane
-      this.graphics.poly([
-        { x: -radius, y: 0 },
-        { x: -radius - (isSmall ? 18 : 28), y: -radius * 0.7 },
-        { x: -radius - (isSmall ? 10 : 16), y: 0 },
-        { x: -radius - (isSmall ? 18 : 28), y: radius * 0.7 }
-      ]);
-      this.graphics.fill({ color: accentColor, alpha: 0.8 });
-      this.graphics.stroke({ width: 2, color: glowColor, alpha: 0.9 });
-
-      // Piercing cybernetic optic eye
-      this.graphics.circle(radius * 0.52, -radius * 0.1, isSmall ? 3.5 : 5.5);
-      this.graphics.fill({ color: 0xffffff, alpha: 1.0 });
-      this.graphics.circle(radius * 0.54, -radius * 0.1, isSmall ? 1.5 : 2.5);
-      this.graphics.fill({ color: 0xff0055, alpha: 1.0 });
-
-      this.container.addChild(this.graphics);
+      // Initial animation matching initial movement direction
+      this.animRig.playState(this.facing === 'left' ? 'swim_left' : 'swim_right');
     }
 
     this.container.x = this.x;
@@ -236,14 +184,44 @@ export class Fish {
     this.container.x = this.x;
     this.container.y = this.y;
 
-    // Face orientation towards velocity vector
-    if (Math.abs(this.vx) > 0.1) {
+    // Sprite sheet animated swimming and 3D turning logic
+    if (this.animRig) {
+      const heading = this.vx < -0.25 ? 'left' : this.vx > 0.25 ? 'right' : this.facing;
+
+      // Trigger 3D turn transition when heading switches
+      if (heading !== this.facing && !this.animRig.isTurning) {
+        this.facing = heading;
+        const turnAnim = heading === 'left' ? 'turn_left' : 'turn_right';
+        const targetSwim = heading === 'left' ? 'swim_left' : 'swim_right';
+
+        this.animRig.playState(turnAnim, () => {
+          if (this.isAlive && this.animRig) {
+            this.animRig.playState(targetSwim);
+          }
+        });
+      } else if (!this.animRig.isTurning) {
+        // Maintain continuous swim loop
+        const activeSwim = this.facing === 'left' ? 'swim_left' : 'swim_right';
+        if (this.animRig.currentState !== activeSwim) {
+          this.animRig.playState(activeSwim);
+        }
+      }
+
+      // Dynamic animation playback rate based on velocity
+      this.animRig.setSpeed(Math.max(0.7, currentSpeed / this.maxSpeed));
+    } else if (Math.abs(this.vx) > 0.1) {
+      // Fallback orientation for Boss
       this.container.scale.x = this.vx > 0 ? 1 : -1;
     }
   }
 
-  public inflictDamage(damage: number): { killed: boolean; multiplier: number; x: number; y: number } {
+  public inflictDamage(damage: number, forceInstantKill: boolean = false): { killed: boolean; multiplier: number; x: number; y: number } {
     if (!this.isAlive) return { killed: false, multiplier: 0, x: this.x, y: this.y };
+
+    if (forceInstantKill) {
+      this.kill();
+      return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
+    }
 
     if (this.bossInstance) {
       const isDefeated = this.bossInstance.takeDamage(damage);
@@ -252,22 +230,61 @@ export class Fish {
         return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
       }
     } else {
-      this.health -= damage;
+      // Strictly monotonically decreasing health (guaranteed no health regeneration)
+      this.health = Math.max(0, this.health - damage);
+      this.updateMiniHealthBar();
       if (this.health <= 0) {
         this.kill();
         return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
       }
     }
 
-    // Hit pulse reaction
-    this.container.scale.set(1.2);
+    // Hit pulse and flash reaction
+    if (this.animRig) {
+      this.animRig.tint(0xff4444);
+      setTimeout(() => {
+        if (this.isAlive && this.animRig) {
+          if (this.typeId === 'medium') {
+            this.animRig.tint(0xa5f3fc);
+          } else {
+            this.animRig.resetTint();
+          }
+        }
+      }, 90);
+    }
+
+    this.container.scale.set(this.container.scale.x * 1.15, this.container.scale.y * 1.15);
     setTimeout(() => {
       if (this.container && !this.container.destroyed) {
-        this.container.scale.set(this.vx > 0 ? 1 : -1, 1);
+        this.container.scale.set(this.container.scale.x / 1.15, this.container.scale.y / 1.15);
       }
     }, 70);
 
     return { killed: false, multiplier: 0, x: this.x, y: this.y };
+  }
+
+  private updateMiniHealthBar(): void {
+    if (this.typeId === 'boss') return;
+    if (!this.miniHealthBar) {
+      this.miniHealthBar = new Graphics();
+      this.container.addChild(this.miniHealthBar);
+    }
+    this.miniHealthBar.clear();
+    const radius = this.typeId === 'small' ? 24 : 48;
+    const barWidth = radius * 1.5;
+    const barHeight = 4;
+    const yPos = -radius * 0.7 - 8;
+    const pct = Math.max(0, Math.min(1, this.health / this.maxHealth));
+
+    // Dark background pill
+    this.miniHealthBar.rect(-barWidth / 2, yPos, barWidth, barHeight);
+    this.miniHealthBar.fill({ color: 0x0f172a, alpha: 0.85 });
+    this.miniHealthBar.stroke({ width: 1, color: 0x334155, alpha: 0.8 });
+
+    // Remaining HP fill (green -> amber -> crimson)
+    const fillColor = pct > 0.6 ? 0x00ffcc : pct > 0.3 ? 0xffb703 : 0xff0055;
+    this.miniHealthBar.rect(-barWidth / 2 + 0.5, yPos + 0.5, Math.max(0, (barWidth - 1) * pct), barHeight - 1);
+    this.miniHealthBar.fill({ color: fillColor, alpha: 0.95 });
   }
 
   public kill(): void {

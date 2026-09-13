@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 
 interface ExplosionParticle {
   graphic: Graphics;
@@ -21,10 +21,20 @@ interface CoinToken {
   life: number;
 }
 
+interface FloatingText {
+  text: Text;
+  x: number;
+  y: number;
+  vy: number;
+  alpha: number;
+  life: number;
+}
+
 export class ParticleFXManager {
   private stage: Container;
   private particles: ExplosionParticle[] = [];
   private coins: CoinToken[] = [];
+  private floatingTexts: FloatingText[] = [];
   private screenWidth: number;
   private screenHeight: number;
 
@@ -37,6 +47,32 @@ export class ParticleFXManager {
   public resize(width: number, height: number): void {
     this.screenWidth = width;
     this.screenHeight = height;
+  }
+
+  public spawnFloatingText(x: number, y: number, message: string, color: number | string = 0xffd700, isLarge: boolean = false): void {
+    const text = new Text({
+      text: message,
+      style: new TextStyle({
+        fontFamily: 'monospace',
+        fontSize: isLarge ? 18 : 12,
+        fontWeight: '800',
+        fill: color,
+        stroke: { color: 0x000000, width: 3 }
+      })
+    });
+    text.anchor.set(0.5, 0.5);
+    text.x = x;
+    text.y = y;
+    this.stage.addChild(text);
+
+    this.floatingTexts.push({
+      text,
+      x,
+      y,
+      vy: isLarge ? -1.5 : -1.0,
+      alpha: 1.0,
+      life: isLarge ? 55 : 35
+    });
   }
 
   public spawnExplosion(x: number, y: number, color: number = 0x00ffcc, count: number = 20): void {
@@ -126,6 +162,23 @@ export class ParticleFXManager {
       if (c.life <= 0) {
         c.graphic.destroy();
         this.coins.splice(i, 1);
+      }
+    }
+
+    // Update floating texts
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.y += ft.vy * dtScale;
+      ft.life -= dtScale;
+      if (ft.life < 20) {
+        ft.alpha = Math.max(0, ft.life / 20);
+      }
+      ft.text.y = ft.y;
+      ft.text.alpha = ft.alpha;
+
+      if (ft.life <= 0) {
+        ft.text.destroy();
+        this.floatingTexts.splice(i, 1);
       }
     }
   }

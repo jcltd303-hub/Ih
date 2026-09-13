@@ -51,7 +51,7 @@ export class SoundManager {
     }
   }
 
-  public static playSound(type: 'fire' | 'hit' | 'coin' | 'boss_warning'): void {
+  public static playSound(type: 'fire' | 'hit' | 'coin' | 'boss_warning' | 'crit' | 'jackpot'): void {
     if (!this.enabled) return;
     this.initContext();
     if (!this.audioCtx) return;
@@ -92,6 +92,25 @@ export class SoundManager {
         gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
         osc.start(now);
         osc.stop(now + 0.35);
+      } else if (type === 'crit') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(1100, now + 0.12);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } else if (type === 'jackpot') {
+        // Fast ascending triad arpeggio
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(739.99, now + 0.08); // F#5
+        osc.frequency.setValueAtTime(880.00, now + 0.16); // A5
+        osc.frequency.setValueAtTime(1174.66, now + 0.24); // D6
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.45);
+        osc.start(now);
+        osc.stop(now + 0.45);
       }
     } catch {
       // Guard

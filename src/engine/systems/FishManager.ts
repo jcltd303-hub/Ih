@@ -45,8 +45,12 @@ export class FishManager {
   }
 
   public spawnRandomWave(): void {
+    if (this.activeFish.size >= 12) return;
+
+    // Guarantee only one active boss at any time
+    const hasBoss = Array.from(this.activeFish.values()).some(f => f.typeId === 'boss' && f.isAlive);
     const roll = Math.random();
-    if (roll > 0.92) {
+    if (roll > 0.90 && !hasBoss) {
       this.spawnFish('boss');
     } else if (roll > 0.45) {
       this.spawnFish('medium');
@@ -77,15 +81,19 @@ export class FishManager {
     }
   }
 
-  public inflictDamage(fishId: string, damage: number): { killed: boolean; multiplier: number; x: number; y: number } {
+  public inflictDamage(fishId: string, damage: number, forceInstantKill: boolean = false): { killed: boolean; multiplier: number; x: number; y: number } {
     const fish = this.activeFish.get(fishId);
     if (!fish || !fish.isAlive) return { killed: false, multiplier: 0, x: 0, y: 0 };
 
-    const result = fish.inflictDamage(damage);
+    const result = fish.inflictDamage(damage, forceInstantKill);
     if (result.killed) {
       this.killFish(fishId);
     }
     return result;
+  }
+
+  public getFish(fishId: string): Fish | undefined {
+    return this.activeFish.get(fishId);
   }
 
   public killFish(fishId: string): void {

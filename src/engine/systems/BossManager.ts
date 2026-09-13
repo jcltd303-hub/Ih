@@ -9,7 +9,7 @@ export class BossManager extends Container {
   private bossLabel: Text;
   public isEnraged: boolean = false;
 
-  constructor(maxHp: number = 500) {
+  constructor(maxHp: number = 28) {
     super();
     this.maxHp = maxHp;
     this.currentHp = maxHp;

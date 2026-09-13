@@ -1,4 +1,5 @@
 import { Texture, Assets } from 'pixi.js';
+import { SpriteSheetManager } from './SpriteSheetManager';
 
 export class AssetLoader {
   private static assetsReady: boolean = false;
@@ -129,7 +130,10 @@ export class AssetLoader {
       // Fallback
     }
 
+    // Step 8: Initialize Sprite Sheet Animations (Mechanical Lionfish & Sci-Fi Turret)
+    await SpriteSheetManager.getInstance().initialize();
+
     this.assetsReady = true;
-    console.log('[AssetLoader] User uploaded tetra & leviathan sprites loaded & cached successfully.');
+    console.log('[AssetLoader] Game assets and animated sprite sheets loaded successfully.');
   }
 }
