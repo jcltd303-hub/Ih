@@ -1,10 +1,11 @@
 import { FeatureFlags } from '../config/FeatureFlags';
+import { analytics } from './FirebaseClient';
+import { logEvent } from 'firebase/analytics';
 
 type Props = Record<string, string | number | boolean | undefined>;
 
 /**
- * Lightweight analytics — console + optional window dataLayer push.
- * Swap sink for GA4/Amplitude later without touching call sites.
+ * Lightweight analytics — console + Firebase Analytics (GA4) + optional window dataLayer push.
  */
 export class Analytics {
   private static queue: { event: string; props: Props; t: number }[] = [];
@@ -17,6 +18,14 @@ export class Analytics {
 
     console.info('[analytics]', event, props);
 
+    if (analytics) {
+      try {
+        logEvent(analytics, event, props);
+      } catch (e) {
+        // Safe fallback if logEvent fails
+      }
+    }
+
     const w = window as Window & { dataLayer?: unknown[] };
     if (Array.isArray(w.dataLayer)) {
       w.dataLayer.push({ event, ...props });
@@ -27,3 +36,4 @@ export class Analytics {
     return [...this.queue];
   }
 }
+

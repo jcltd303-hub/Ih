@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "fish-frenzy-prod"
+    "default": "fish-frenzy-mobile"
   }
 }
+
