@@ -88,10 +88,20 @@ export class UIManager {
           -webkit-background-clip: text; background-clip: text; color: transparent;">
           FISH FRENZY
         </h1>
-        <p style="margin: 0 0 28px; font-size: 13px; color: #94a3b8; line-height: 1.5;">
+        <p style="margin: 0 0 20px; font-size: 13px; color: #94a3b8; line-height: 1.5;">
           Aim the modular turret. School the trench. Hunt the Leviathan.<br/>
           Provably fair RTP · 4 tactical chassis · Boid swarm physics
         </p>
+        <div id="ff-auth-banner" style="
+          margin: 0 auto 20px; max-width: 360px; padding: 10px 14px; border-radius: 10px;
+          background: rgba(15,23,42,0.85); border: 1px solid #334155; font-size: 11px; color: #94a3b8;
+        ">
+          <div id="ff-auth-status">Playing as guest — progress is local until you sign in.</div>
+          <button id="ff-google-btn" type="button" style="
+            margin-top: 10px; background: #1e293b; color: #e2e8f0; border: 1px solid #475569;
+            padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;
+          ">Sign in with Google to save progress</button>
+        </div>
         <button id="ff-play-btn" style="
           background: linear-gradient(135deg, #00ffcc 0%, #0891b2 100%);
           color: #0a0f1d; border: none; padding: 16px 48px; border-radius: 12px;
@@ -111,6 +121,45 @@ export class UIManager {
     playBtn?.addEventListener('click', () => {
       SoundManager.playUiSound('modal_open');
       this.onPlayCallback?.();
+    });
+
+    const googleBtn = document.getElementById('ff-google-btn');
+    googleBtn?.addEventListener('click', async () => {
+      try {
+        const { AuthManager } = await import('../network/AuthManager');
+        const state = await AuthManager.getInstance().linkGoogle();
+        const status = document.getElementById('ff-auth-status');
+        if (status) {
+          status.textContent = state.isAnonymous
+            ? 'Playing as guest — progress is local until you sign in.'
+            : `Signed in as ${state.displayName} — wallet will sync when online.`;
+        }
+        if (googleBtn && !state.isAnonymous) {
+          googleBtn.textContent = 'Progress linked';
+          (googleBtn as HTMLButtonElement).disabled = true;
+        }
+        SoundManager.playUiSound('modal_open');
+      } catch (e: any) {
+        const status = document.getElementById('ff-auth-status');
+        if (status) status.textContent = e?.message || 'Sign-in failed. You can still play as guest.';
+      }
+    });
+
+    // Reflect current auth state on banner
+    import('../network/AuthManager').then(({ AuthManager }) => {
+      AuthManager.getInstance().ensureSignedIn().then((state) => {
+        const status = document.getElementById('ff-auth-status');
+        if (!status) return;
+        if (!state.configured) {
+          status.textContent = 'Offline arcade mode — set VITE_FIREBASE_* to enable cloud wallet.';
+        } else if (state.isAnonymous) {
+          status.textContent = `Guest · ${state.displayName} — sign in to save progress.`;
+        } else {
+          status.textContent = `Signed in as ${state.displayName}`;
+          const btn = document.getElementById('ff-google-btn') as HTMLButtonElement | null;
+          if (btn) { btn.textContent = 'Progress linked'; btn.disabled = true; }
+        }
+      }).catch(() => {});
     });
     playBtn?.addEventListener('mouseenter', () => {
       if (playBtn) {

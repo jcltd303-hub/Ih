@@ -2,10 +2,13 @@ import {
   onAuthStateChanged,
   signInAnonymously,
   User,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider,
+  linkWithPopup,
+  signInWithPopup
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from './FirebaseClient';
+import { auth, db, isFirebaseConfigured } from './FirebaseClient';
 import { GameConfig } from '../config/GameConfig';
 
 export type AuthState = {
@@ -14,14 +17,13 @@ export type AuthState = {
   displayName: string;
   isAnonymous: boolean;
   ready: boolean;
+  configured: boolean;
 };
 
 type Listener = (state: AuthState) => void;
 
 /**
- * Anonymous Firebase Auth bootstrap + first-time user profile.
- * Wallet documents are created client-side only when missing AND rules allow;
- * production should prefer the ensureUserWallet Cloud Function (Admin SDK).
+ * Anonymous Firebase Auth bootstrap + optional Google link for save progress.
  */
 export class AuthManager {
   private static instance: AuthManager | null = null;
@@ -30,7 +32,8 @@ export class AuthManager {
     uid: GameConfig.localPlayerId,
     displayName: GameConfig.localDisplayName,
     isAnonymous: true,
-    ready: false
+    ready: false,
+    configured: isFirebaseConfigured
   };
   private listeners: Listener[] = [];
   private initPromise: Promise<AuthState> | null = null;
@@ -61,13 +64,24 @@ export class AuthManager {
     this.listeners.forEach((l) => l(snapshot));
   }
 
-  /** Sign in anonymously (or reuse existing session) and ensure profile docs. */
   public async ensureSignedIn(): Promise<AuthState> {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
+      if (!isFirebaseConfigured) {
+        this.state = {
+          user: null,
+          uid: GameConfig.localPlayerId,
+          displayName: GameConfig.localDisplayName,
+          isAnonymous: true,
+          ready: true,
+          configured: false
+        };
+        this.emit();
+        return this.getState();
+      }
+
       try {
-        // Reuse existing session if present
         const existing = await new Promise<User | null>((resolve) => {
           const unsub = onAuthStateChanged(auth, (u) => {
             unsub();
@@ -90,7 +104,8 @@ export class AuthManager {
           uid: user.uid,
           displayName: user.displayName || GameConfig.localDisplayName,
           isAnonymous: user.isAnonymous,
-          ready: true
+          ready: true,
+          configured: true
         };
 
         await this.ensureProfile(user.uid, this.state.displayName);
@@ -103,7 +118,8 @@ export class AuthManager {
           uid: GameConfig.localPlayerId,
           displayName: GameConfig.localDisplayName,
           isAnonymous: true,
-          ready: true
+          ready: true,
+          configured: isFirebaseConfigured
         };
         this.emit();
         return this.getState();
@@ -113,18 +129,54 @@ export class AuthManager {
     return this.initPromise;
   }
 
+  /** Link anonymous account to Google (saves progress across devices). */
+  public async linkGoogle(): Promise<AuthState> {
+    if (!isFirebaseConfigured) {
+      throw new Error('Firebase is not configured. Add VITE_FIREBASE_* to .env.local');
+    }
+    await this.ensureSignedIn();
+    const provider = new GoogleAuthProvider();
+    try {
+      if (this.state.user && this.state.isAnonymous) {
+        const result = await linkWithPopup(this.state.user, provider);
+        this.state = {
+          user: result.user,
+          uid: result.user.uid,
+          displayName: result.user.displayName || this.state.displayName,
+          isAnonymous: false,
+          ready: true,
+          configured: true
+        };
+      } else {
+        const result = await signInWithPopup(auth, provider);
+        this.state = {
+          user: result.user,
+          uid: result.user.uid,
+          displayName: result.user.displayName || GameConfig.localDisplayName,
+          isAnonymous: result.user.isAnonymous,
+          ready: true,
+          configured: true
+        };
+      }
+      await this.ensureProfile(this.state.uid, this.state.displayName);
+      this.emit();
+      return this.getState();
+    } catch (e) {
+      console.error('[AuthManager] Google link failed:', e);
+      throw e;
+    }
+  }
+
   private async ensureProfile(uid: string, displayName: string): Promise<void> {
     try {
       const userRef = doc(db, 'users', uid);
       const snap = await getDoc(userRef);
       if (!snap.exists()) {
-        // Profile metadata only — balances via Admin/ensureUserWallet when deployed
         await setDoc(userRef, {
           displayName,
           createdAt: serverTimestamp(),
           lastSeen: serverTimestamp()
         }).catch((e) => {
-          // Rules may block create; Cloud Function path is preferred in prod
           console.warn('[AuthManager] Profile create skipped (rules/offline):', e);
         });
       }

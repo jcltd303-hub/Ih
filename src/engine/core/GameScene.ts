@@ -10,6 +10,7 @@ import { UIManager } from '../../ui/UIManager';
 import { MultiplayerTableManager } from '../../network/MultiplayerTableManager';
 import { TournamentManager } from '../../network/TournamentManager';
 import { GameConfig } from '../../config/GameConfig';
+import { AuthManager } from '../../network/AuthManager';
 
 export class GameScene {
   private app: Application;
@@ -171,8 +172,9 @@ export class GameScene {
       return; // Insufficient balance
     }
 
+    const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     this.weaponController.fireCannon(
-      GameConfig.localPlayerId,
+      uid,
       GameConfig.localSessionId,
       currency,
       betAmount,
@@ -182,7 +184,7 @@ export class GameScene {
 
     this.multiplayerTable.broadcastTableShot(
       GameConfig.defaultTableId,
-      GameConfig.localPlayerId,
+      uid,
       targetX,
       targetY,
       betAmount

@@ -1,6 +1,6 @@
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, functions } from './FirebaseClient';
+import { db, functions, isFirebaseConfigured } from './FirebaseClient';
 import { GameConfig } from '../config/GameConfig';
 import { AuthManager } from './AuthManager';
 
@@ -55,6 +55,16 @@ export class WalletService {
   public async connect(): Promise<WalletBalances> {
     const auth = await AuthManager.getInstance().ensureSignedIn();
     const uid = auth.uid;
+
+    if (!isFirebaseConfigured) {
+      this.balances = {
+        goldCoins: GameConfig.startingGc,
+        sweepstakesCoins: GameConfig.startingSc,
+        source: 'local'
+      };
+      this.emit();
+      return this.getBalances();
+    }
 
     // Best-effort: ask backend to create wallet if missing (no-op if function undeployed)
     try {
@@ -120,6 +130,16 @@ export class WalletService {
   }
 
   /** Optimistic local adjust for offline arcade; server remains source of truth online. */
+  /** Force HUD to match server balances after processPlayerShot. */
+  public applyServerBalances(goldCoins: number, sweepstakesCoins: number): void {
+    this.balances = {
+      goldCoins: Math.max(0, goldCoins),
+      sweepstakesCoins: Math.max(0, sweepstakesCoins),
+      source: 'server'
+    };
+    this.emit();
+  }
+
   public applyLocalDelta(gcDelta: number, scDelta: number): void {
     if (this.balances.source === 'server') {
       // Online: HUD should refresh from snapshot after Cloud Function settles

@@ -4,6 +4,7 @@ import { FishManager } from './FishManager';
 import { ParticleFXManager } from './ParticleFXManager';
 import { CryptoSigner } from '../../network/CryptoSigner';
 import { OfflineTransactionQueue } from '../../network/OfflineTransactionQueue';
+import { ShotSettlement } from '../../network/ShotSettlement';
 import { HapticManager } from '../../network/HapticManager';
 import { SoundManager } from '../../audio/SoundManager';
 import { LoadoutManager } from '../../network/LoadoutManager';
@@ -438,6 +439,23 @@ export class WeaponController {
           this.onWinCallback(hitPayout, proj.currencyType);
           SoundManager.playCoinDrop('small', hitPayout);
         }
+
+        // Server settlement (balance sync) — offline falls back to local HUD only
+        ShotSettlement.settle({
+          sessionId: proj.sessionId,
+          currencyType: proj.currencyType,
+          betAmount: proj.betAmount,
+          targetId: hitEntity.id,
+          clientHitConfirmed: true,
+          clientKillConfirmed: hitResult.killed,
+          fishType: fishType as 'small' | 'medium' | 'boss',
+          skinBonus
+        }).then((result) => {
+          if (result.online && result.serverAuthoritative && result.payoutAmount > 0) {
+            // Prefer server payout for SC when authoritative; still show FX from local eval
+          }
+        }).catch(() => {});
+
 
         if (hitResult.killed) {
           // Gamble bonus multiplier on kill (1.5x up to 10x jackpot, scaled by Looseness)
