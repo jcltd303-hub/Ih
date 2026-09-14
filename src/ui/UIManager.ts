@@ -13,8 +13,7 @@ export class UIManager {
   private container: HTMLElement;
   private gcBalanceEl!: HTMLElement;
   private scBalanceEl!: HTMLElement;
-  private betDisplayEl!: HTMLElement;
-  private currencyBtn!: HTMLElement;
+  private betDisplayEl: HTMLElement | null = null;
   private soundBtn!: HTMLElement;
   private modalContainer!: HTMLElement;
 
@@ -263,10 +262,10 @@ export class UIManager {
             <span id="hud-sc-balance" style="font-size: 13px; font-weight: 700; color: #00ffcc;">${this.scBalance.toFixed(2)}</span>
           </div>
 
-          <!-- Currency Switcher Toggle -->
-          <button id="hud-currency-toggle" style="background: #1e293b; color: #00ffcc; border: 1px solid #334155; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 11px; transition: all 0.2s;">
-            MODE: SC
-          </button>
+          <!-- Read-only stake (change in Lobby) -->
+          <div id="hud-stake-readonly" style="background: rgba(15, 23, 42, 0.88); border: 1px solid #475569; padding: 6px 10px; border-radius: 8px; color: #e2e8f0; font-size: 11px; font-weight: 700;">
+            BET <span id="hud-bet-display">${this.getCurrentBet()} ${this.activeCurrency}</span>
+          </div>
         </div>
 
         <!-- Lobby + essentials only (shop/streak/admin live in Lobby) -->
@@ -281,43 +280,19 @@ export class UIManager {
       </div>
 
       <!-- BOTTOM TACTICAL WEAPON HUD -->
-      <div id="hud-bottombar" style="display: flex; justify-content: center; align-items: center; width: 100%; pointer-events: auto; padding-bottom: 8px; gap: 16px; flex-wrap: wrap;">
-        <!-- Bet Selector Console -->
-        <div style="background: rgba(15, 23, 42, 0.94); border: 1px solid #334155; padding: 10px 24px; border-radius: 14px; display: flex; align-items: center; gap: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
-          <button id="hud-bet-decrease" style="background: #1e293b; color: #ffffff; border: 1px solid #475569; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
-            -
-          </button>
-          <div style="text-align: center; min-width: 90px;">
-            <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">BET TIER</div>
-            <div id="hud-bet-display" style="font-size: 20px; color: #ffb703; font-weight: 800;">
-              ${this.getCurrentBet()} ${this.activeCurrency}
-            </div>
-          </div>
-          <button id="hud-bet-increase" style="background: #1e293b; color: #ffffff; border: 1px solid #475569; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
-            +
-          </button>
-        </div>
-
-        <!-- Target Lock Tip -->
-        <div style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; text-align: left; max-width: 140px; line-height: 1.3;">
-          HOLD TO FIRE<br/>
-          <span style="color: #00ffcc;">APEX BOSS: 100x</span>
-        </div>
+      <div id="hud-bottombar" style="display: flex; justify-content: center; align-items: center; width: 100%; pointer-events: none; padding-bottom: 8px;">
+        <div style="font-size: 10px; color: #64748b; letter-spacing: 0.5px;">HOLD TO FIRE · stake set in LOBBY</div>
       </div>
     `;
 
     // Reference elements
     this.gcBalanceEl = document.getElementById('hud-gc-balance')!;
     this.scBalanceEl = document.getElementById('hud-sc-balance')!;
-    this.betDisplayEl = document.getElementById('hud-bet-display')!;
-    this.currencyBtn = document.getElementById('hud-currency-toggle')!;
+    this.betDisplayEl = document.getElementById('hud-bet-display');
     this.soundBtn = document.getElementById('hud-sound-toggle')!;
 
     // Event listeners
-    document.getElementById('hud-bet-decrease')?.addEventListener('click', () => this.adjustBet(-1));
-    document.getElementById('hud-bet-increase')?.addEventListener('click', () => this.adjustBet(1));
 
-    this.currencyBtn.addEventListener('click', () => this.toggleCurrency());
     this.soundBtn.addEventListener('click', () => this.toggleSound());
 
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
@@ -390,6 +365,25 @@ export class UIManager {
           · House edge ~<strong>${(100 - rtp).toFixed(0)}%</strong>
           · P&amp;L ${profit.isProfitable ? '<span style="color:#34d399">OK</span>' : '<span style="color:#f87171">REVIEW</span>'}
         </p>
+
+        <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:1px solid #334155;border-radius:12px;">
+          <div style="font-size:10px;letter-spacing:2px;color:#64748b;font-weight:700;margin-bottom:10px;">STAKE · SET BEFORE RESUME</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button type="button" id="lobby-cur-sc" style="flex:1;padding:10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:12px;border:2px solid ${this.activeCurrency==='SC'?'#00ffcc':'#334155'};background:${this.activeCurrency==='SC'?'rgba(0,255,204,0.15)':'#1e293b'};color:${this.activeCurrency==='SC'?'#00ffcc':'#94a3b8'};">SC</button>
+            <button type="button" id="lobby-cur-gc" style="flex:1;padding:10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:12px;border:2px solid ${this.activeCurrency==='GC'?'#fbbf24':'#334155'};background:${this.activeCurrency==='GC'?'rgba(251,191,36,0.15)':'#1e293b'};color:${this.activeCurrency==='GC'?'#fbbf24':'#94a3b8'};">GC</button>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Bet amount <span style="color:#64748b">(resets to 1.00 when currency changes)</span></div>
+          <div id="lobby-bet-chips" style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${this.betTiers.map((b, i) => `
+              <button type="button" class="lobby-bet-chip" data-bet-index="${i}" style="
+                padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:11px;
+                border:1px solid ${i===this.currentBetIndex?'#00ffcc':'#334155'};
+                background:${i===this.currentBetIndex?'rgba(0,255,204,0.2)':'#1e293b'};
+                color:${i===this.currentBetIndex?'#00ffcc':'#e2e8f0'};
+              ">${b} ${this.activeCurrency}</button>
+            `).join('')}
+          </div>
+        </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <button class="lobby-tile" data-lobby="shop" style="text-align:left; background:#1e293b; border:1px solid #e11d48; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
             <div style="font-size:18px; margin-bottom:4px;">🎯</div>
@@ -425,6 +419,21 @@ export class UIManager {
     this.modalContainer.style.display = 'flex';
     document.getElementById('lobby-close-btn')?.addEventListener('click', () => this.closeModal());
     document.getElementById('lobby-resume-btn')?.addEventListener('click', () => this.closeModal());
+    document.getElementById('lobby-cur-sc')?.addEventListener('click', () => {
+      this.setCurrency('SC');
+      this.showLobby();
+    });
+    document.getElementById('lobby-cur-gc')?.addEventListener('click', () => {
+      this.setCurrency('GC');
+      this.showLobby();
+    });
+    this.modalContainer.querySelectorAll('.lobby-bet-chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt((btn as HTMLElement).getAttribute('data-bet-index') || '0', 10);
+        this.setBetIndex(idx);
+        this.showLobby();
+      });
+    });
     this.modalContainer.querySelectorAll('.lobby-tile').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-lobby');
@@ -538,27 +547,43 @@ export class UIManager {
   }
 
 
+  private refreshStakeHud(): void {
+    const el = document.getElementById('hud-bet-display');
+    if (el) el.textContent = `${this.getCurrentBet()} ${this.activeCurrency}`;
+  }
+
   private adjustBet(direction: number): void {
     const newIndex = Math.max(0, Math.min(this.betTiers.length - 1, this.currentBetIndex + direction));
     if (newIndex !== this.currentBetIndex) {
       SoundManager.playUiSound(direction > 0 ? 'chip_up' : 'chip_down');
     }
     this.currentBetIndex = newIndex;
-    this.betDisplayEl.textContent = `${this.getCurrentBet()} ${this.activeCurrency}`;
-    if (this.onBetChangeCallback) {
-      this.onBetChangeCallback(this.getCurrentBet(), this.activeCurrency);
-    }
+    this.refreshStakeHud();
+    this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
 
   private toggleCurrency(): void {
-    SoundManager.playUiSound('currency_toggle');
-    this.activeCurrency = this.activeCurrency === 'SC' ? 'GC' : 'SC';
-    this.currencyBtn.textContent = `MODE: ${this.activeCurrency}`;
-    this.currencyBtn.style.color = this.activeCurrency === 'SC' ? '#00ffcc' : '#fbbf24';
-    this.betDisplayEl.textContent = `${this.getCurrentBet()} ${this.activeCurrency}`;
-    if (this.onBetChangeCallback) {
-      this.onBetChangeCallback(this.getCurrentBet(), this.activeCurrency);
+    this.setCurrency(this.activeCurrency === 'SC' ? 'GC' : 'SC');
+  }
+
+  private setBetIndex(index: number): void {
+    this.currentBetIndex = Math.max(0, Math.min(this.betTiers.length - 1, index));
+    SoundManager.playUiSound('chip_up');
+    this.refreshStakeHud();
+    this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
+  }
+
+  /** Lobby-only currency switch — resets bet to 1.00 */
+  private setCurrency(currency: 'GC' | 'SC'): void {
+    const changed = this.activeCurrency !== currency;
+    this.activeCurrency = currency;
+    if (changed) {
+      const defaultIdx = this.betTiers.indexOf(1.0);
+      this.currentBetIndex = defaultIdx >= 0 ? defaultIdx : 4;
+      SoundManager.playUiSound('currency_toggle');
     }
+    this.refreshStakeHud();
+    this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
 
   private toggleAutoFire(): void {
@@ -567,10 +592,7 @@ export class UIManager {
 
   private toggleTheme(): void {
     this.currentTheme = this.currentTheme === 'light' ? 'dark' : 'light';
-    this.themeBtn.textContent = this.currentTheme === 'light' ? '🎨 CAN-TECH' : '💀 HORROR';
-    if (this.onThemeChangeCallback) {
-      this.onThemeChangeCallback(this.currentTheme);
-    }
+    this.onThemeChangeCallback?.(this.currentTheme);
   }
 
   private toggleSound(): void {
