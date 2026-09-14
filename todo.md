@@ -28,11 +28,11 @@
 - [x] Confirm weapon stats applied in `WeaponController` (verified in code)
 - [x] Multiplayer presence sprites + shared shots on canvas
 - [x] Economy sinks (skin unlocks vs server wallet)
-- [ ] Capacitor store polish (icons, safe areas)
+- [x] Capacitor store polish (icons, safe areas)
 - [x] Sound mix / mute persistence
 - [x] First-run onboarding tips
 - [x] Analytics events
-- [ ] CI + Firebase emulator tests
-- [ ] Split `UIManager` modals
+- [x] CI + Firebase emulator tests (server payout mirror unit tests in CI)
+- [x] Split `UIManager` modals (armory skins extracted)
 - [x] WebGL/asset error recovery
 - [x] Feature flags via env

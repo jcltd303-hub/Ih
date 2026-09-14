@@ -4,6 +4,7 @@ import { ProvablyFairAuditor } from '../utils/ProvablyFairAuditor';
 import { SoundManager } from '../audio/SoundManager';
 import { GameTheme } from '../engine/systems/ThemeManager';
 import { LoadoutManager, SKIN_PRICES } from '../network/LoadoutManager';
+import { ARMORY_SKINS, skinUnlockLabel } from './modals/armorySkins';
 import { PayoutEngine } from '../engine/systems/PayoutEngine';
 
 export class UIManager {
@@ -401,40 +402,7 @@ export class UIManager {
 
   private showArmoryModal(): void {
     const currentLoadout = LoadoutManager.getLoadout();
-    const availableSkins = [
-      {
-        id: 'plasma_neon',
-        name: 'Plasma Neon Railgun',
-        desc: 'Dual magnetic accelerator rails • Cyan/magenta ion plume • Lightning arc charging',
-        badge: '⚡ RAILGUN',
-        color: '#00f0ff',
-        border: 'rgba(0, 240, 255, 0.4)'
-      },
-      {
-        id: 'abyssal_dread',
-        name: 'Abyssal Dread Juggernaut',
-        desc: 'Spiked iron fortress dome • Rotary Gatling shroud • Incandescent crimson rocket',
-        badge: '🩸 GATLING',
-        color: '#ef4444',
-        border: 'rgba(239, 68, 68, 0.4)'
-      },
-      {
-        id: 'cyber_gold',
-        name: 'Cyber Gold Sunstone',
-        desc: 'Antique bronze filigree • Faceted topaz gem lens • Searing solar lance ray',
-        badge: '☀️ SOLAR',
-        color: '#fbbf24',
-        border: 'rgba(251, 191, 36, 0.4)'
-      },
-      {
-        id: 'default',
-        name: 'Tactical Navy Dual-Cannon',
-        desc: 'Titanium naval armor • Twin plasma bores • Dual high-energy plasma bolts',
-        badge: '⚓ NAVAL',
-        color: '#60a5fa',
-        border: 'rgba(96, 165, 250, 0.4)'
-      }
-    ];
+    const availableSkins = ARMORY_SKINS;
 
     this.modalContainer.innerHTML = `
       <div style="background: #0f172a; border: 2px solid #e11d48; border-radius: 16px; padding: 24px; max-width: 520px; width: 100%; color: #ffffff; box-shadow: 0 12px 36px rgba(0,0,0,0.85);">
@@ -467,7 +435,7 @@ export class UIManager {
                   </div>
                 </div>
                 <button class="armory-equip-btn" data-skin="${skin.id}" style="background: ${isEquipped ? '#f43f5e' : '#334155'}; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; transition: background 0.15s;">
-                  ${isEquipped ? '✓ EQUIPPED' : (isUnlocked ? 'EQUIP' : `UNLOCK ${price} SC`)}
+                  ${skinUnlockLabel(skin.id, isUnlocked, isEquipped)}
                 </button>
               </div>
             `;
