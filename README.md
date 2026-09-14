@@ -58,3 +58,4 @@ npm run build
 ├── tests/                      # Unit tests for RTP compliance and provable fairness
 └── .github/workflows/          # GitHub Pages deployment and CI workflows
 ```
+[![Deploy Fish Frenzy to GitHub Pages](https://github.com/jcltd303-hub/Ih/actions/workflows/Deploy.yml/badge.svg)](https://github.com/jcltd303-hub/Ih/actions/workflows/Deploy.yml)
