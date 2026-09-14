@@ -172,7 +172,7 @@ export class GameScene {
       canvas.setPointerCapture?.(e.pointerId);
       syncAim(e.clientX, e.clientY);
       this.autoFireActive = true;
-      this.autoFireTimer = GameConfig.autoFireIntervalMs; // fire immediately on press
+      this.autoFireTimer = 0; // interval counted from this shot; no instant double-fire
       this.fireWeapon(this.lastTargetX, this.lastTargetY);
     });
 
@@ -205,6 +205,11 @@ export class GameScene {
   }
 
   private fireWeapon(targetX: number, targetY: number): void {
+    // Charge only when a shot can actually leave the barrel (fixes multi-SC deduct on cooldown)
+    if (!this.weaponController.canFire()) {
+      return;
+    }
+
     const betAmount = this.uiManager.getCurrentBet();
     const currency = this.uiManager.getCurrency();
 
@@ -213,7 +218,7 @@ export class GameScene {
     }
 
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
-    this.weaponController.fireCannon(
+    void this.weaponController.fireCannon(
       uid,
       GameConfig.localSessionId,
       currency,
@@ -257,12 +262,15 @@ export class GameScene {
       this.spawnTimer = 0;
     }
 
-    // Auto-fire mechanism
+    // Hold-to-fire: pace shots by interval AND weapon cooldown
     if (this.autoFireActive) {
       this.autoFireTimer += deltaTime;
-      if (this.autoFireTimer > GameConfig.autoFireIntervalMs) {
-        this.fireWeapon(this.lastTargetX, this.lastTargetY);
-        this.autoFireTimer = 0;
+      if (this.autoFireTimer >= GameConfig.autoFireIntervalMs) {
+        if (this.weaponController.canFire()) {
+          this.fireWeapon(this.lastTargetX, this.lastTargetY);
+          this.autoFireTimer = 0;
+        }
+        // else keep timer at threshold and retry next frame when cooldown ready
       }
     }
 

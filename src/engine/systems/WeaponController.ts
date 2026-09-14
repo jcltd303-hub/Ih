@@ -173,6 +173,12 @@ export class WeaponController {
     }
   }
 
+  /** True if weapon cooldown allows a new shot (no side effects). */
+  public canFire(): boolean {
+    const stats = this.getActiveWeaponStats();
+    return Date.now() - this.lastFiredTime >= stats.cooldownMs;
+  }
+
   public async fireCannon(
     userId: string,
     sessionId: string,
