@@ -3,27 +3,31 @@ import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getDatabase, Database, connectDatabaseEmulator } from 'firebase/database';
 import { getFunctions, Functions, connectFunctionsEmulator } from 'firebase/functions';
+import { getAnalytics, isSupported, Analytics as FirebaseAnalytics } from 'firebase/analytics';
 
 /**
- * Firebase via Vite env (see .env.example).
+ * Firebase web app configuration for fish-frenzy-mobile.
+ * Values can be overridden via Vite env (see .env.example).
  * Set VITE_USE_EMULATORS=true to point Auth/Firestore/RTDB/Functions at local emulators.
  */
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDummyKeyForArcadeClientTesting',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'fish-frenzy-prod.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'fish-frenzy-prod',
+export const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAQNRCYDsorUxuyZYp_iolRWLWNnXhH6B4',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'fish-frenzy-mobile.firebaseapp.com',
   databaseURL:
     import.meta.env.VITE_FIREBASE_DATABASE_URL ||
-    'https://fish-frenzy-prod-default-rtdb.firebaseio.com',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'fish-frenzy-prod.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1234567890',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1234567890:web:abcdef123456'
+    'https://fish-frenzy-mobile-default-rtdb.firebaseio.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'fish-frenzy-mobile',
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'fish-frenzy-mobile.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '5130585649',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:5130585649:web:26ac3b9b28af881b117710',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-N2PKR17E84'
 };
 
 export const isFirebaseConfigured = Boolean(
-  import.meta.env.VITE_FIREBASE_API_KEY &&
-    import.meta.env.VITE_FIREBASE_PROJECT_ID &&
-    !String(import.meta.env.VITE_FIREBASE_API_KEY).includes('Dummy')
+  firebaseConfig.apiKey &&
+    firebaseConfig.projectId &&
+    !String(firebaseConfig.apiKey).includes('Dummy')
 );
 
 export const useEmulators =
@@ -37,6 +41,21 @@ export const functions: Functions = getFunctions(
   app,
   import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || undefined
 );
+
+export let analytics: FirebaseAnalytics | null = null;
+if (typeof window !== 'undefined') {
+  isSupported()
+    .then((supported) => {
+      if (supported) {
+        try {
+          analytics = getAnalytics(app);
+        } catch (e) {
+          console.warn('[Firebase Analytics] Initialization skipped:', e);
+        }
+      }
+    })
+    .catch(() => {});
+}
 
 let emulatorsConnected = false;
 

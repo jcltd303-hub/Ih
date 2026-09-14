@@ -44,12 +44,10 @@ service cloud.firestore {
       }
     }
 
-    // Shared tables: authenticated read; player docs only writable by self
+    // Shared tables: authenticated read; table document writes restricted (Admin/server only); player docs only writable by self
     match /tables/{tableId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if false;
+      allow write: if false;
 
       match /players/{playerId} {
         allow read: if isSignedIn();

@@ -36,6 +36,7 @@ export class AnimatedBackground {
   public container: Container;
 
   private backdropSprite?: Sprite;
+  private bossDarknessGraphic: Graphics;
   private causticsGraphic: Graphics;
   private godRaysGraphic: Graphics;
   private particleGraphic: Graphics;
@@ -44,6 +45,8 @@ export class AnimatedBackground {
   private screenWidth: number;
   private screenHeight: number;
   private theme: GameTheme = 'light';
+  private isBossActive: boolean = false;
+  private isBossEnraged: boolean = false;
 
   private time: number = 0;
   private particles: AmbientParticle[] = [];
@@ -58,6 +61,10 @@ export class AnimatedBackground {
 
     // Layer 0: Backdrop image / deep oceanic trench
     this.setupBackdrop();
+
+    // Layer 0.5: Boss event abyssal darkness / vignette
+    this.bossDarknessGraphic = new Graphics();
+    this.container.addChild(this.bossDarknessGraphic);
 
     // Layer 1: Procedural animated caustics refraction web
     this.causticsGraphic = new Graphics();
@@ -157,9 +164,19 @@ export class AnimatedBackground {
     this.applyThemeToBackdrop();
   }
 
+  public setBossActive(active: boolean, enraged: boolean = false): void {
+    this.isBossActive = active;
+    this.isBossEnraged = enraged;
+    this.applyThemeToBackdrop();
+  }
+
   private applyThemeToBackdrop(): void {
     if (!this.backdropSprite) return;
-    if (this.theme === 'dark') {
+    if (this.isBossActive) {
+      // Darken seabed dramatically for boss events
+      this.backdropSprite.tint = this.isBossEnraged ? 0x24060b : 0x0a1020;
+      this.backdropSprite.alpha = this.isBossEnraged ? 0.30 : 0.38;
+    } else if (this.theme === 'dark') {
       this.backdropSprite.tint = 0x664477;
       this.backdropSprite.alpha = 0.65;
     } else {
@@ -184,10 +201,37 @@ export class AnimatedBackground {
       this.backdropSprite.x = (this.screenWidth / 2) + Math.cos(this.time * 0.4) * 4;
     }
 
+    this.renderBossDarkness();
     this.renderCaustics();
     this.renderGodRays();
     this.renderParticles(deltaTime);
     this.renderBubbles(deltaTime);
+  }
+
+  /**
+   * Darkens the background seabed into an ominous deep oceanic abyss during boss events
+   */
+  private renderBossDarkness(): void {
+    this.bossDarknessGraphic.clear();
+    if (!this.isBossActive) return;
+
+    const pulse = Math.sin(this.time * 3.5) * 0.05;
+    const baseAlpha = this.isBossEnraged ? (0.68 + pulse) : (0.58 + pulse);
+
+    // Full screen deep ocean shadow overlay
+    this.bossDarknessGraphic.rect(0, 0, this.screenWidth, this.screenHeight);
+    this.bossDarknessGraphic.fill({
+      color: this.isBossEnraged ? 0x180206 : 0x030712,
+      alpha: baseAlpha
+    });
+
+    // Outer abyss vignette gradient / edge shadowing
+    const edgeThickness = Math.min(this.screenWidth, this.screenHeight) * 0.28;
+    this.bossDarknessGraphic.rect(0, 0, this.screenWidth, edgeThickness);
+    this.bossDarknessGraphic.fill({ color: 0x000000, alpha: 0.4 });
+
+    this.bossDarknessGraphic.rect(0, this.screenHeight - edgeThickness, this.screenWidth, edgeThickness);
+    this.bossDarknessGraphic.fill({ color: 0x000000, alpha: 0.45 });
   }
 
   /**

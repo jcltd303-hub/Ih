@@ -4,8 +4,8 @@ const KEY = 'fish_frenzy_onboarding_v1';
 
 const TIPS = [
   'Aim with mouse/touch — click to fire the trench cannon.',
-  'Use +/- on the bet tier panel. Auto-fire is on the bottom HUD.',
-  'Open ARMORY to switch Plasma, Navy, Solar, or Abyssal chassis.',
+  'Set your stake in the Lobby. Auto-fire engages on canvas hold.',
+  'Level up your skill through gameplay to unlock advanced turret chassis and lucky overcharges.',
   'Leviathan has 3 phases — armor, exposed core, then overdrive.'
 ];
 

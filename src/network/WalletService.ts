@@ -18,6 +18,7 @@ export type WalletCurrency = 'GC' | 'SC';
 export interface WalletBalances {
   goldCoins: number;
   sweepstakesCoins: number;
+  source?: 'server' | 'local' | 'pending';
 }
 
 export interface WalletRequestResult {
@@ -33,6 +34,7 @@ type BalanceListener = (balances: WalletBalances) => void;
 const DEFAULT_BALANCES: WalletBalances = {
   goldCoins: 10000,
   sweepstakesCoins: 50,
+  source: 'local',
 };
 
 export class WalletService {
@@ -73,6 +75,68 @@ export class WalletService {
     };
   }
 
+  public onChange(listener: BalanceListener): () => void {
+    return this.subscribe(listener);
+  }
+
+  /**
+   * Static access for boss raid payouts, cloud function responses, and background settlements.
+   */
+  public static applyServerBalances(
+    gcOrBalances: number | { goldCoins?: number; sweepstakesCoins?: number },
+    sc?: number
+  ): void {
+    WalletService.getInstance().applyServerBalances(gcOrBalances as any, sc);
+  }
+
+  /**
+   * Applies server-confirmed balances (from shot settlement, boss raid payout, or admin action).
+   * Dispatches updates to all active UI listeners immediately.
+   */
+  public applyServerBalances(
+    gcOrBalances: number | { goldCoins?: number; sweepstakesCoins?: number },
+    sc?: number
+  ): void {
+    let gc = this.balances.goldCoins;
+    let sweep = this.balances.sweepstakesCoins;
+
+    if (typeof gcOrBalances === 'object' && gcOrBalances !== null) {
+      if (typeof gcOrBalances.goldCoins === 'number' && Number.isFinite(gcOrBalances.goldCoins)) {
+        gc = gcOrBalances.goldCoins;
+      }
+      if (typeof gcOrBalances.sweepstakesCoins === 'number' && Number.isFinite(gcOrBalances.sweepstakesCoins)) {
+        sweep = gcOrBalances.sweepstakesCoins;
+      }
+    } else if (typeof gcOrBalances === 'number' && Number.isFinite(gcOrBalances)) {
+      gc = gcOrBalances;
+      if (typeof sc === 'number' && Number.isFinite(sc)) {
+        sweep = sc;
+      }
+    }
+
+    this.setBalances({
+      goldCoins: Math.max(0, Math.floor(gc)),
+      sweepstakesCoins: Math.max(0, Math.floor(sweep)),
+      source: 'server',
+    });
+  }
+
+  /**
+   * Credits a boss raid bounty or tournament reward, atomically computing the next balance
+   * and applying it across all HUD listeners.
+   */
+  public static creditRaidReward(rewardGc: number, rewardSc: number): WalletBalances {
+    return WalletService.getInstance().creditRaidReward(rewardGc, rewardSc);
+  }
+
+  public creditRaidReward(rewardGc: number, rewardSc: number): WalletBalances {
+    const current = this.getBalances();
+    const nextGc = Math.max(0, current.goldCoins + Math.max(0, Math.floor(rewardGc)));
+    const nextSc = Math.max(0, current.sweepstakesCoins + Math.max(0, Math.floor(rewardSc)));
+    this.applyServerBalances(nextGc, nextSc);
+    return this.getBalances();
+  }
+
   public async connect(): Promise<WalletBalances> {
     this.disconnect();
 
@@ -98,6 +162,7 @@ export class WalletService {
         this.setBalances({
           goldCoins: Number(data.goldCoins ?? 0),
           sweepstakesCoins: Number(data.sweepstakesCoins ?? 0),
+          source: 'server',
         });
       },
       (error) => {

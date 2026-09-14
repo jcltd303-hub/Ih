@@ -19,6 +19,8 @@ import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
 import { ShareClipManager } from '../systems/ShareClipManager';
 import { TableSelection } from '../../network/TableSelection';
+import { TableSelectionManager, TableConfig } from '../../network/TableSelectionManager';
+import { BossRaidManager } from '../systems/BossRaidManager';
 
 export class GameScene {
   private app: Application;
@@ -34,6 +36,8 @@ export class GameScene {
   private multiplayerTable: MultiplayerTableManager;
   private presenceLayer: MultiplayerPresenceLayer | null = null;
   private tableUnsub: (() => void) | null = null;
+  private tableSelectionUnsub: (() => void) | null = null;
+  private activeTableId: string = 'table_practice';
   private lastSeenShotTs = 0;
   private aimBroadcastTimer = 0;
 
@@ -140,6 +144,14 @@ export class GameScene {
     this.setupInputListeners();
     this.setupResizeListener();
 
+    // Hook boss events directly to immersive backdrop darkening & audio atmosphere
+    BossRaidManager.getInstance().subscribe((raid) => {
+      const isRaidActive = raid.active && raid.status !== 'victory' && raid.status !== 'failed' && raid.status !== 'idle';
+      const isEnraged = isRaidActive && (raid.enraged || raid.status === 'enraged');
+      this.animatedBackground.setBossActive(isRaidActive, isEnraged);
+    });
+
+    // Show start screen; gameplay + multiplayer join after Play
     this.uiManager.showStartScreen();
   }
 
@@ -172,7 +184,35 @@ export class GameScene {
           this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
           this.presenceLayer?.showRemoteShot(shot);
         }
+    this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
+    this.presenceLayer.setLocalUserId(uid);
+
+    const joinTable = (table: TableConfig) => {
+      if (this.tableUnsub) {
+        this.tableUnsub();
+        this.tableUnsub = null;
       }
+      this.activeTableId = table.id;
+      this.multiplayerTable.joinSharedTable(table.id, uid, name);
+      this.tableUnsub = this.multiplayerTable.subscribeToTableState(table.id, (state) => {
+        this.presenceLayer?.syncPlayers(state?.players);
+        const shots = state?.shared_shots;
+        if (shots && typeof shots === 'object') {
+          for (const shot of Object.values(shots) as any[]) {
+            if (!shot || typeof shot.timestamp !== 'number') continue;
+            if (shot.timestamp <= this.lastSeenShotTs) continue;
+            this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
+            this.presenceLayer?.showRemoteShot(shot);
+          }
+        }
+      });
+    };
+
+    const initialTable = TableSelectionManager.getInstance().getActiveTable();
+    joinTable(initialTable);
+
+    this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
+      joinTable(tbl);
     });
 
     // Start clip recording
@@ -196,6 +236,7 @@ export class GameScene {
       }, 60000);
     }
 
+    // Seed a few more fish for an active trench
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
     }
@@ -287,6 +328,7 @@ export class GameScene {
     const currentTable = this.tableSelection.getCurrentTable();
     this.multiplayerTable.broadcastTableShot(
       currentTable.id,
+      this.activeTableId,
       uid,
       targetX,
       targetY,
