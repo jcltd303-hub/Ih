@@ -5,6 +5,7 @@ import type { ModalContext } from './ModalContext';
 export function showAdminPortalModal(ctx: ModalContext): void {
 const config = PayoutEngine.getConfig();
     const stats = PayoutEngine.getSessionStats();
+    const profit = PayoutEngine.getProfitSnapshot();
 
     const getLoosenessTier = (rtp: number) => {
       if (rtp < 75) return { label: '🔒 TIGHT', desc: 'High House Margin (25%+ Edge) • Conservative payouts & lower capture odds', color: '#ef4444' };
@@ -103,6 +104,38 @@ const config = PayoutEngine.getConfig();
             </label>
           </div>
         </div>
+
+        
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1e293b;">
+            <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:8px;">🏦 HOUSE P&amp;L (LIFETIME)</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+              <div style="background:#1e293b;padding:8px 10px;border-radius:6px;">
+                <div style="font-size:10px;color:#64748b;">DEPOSITS</div>
+                <div id="admin-stat-deposits" style="font-size:13px;font-weight:bold;color:#60a5fa;">${profit.ledger.totalDeposits.toFixed(2)}</div>
+              </div>
+              <div style="background:#1e293b;padding:8px 10px;border-radius:6px;">
+                <div style="font-size:10px;color:#64748b;">HANDLE (WAGERS)</div>
+                <div id="admin-stat-handle" style="font-size:13px;font-weight:bold;color:#e2e8f0;">${profit.ledger.totalHandle.toFixed(2)}</div>
+              </div>
+              <div style="background:#1e293b;padding:8px 10px;border-radius:6px;">
+                <div style="font-size:10px;color:#64748b;">CASH PROFIT (DEP − PAY)</div>
+                <div id="admin-stat-cash-profit" style="font-size:13px;font-weight:bold;color:${profit.cashProfit >= 0 ? '#34d399' : '#f87171'};">${profit.cashProfit.toFixed(2)}</div>
+              </div>
+              <div style="background:#1e293b;padding:8px 10px;border-radius:6px;">
+                <div style="font-size:10px;color:#64748b;">GAME HOUSE EDGE</div>
+                <div id="admin-stat-house-edge" style="font-size:13px;font-weight:800;color:#fbbf24;">${profit.gameHouseEdgePct.toFixed(2)}%</div>
+              </div>
+            </div>
+            <div id="admin-profit-banner" style="margin-top:8px;font-size:11px;padding:6px 8px;border-radius:6px;background:#052e16;color:#86efac;">${profit.isProfitable ? '✓ PROFITABLE — edge holds vs target RTP' : '⚠ REVIEW — RTP or cash cycle under target'}${profit.guardActive ? ' · GUARD ACTIVE (payouts dampened)' : ''}</div>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <label style="font-size:11px;color:#94a3b8;">RTP guard %
+                <input id="admin-rtp-guard" type="number" min="80" max="150" step="1" value="${config.maxLifetimeRtpGuard ?? 105}"
+                  style="width:64px;margin-left:6px;background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:4px;padding:4px;" />
+              </label>
+              <button id="admin-apply-policy-btn" style="background:#1e293b;color:#fbbf24;border:1px solid #f59e0b;padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-weight:700;">SET PAYOUT POLICY</button>
+              <button id="admin-reset-ledger-btn" style="background:#1e293b;color:#f87171;border:1px solid #7f1d1d;padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;">RESET LEDGER</button>
+            </div>
+          </div>
 
         <!-- Live Session Telemetry -->
         <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
@@ -254,22 +287,73 @@ const config = PayoutEngine.getConfig();
 
     document.getElementById('admin-run-sim-btn')?.addEventListener('click', () => {
       const currentRtp = parseInt(slider ? slider.value : '92', 10);
-      const simResult = PayoutEngine.runQuickSimulation(10000, currentRtp);
+      const simResult = PayoutEngine.runMonteCarlo(50000, currentRtp, { batches: 25 });
       const outputEl = document.getElementById('admin-sim-output');
       if (outputEl) {
+        const ok = simResult.profitableAtTarget;
         outputEl.innerHTML = `
           <div style="color: #38bdf8; font-weight: bold; margin-bottom: 3px;">
-            ✓ 10,000 Shot Monte Carlo Benchmark Complete:
+            ✓ 50,000 Shot Monte Carlo (25 batches):
           </div>
-          <div>Total Wagered: <strong>${simResult.totalWagered.toLocaleString()} SC</strong> | Total Return: <strong style="color: #34d399;">${simResult.totalPayout.toFixed(2)} SC</strong></div>
+          <div>Handle: <strong>${simResult.totalWagered.toLocaleString()} SC</strong> | Paid: <strong style="color: #34d399;">${simResult.totalPayout.toFixed(2)} SC</strong></div>
           <div style="margin-top: 2px;">
-            Target Looseness: <strong>${currentRtp}%</strong> ➔ Empirical Realized RTP: <strong style="color: ${simResult.realizedRtp >= 90 ? '#34d399' : '#fbbf24'}; font-size: 13px;">${simResult.realizedRtp.toFixed(2)}%</strong>
+            Target <strong>${currentRtp}%</strong> → RTP <strong style="color: ${ok ? '#34d399' : '#f87171'}; font-size: 13px;">${simResult.realizedRtp.toFixed(2)}%</strong>
+            · House edge <strong>${simResult.houseEdgePct.toFixed(2)}%</strong>
           </div>
           <div style="color: #94a3b8; margin-top: 2px; font-size: 10px;">
-            Instant Captures Triggered: ${simResult.instantKills} | Jackpot Surges: ${simResult.jackpots}
+            RTP band P5–P95: ${simResult.rtpP5.toFixed(1)}% – ${simResult.rtpP95.toFixed(1)}%
+            · hit rate ${(simResult.hitRate * 100).toFixed(1)}%
+            · instant ${simResult.instantKills} · jackpots ${simResult.jackpots}
+          </div>
+          <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">
+            Kills paid — small ${simResult.byFish.small.paid.toFixed(0)} · med ${simResult.byFish.medium.paid.toFixed(0)} · boss ${simResult.byFish.boss.paid.toFixed(0)} SC
+          </div>
+          <div style="margin-top:4px;font-weight:700;color:${ok ? '#86efac' : '#fca5a5'};">
+            ${ok ? '✓ Simulated margin is profitable vs target' : '⚠ Simulated RTP above target — tighten policy'}
           </div>
         `;
       }
     });
+
+    const refreshProfitUi = () => {
+      const p = PayoutEngine.getProfitSnapshot();
+      const d = document.getElementById('admin-stat-deposits');
+      const h = document.getElementById('admin-stat-handle');
+      const c = document.getElementById('admin-stat-cash-profit');
+      const e = document.getElementById('admin-stat-house-edge');
+      const b = document.getElementById('admin-profit-banner');
+      if (d) d.textContent = p.ledger.totalDeposits.toFixed(2);
+      if (h) h.textContent = p.ledger.totalHandle.toFixed(2);
+      if (c) {
+        c.textContent = p.cashProfit.toFixed(2);
+        c.style.color = p.cashProfit >= 0 ? '#34d399' : '#f87171';
+      }
+      if (e) e.textContent = p.gameHouseEdgePct.toFixed(2) + '%';
+      if (b) {
+        b.textContent = (p.isProfitable ? '✓ PROFITABLE — edge holds vs target RTP' : '⚠ REVIEW — RTP or cash cycle under target')
+          + (p.guardActive ? ' · GUARD ACTIVE (payouts dampened)' : '');
+        b.style.background = p.isProfitable ? '#052e16' : '#450a0a';
+        b.style.color = p.isProfitable ? '#86efac' : '#fecaca';
+      }
+    };
+    refreshProfitUi();
+
+    document.getElementById('admin-apply-policy-btn')?.addEventListener('click', () => {
+      const guardEl = document.getElementById('admin-rtp-guard') as HTMLInputElement | null;
+      const sliderEl = document.getElementById('admin-rtp-slider') as HTMLInputElement | null;
+      const rtp = sliderEl ? parseInt(sliderEl.value, 10) : PayoutEngine.getTargetRtp();
+      const guard = guardEl ? parseInt(guardEl.value, 10) : 105;
+      PayoutEngine.setPayoutPolicy(rtp, guard);
+      if (saveToast) saveToast.textContent = `✓ Policy set: target RTP ${rtp}%, guard ${guard}%`;
+      refreshProfitUi();
+    });
+
+    document.getElementById('admin-reset-ledger-btn')?.addEventListener('click', () => {
+      if (!confirm('Reset lifetime deposit/handle/payout ledger?')) return;
+      PayoutEngine.resetLedger();
+      refreshProfitUi();
+      if (saveToast) saveToast.textContent = '✓ Lifetime ledger reset.';
+    });
+
   
 }

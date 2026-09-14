@@ -64,6 +64,14 @@ export class UIManager {
 
     this.renderHUD();
     this.createModalContainer(rootElement);
+
+    // Seed lifetime deposit ledger once with starting SC (operator P&L baseline)
+    try {
+      if (!localStorage.getItem('fish_frenzy_deposit_seeded')) {
+        PayoutEngine.recordDeposit(this.scBalance);
+        localStorage.setItem('fish_frenzy_deposit_seeded', '1');
+      }
+    } catch { /* ignore */ }
     // HUD starts hidden until Play
     this.container.style.visibility = 'hidden';
   }

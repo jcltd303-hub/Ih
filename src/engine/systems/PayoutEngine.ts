@@ -1,14 +1,19 @@
 /**
- * PayoutEngine: Central Game Looseness & Gamble Math Engine
- * Controls RTP %, instant gamble-kill probabilities, hit payouts, and bonus multipliers.
- * Directly configurable via the Admin Portal payout % slider.
+ * PayoutEngine: Game looseness, Monte Carlo auditor, and operator P&L ledger.
+ * Target RTP is operator-configurable; lifetime deposits vs payouts track house profitability.
  */
 
 export interface PayoutConfig {
-  targetRtp: number;                 // 50% to 120% (Default: 92%)
-  gambleKillEnabled: boolean;        // Whether bullets have RNG instant-kill chance
-  gambleBonusMultiplierEnabled: boolean; // Random 1.5x - 10x jackpot multipliers on kill
+  /** Target return-to-player % (50–120). Default 92 → ~8% house edge. */
+  targetRtp: number;
+  gambleKillEnabled: boolean;
+  gambleBonusMultiplierEnabled: boolean;
   volatility: 'low' | 'medium' | 'high';
+  /**
+   * Soft guard: when lifetime realized RTP exceeds this, client scales hit payouts down
+   * (demo safety; production should enforce server-side only).
+   */
+  maxLifetimeRtpGuard: number;
 }
 
 export interface SessionStats {
@@ -23,7 +28,56 @@ export interface SessionStats {
   realizedRtp: number;
 }
 
-const STORAGE_KEY = 'fish_frenzy_admin_payout_config';
+/** Persistent operator ledger (survives reloads). */
+export interface ProfitLedger {
+  /** Player deposits / bankrolls credited (SC-equivalent). */
+  totalDeposits: number;
+  /** All wagers taken (handle). */
+  totalHandle: number;
+  /** All player returns paid. */
+  totalPayouts: number;
+  /** Net house profit = deposits + handle retained conceptually tracked as deposits - payouts for cash cycle,
+   *  and handle - payouts for game margin. */
+  sessionCount: number;
+  updatedAt: number;
+}
+
+export interface ProfitSnapshot {
+  ledger: ProfitLedger;
+  /** Game margin: (handle - payouts) / handle * 100 when handle > 0 */
+  gameHouseEdgePct: number;
+  /** Realized RTP on handle */
+  realizedRtpOnHandle: number;
+  /** Cash-cycle: deposits - payouts (positive = house holds more than paid out) */
+  cashProfit: number;
+  /** cashProfit / deposits * 100 when deposits > 0 */
+  cashMarginPct: number;
+  /** True when cashProfit > 0 and realized RTP is under target + 5pp */
+  isProfitable: boolean;
+  guardActive: boolean;
+}
+
+export interface MonteCarloResult {
+  shots: number;
+  targetRtp: number;
+  totalWagered: number;
+  totalPayout: number;
+  realizedRtp: number;
+  houseEdgePct: number;
+  instantKills: number;
+  jackpots: number;
+  hitRate: number;
+  /** 5th–95th percentile RTP from batch splits */
+  rtpP5: number;
+  rtpP95: number;
+  minBatchRtp: number;
+  maxBatchRtp: number;
+  byFish: Record<'small' | 'medium' | 'boss', { kills: number; paid: number }>;
+  profitableAtTarget: boolean;
+}
+
+const CONFIG_KEY = 'fish_frenzy_admin_payout_config';
+const LEDGER_KEY = 'fish_frenzy_profit_ledger';
 
 export class PayoutEngine {
   private static config: PayoutConfig = PayoutEngine.loadConfig();
@@ -40,47 +94,88 @@ export class PayoutEngine {
     realizedRtp: 0
   };
 
+  private static ledger: ProfitLedger = PayoutEngine.loadLedger();
   private static listeners: Array<(config: PayoutConfig) => void> = [];
 
   private static loadConfig(): PayoutConfig {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(CONFIG_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
           targetRtp: typeof parsed.targetRtp === 'number' ? parsed.targetRtp : 92,
           gambleKillEnabled: parsed.gambleKillEnabled !== false,
           gambleBonusMultiplierEnabled: parsed.gambleBonusMultiplierEnabled !== false,
-          volatility: parsed.volatility || 'medium'
+          volatility: parsed.volatility || 'medium',
+          maxLifetimeRtpGuard:
+            typeof parsed.maxLifetimeRtpGuard === 'number' ? parsed.maxLifetimeRtpGuard : 105
         };
       }
     } catch {
-      // Fallback to default
+      /* default */
     }
     return {
-      targetRtp: 92, // 92% standard casino looseness
+      targetRtp: 92,
       gambleKillEnabled: true,
       gambleBonusMultiplierEnabled: true,
-      volatility: 'medium'
+      volatility: 'medium',
+      maxLifetimeRtpGuard: 105
     };
+  }
+
+  private static loadLedger(): ProfitLedger {
+    try {
+      const raw = localStorage.getItem(LEDGER_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        return {
+          totalDeposits: Number(p.totalDeposits) || 0,
+          totalHandle: Number(p.totalHandle) || 0,
+          totalPayouts: Number(p.totalPayouts) || 0,
+          sessionCount: Number(p.sessionCount) || 0,
+          updatedAt: Number(p.updatedAt) || Date.now()
+        };
+      }
+    } catch {
+      /* default */
+    }
+    return {
+      totalDeposits: 0,
+      totalHandle: 0,
+      totalPayouts: 0,
+      sessionCount: 0,
+      updatedAt: Date.now()
+    };
+  }
+
+  private static persistLedger(): void {
+    this.ledger.updatedAt = Date.now();
+    try {
+      localStorage.setItem(LEDGER_KEY, JSON.stringify(this.ledger));
+    } catch (e) {
+      console.warn('[PayoutEngine] ledger persist failed', e);
+    }
   }
 
   public static saveConfig(newConfig: Partial<PayoutConfig>): void {
     this.config = { ...this.config, ...newConfig };
-    // Clamp RTP to 50% - 120%
     this.config.targetRtp = Math.max(50, Math.min(120, this.config.targetRtp));
+    this.config.maxLifetimeRtpGuard = Math.max(
+      80,
+      Math.min(150, this.config.maxLifetimeRtpGuard ?? 105)
+    );
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.config));
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(this.config));
     } catch (e) {
-      console.warn('Failed to save PayoutConfig to localStorage', e);
+      console.warn('Failed to save PayoutConfig', e);
     }
-    this.listeners.forEach(fn => fn(this.config));
+    this.listeners.forEach((fn) => fn(this.config));
   }
 
   public static onConfigChange(callback: (config: PayoutConfig) => void): () => void {
     this.listeners.push(callback);
     return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
+      this.listeners = this.listeners.filter((l) => l !== callback);
     };
   }
 
@@ -96,14 +191,20 @@ export class PayoutEngine {
     this.saveConfig({ targetRtp: rtp });
   }
 
+  /** Explicit operator control: set target RTP and optional lifetime guard. */
+  public static setPayoutPolicy(targetRtp: number, maxLifetimeRtpGuard?: number): void {
+    this.saveConfig({
+      targetRtp,
+      ...(maxLifetimeRtpGuard !== undefined ? { maxLifetimeRtpGuard } : {})
+    });
+  }
+
   public static getSessionStats(): SessionStats {
-    const rtp = this.stats.totalWagered > 0
-      ? (this.stats.totalPaidOut / this.stats.totalWagered) * 100
-      : 0;
-    return {
-      ...this.stats,
-      realizedRtp: rtp
-    };
+    const rtp =
+      this.stats.totalWagered > 0
+        ? (this.stats.totalPaidOut / this.stats.totalWagered) * 100
+        : 0;
+    return { ...this.stats, realizedRtp: rtp };
   }
 
   public static resetSessionStats(): void {
@@ -120,20 +221,69 @@ export class PayoutEngine {
     };
   }
 
+  public static getProfitSnapshot(): ProfitSnapshot {
+    const { totalDeposits, totalHandle, totalPayouts } = this.ledger;
+    const realizedRtpOnHandle = totalHandle > 0 ? (totalPayouts / totalHandle) * 100 : 0;
+    const gameHouseEdgePct = totalHandle > 0 ? ((totalHandle - totalPayouts) / totalHandle) * 100 : 0;
+    const cashProfit = totalDeposits - totalPayouts;
+    const cashMarginPct = totalDeposits > 0 ? (cashProfit / totalDeposits) * 100 : 0;
+    const guardActive =
+      totalHandle > 100 && realizedRtpOnHandle > this.config.maxLifetimeRtpGuard;
+    const isProfitable =
+      (totalDeposits <= 0 ? gameHouseEdgePct > 0 : cashProfit > 0) &&
+      (totalHandle <= 0 || realizedRtpOnHandle <= this.config.targetRtp + 8);
+
+    return {
+      ledger: { ...this.ledger },
+      gameHouseEdgePct,
+      realizedRtpOnHandle,
+      cashProfit,
+      cashMarginPct,
+      isProfitable,
+      guardActive
+    };
+  }
+
+  /** Record a player deposit / bankroll credit (SC). */
+  public static recordDeposit(amount: number): void {
+    if (!(amount > 0)) return;
+    this.ledger.totalDeposits += amount;
+    this.persistLedger();
+  }
+
   public static recordWager(betAmount: number): void {
     this.stats.totalShots++;
     this.stats.totalWagered += betAmount;
+    this.ledger.totalHandle += betAmount;
+    this.persistLedger();
   }
 
   public static recordPayout(payoutAmount: number): void {
+    if (!(payoutAmount > 0)) return;
     this.stats.totalPaidOut += payoutAmount;
+    this.ledger.totalPayouts += payoutAmount;
+    this.persistLedger();
   }
 
-  /**
-   * Evaluates a bullet impact on a target fish.
-   * Calculates dynamic pay-per-hit, damage variance, critical hits,
-   * and provably-fair instant gamble-kill rolls based on current game Looseness.
-   */
+  public static resetLedger(): void {
+    this.ledger = {
+      totalDeposits: 0,
+      totalHandle: 0,
+      totalPayouts: 0,
+      sessionCount: this.ledger.sessionCount + 1,
+      updatedAt: Date.now()
+    };
+    this.persistLedger();
+  }
+
+  /** Scale factor applied when lifetime RTP blows past the operator guard. */
+  private static profitabilityScale(): number {
+    const snap = this.getProfitSnapshot();
+    if (!snap.guardActive) return 1;
+    // Soft dampen returns toward target
+    return Math.max(0.55, this.config.targetRtp / Math.max(snap.realizedRtpOnHandle, 1));
+  }
+
   public static evaluateHit(
     betAmount: number,
     fishType: 'small' | 'medium' | 'boss',
@@ -147,38 +297,26 @@ export class PayoutEngine {
     isInstantKill: boolean;
   } {
     this.stats.totalHits++;
-    const loosenessFactor = this.config.targetRtp / 92; // 1.0 at standard 92%
+    const loosenessFactor = this.config.targetRtp / 92;
+    const scale = this.profitabilityScale();
 
-    // 1. Pay-per-hit reward (scales dynamically with looseness)
-    // Base ~24% return per hit, plus chance of a lucky coin burst (refund)
     const baseHitRate = 0.24 * loosenessFactor;
-    const isLuckyHit = Math.random() < (0.06 * loosenessFactor); // 6% chance for lucky hit refund
-    const hitPayout = isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate;
+    const isLuckyHit = Math.random() < 0.06 * loosenessFactor;
+    let hitPayout = (isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate) * scale;
 
-    // 2. Critical hit damage roll (gamble variance)
     const critRoll = Math.random();
-    const isSuperCrit = critRoll < (0.04 * loosenessFactor);
-    const isCrit = !isSuperCrit && critRoll < (0.16 * loosenessFactor);
-
-    if (isCrit || isSuperCrit) {
-      this.stats.critHits++;
-    }
+    const isSuperCrit = critRoll < 0.04 * loosenessFactor;
+    const isCrit = !isSuperCrit && critRoll < 0.16 * loosenessFactor;
+    if (isCrit || isSuperCrit) this.stats.critHits++;
 
     const critMultiplier = isSuperCrit ? 3.5 : isCrit ? 2.0 : 1.0;
-    // Slight random damage variation (+/- 20%) to prevent deterministic grinding
     const randomJitter = 0.9 + Math.random() * 0.3;
     const damage = 1.0 * skinBonus * critMultiplier * randomJitter;
 
-    // 3. Instant Gamble Kill / Instant Capture Roll
-    // Allows any shot to randomly trigger an exhilarating kill on the spot!
     let isInstantKill = false;
     if (this.config.gambleKillEnabled) {
-      // Base probability of instant kill per landed hit
-      // Small: ~22%, Medium: ~10%, Boss: ~3.2%
-      const baseInstantProb = fishType === 'small' ? 0.22 : fishType === 'medium' ? 0.10 : 0.032;
-      const finalInstantProb = baseInstantProb * loosenessFactor;
-
-      if (Math.random() < finalInstantProb) {
+      const baseInstantProb = fishType === 'small' ? 0.22 : fishType === 'medium' ? 0.1 : 0.032;
+      if (Math.random() < baseInstantProb * loosenessFactor * scale) {
         isInstantKill = true;
         this.stats.instantGambleKills++;
       }
@@ -194,10 +332,6 @@ export class PayoutEngine {
     };
   }
 
-  /**
-   * Evaluates kill bounty and bonus jackpot multiplier.
-   * On kill, fish can award surprise multipliers (1.5x up to 10x!).
-   */
   public static evaluateKillMultiplier(
     baseMultiplier: number,
     fishType: 'small' | 'medium' | 'boss'
@@ -208,111 +342,159 @@ export class PayoutEngine {
   } {
     this.stats.totalKills++;
     const loosenessFactor = this.config.targetRtp / 92;
+    const scale = this.profitabilityScale();
 
     if (!this.config.gambleBonusMultiplierEnabled) {
       return {
-        finalMultiplier: baseMultiplier,
+        finalMultiplier: baseMultiplier * scale,
         bonusLabel: 'STANDARD WIN',
         isJackpot: false
       };
     }
 
     const roll = Math.random();
-    // 2% chance for 10x Mega Surge
-    if (roll < 0.02 * loosenessFactor) {
+    if (roll < 0.02 * loosenessFactor * scale) {
       this.stats.bonusJackpotTriggers++;
       return {
-        finalMultiplier: baseMultiplier * 10,
+        finalMultiplier: baseMultiplier * 10 * scale,
         bonusLabel: '🔥 10X JACKPOT SURGE!',
         isJackpot: true
       };
     }
-    // 7% chance for 3x - 5x Big Win
-    if (roll < 0.09 * loosenessFactor) {
+    if (roll < 0.09 * loosenessFactor * scale) {
       this.stats.bonusJackpotTriggers++;
       const bonus = fishType === 'boss' ? 3 : 5;
       return {
-        finalMultiplier: baseMultiplier * bonus,
+        finalMultiplier: baseMultiplier * bonus * scale,
         bonusLabel: `⚡ ${bonus}X MEGA BOUNTY!`,
         isJackpot: true
       };
     }
-    // 20% chance for 1.5x - 2x Super Win
-    if (roll < 0.28 * loosenessFactor) {
+    if (roll < 0.28 * loosenessFactor * scale) {
       return {
-        finalMultiplier: baseMultiplier * 2,
+        finalMultiplier: baseMultiplier * 2 * scale,
         bonusLabel: '✨ 2X SUPER WIN!',
         isJackpot: false
       };
     }
 
     return {
-      finalMultiplier: baseMultiplier,
+      finalMultiplier: baseMultiplier * scale,
       bonusLabel: 'FISH CAPTURED',
       isJackpot: false
     };
   }
 
   /**
-   * Quick Monte Carlo benchmark for the current looseness setting
-   * Simulates N shots and returns estimated RTP and stats.
+   * Enhanced Monte Carlo: batch RTP bands, per-fish breakdown, house edge, profitability vs target.
    */
-  public static runQuickSimulation(simShots: number = 10000, targetRtp: number = PayoutEngine.config.targetRtp): {
-    shots: number;
-    totalWagered: number;
-    totalPayout: number;
-    realizedRtp: number;
-    instantKills: number;
-    jackpots: number;
-  } {
+  public static runMonteCarlo(
+    simShots: number = 50_000,
+    targetRtp: number = PayoutEngine.config.targetRtp,
+    options?: { aimAccuracy?: number; batches?: number; seed?: number }
+  ): MonteCarloResult {
+    const aimAccuracy = options?.aimAccuracy ?? 0.7;
+    const batches = Math.max(5, options?.batches ?? 20);
+    const shotsPerBatch = Math.max(1, Math.floor(simShots / batches));
     const loosenessFactor = targetRtp / 92;
+
+    let seed = options?.seed ?? 42;
+    const rng = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+
     let totalBet = 0;
     let totalWin = 0;
     let instantKills = 0;
     let jackpots = 0;
+    let hits = 0;
+    const byFish: MonteCarloResult['byFish'] = {
+      small: { kills: 0, paid: 0 },
+      medium: { kills: 0, paid: 0 },
+      boss: { kills: 0, paid: 0 }
+    };
+    const batchRtps: number[] = [];
 
-    for (let i = 0; i < simShots; i++) {
-      const bet = 1.0;
-      totalBet += bet;
+    for (let b = 0; b < batches; b++) {
+      let bBet = 0;
+      let bWin = 0;
+      const n = b === batches - 1 ? simShots - shotsPerBatch * (batches - 1) : shotsPerBatch;
+      for (let i = 0; i < n; i++) {
+        const bet = 1.0;
+        bBet += bet;
+        totalBet += bet;
 
-      // Assume 70% average aim accuracy
-      if (Math.random() < 0.70) {
-        // Hit
-        const isLucky = Math.random() < 0.06 * loosenessFactor;
+        if (rng() >= aimAccuracy) continue;
+        hits++;
+
+        const isLucky = rng() < 0.06 * loosenessFactor;
         const hitWin = isLucky ? bet * 1.0 : bet * (0.24 * loosenessFactor);
+        bWin += hitWin;
         totalWin += hitWin;
 
-        // Pick random fish type
-        const fr = Math.random();
-        const fType = fr < 0.5 ? 'small' : fr < 0.88 ? 'medium' : 'boss';
-        const baseInstantProb = fType === 'small' ? 0.22 : fType === 'medium' ? 0.10 : 0.032;
+        const fr = rng();
+        const fType: 'small' | 'medium' | 'boss' =
+          fr < 0.55 ? 'small' : fr < 0.9 ? 'medium' : 'boss';
+        const baseInstant = fType === 'small' ? 0.22 : fType === 'medium' ? 0.1 : 0.032;
 
-        if (Math.random() < baseInstantProb * loosenessFactor) {
+        if (rng() < baseInstant * loosenessFactor) {
           instantKills++;
+          byFish[fType].kills++;
           const baseMult = fType === 'small' ? 1.2 : fType === 'medium' ? 4.0 : 25.0;
-          const br = Math.random();
+          const br = rng();
           let mult = baseMult;
           if (br < 0.02 * loosenessFactor) {
             mult *= 10;
             jackpots++;
           } else if (br < 0.09 * loosenessFactor) {
-            mult *= 3;
+            mult *= fType === 'boss' ? 3 : 5;
             jackpots++;
           } else if (br < 0.28 * loosenessFactor) {
             mult *= 2;
           }
-          totalWin += bet * mult * 0.75;
+          const killPay = bet * mult * 0.7;
+          bWin += killPay;
+          totalWin += killPay;
+          byFish[fType].paid += killPay;
         }
       }
+      batchRtps.push(bBet > 0 ? (bWin / bBet) * 100 : 0);
     }
+
+    batchRtps.sort((a, b) => a - b);
+    const pct = (p: number) => {
+      const idx = Math.min(batchRtps.length - 1, Math.max(0, Math.floor((p / 100) * batchRtps.length)));
+      return batchRtps[idx];
+    };
+
+    const realizedRtp = totalBet > 0 ? (totalWin / totalBet) * 100 : 0;
+    const houseEdgePct = 100 - realizedRtp;
 
     return {
       shots: simShots,
+      targetRtp,
       totalWagered: totalBet,
       totalPayout: totalWin,
-      realizedRtp: (totalWin / totalBet) * 100,
+      realizedRtp,
+      houseEdgePct,
       instantKills,
-      jackpots
+      jackpots,
+      hitRate: simShots > 0 ? hits / simShots : 0,
+      rtpP5: pct(5),
+      rtpP95: pct(95),
+      minBatchRtp: batchRtps[0] ?? 0,
+      maxBatchRtp: batchRtps[batchRtps.length - 1] ?? 0,
+      byFish,
+      profitableAtTarget: realizedRtp <= targetRtp + 3 && houseEdgePct > 0
     };
+  }
+
+  /** Back-compat alias used by admin portal. */
+  public static runQuickSimulation(
+    simShots: number = 10000,
+    targetRtp: number = PayoutEngine.config.targetRtp
+  ): MonteCarloResult {
+    return this.runMonteCarlo(simShots, targetRtp, { batches: 10 });
   }
 }
