@@ -1,6 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions, isFirebaseConfigured } from './FirebaseClient';
-import { CryptoSigner } from './CryptoSigner';
 import { AuthManager } from './AuthManager';
 import { WalletService } from './WalletService';
 import { OfflineTransactionQueue } from './OfflineTransactionQueue';
@@ -27,9 +26,23 @@ export type SettlementResult = {
   error?: string;
 };
 
+function makeRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
 /**
  * Settles a shot against Cloud Functions when authenticated + configured;
  * otherwise queues offline and leaves local HUD balances alone.
+ *
+ * Request integrity comes from Firebase Auth (the server independently
+ * verifies request.auth.uid from the ID token) plus `requestId`, a
+ * per-attempt idempotency key that only needs to be unique — not secret,
+ * and not signed. A client-computed HMAC signature was removed here: any
+ * secret the client can compute with is a secret the client bundle leaks,
+ * so it added no real integrity guarantee.
  */
 export class ShotSettlement {
   public static async settle(req: SettlementRequest): Promise<SettlementResult> {
@@ -53,17 +66,8 @@ export class ShotSettlement {
     }
 
     const timestamp = Date.now();
-    const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const requestId = makeRequestId();
     try {
-      const signature = await CryptoSigner.generateSignature(
-        auth.uid,
-        req.sessionId,
-        req.betAmount,
-        req.targetId,
-        timestamp,
-        nonce
-      );
-
       const processShot = httpsCallable(functions, 'processPlayerShot');
       const response = await processShot({
         sessionId: req.sessionId,
@@ -75,8 +79,7 @@ export class ShotSettlement {
         fishType: req.fishType || 'small',
         skinBonus: req.skinBonus ?? 1,
         timestamp,
-        nonce,
-        signature
+        requestId
       });
 
       const data = (response.data || {}) as Record<string, unknown>;
