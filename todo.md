@@ -40,5 +40,5 @@
 ## Ops follow-ups
 
 - [x] Emulator connect + deploy npm scripts + expanded FIREBASE_SETUP
-- [ ] App icon resources for Capacitor
+- [x] App icon resources for Capacitor
 - [ ] Extract remaining UIManager modals
