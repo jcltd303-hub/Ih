@@ -16,6 +16,9 @@ import { SoundManager } from '../../audio/SoundManager';
 import { FairnessSession } from '../../network/FairnessSession';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
+import { BossRaidEvent } from '../systems/BossRaidEvent';
+import { ShareClipManager } from '../systems/ShareClipManager';
+import { TableSelection } from '../../network/TableSelection';
 
 export class GameScene {
   private app: Application;
@@ -39,10 +42,16 @@ export class GameScene {
   private autoFireTimer: number = 0;
   private lastTargetX: number = 0;
   private lastTargetY: number = 0;
-  /** Game flow: idle until player hits Play on the start screen */
   private isPlaying: boolean = false;
   private postFxEnabled: boolean = true;
   private particlesEnabled: boolean = true;
+
+  // New systems
+  private bossRaid: BossRaidEvent;
+  private shareClip: ShareClipManager;
+  private tableSelection: TableSelection;
+  private clipRecording = false;
+  private bossRaidTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     app: Application,
@@ -55,11 +64,9 @@ export class GameScene {
     const width = this.app.screen.width;
     const height = this.app.screen.height;
 
-    // Layer 0: Animated living background (caustics, god rays, marine snow, rising bubbles)
     this.animatedBackground = new AnimatedBackground(width, height);
     this.app.stage.addChild(this.animatedBackground.container);
 
-    // Layer 1: Game world (entities, projectiles, fx)
     this.worldContainer = new Container();
     this.app.stage.addChild(this.worldContainer);
 
@@ -70,6 +77,12 @@ export class GameScene {
     this.particleFX = new ParticleFXManager(this.worldContainer, width, height);
     this.multiplayerTable = new MultiplayerTableManager();
 
+    // Initialize new systems
+    this.bossRaid = new BossRaidEvent(this.worldContainer, this.fishManager, this.particleFX);
+    this.bossRaid.resize(width, height);
+    this.shareClip = new ShareClipManager(this.app, this.particleFX);
+    this.tableSelection = TableSelection.getInstance();
+
     this.uiManager = new UIManager(uiRoot, {
       onThemeChange: (theme) => {
         this.themeManager.setTheme(theme);
@@ -77,7 +90,6 @@ export class GameScene {
         this.fishManager.setTheme(theme);
         SoundManager.setTheme(theme);
       },
-      // Auto-fire is hold-to-fire on canvas (no HUD toggle)
       onLoadoutChange: () => {
         this.weaponController.refreshCannonSkin();
       },
@@ -118,7 +130,6 @@ export class GameScene {
     this.setupInputListeners();
     this.setupResizeListener();
 
-    // Show start screen; gameplay + multiplayer join after Play
     this.uiManager.showStartScreen();
   }
 
@@ -126,16 +137,22 @@ export class GameScene {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
+
     void FairnessSession.getInstance().begin().then((sess) => {
       console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…');
     });
+
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
-    // Presence is cosmetic (not authoritative table settlement)
-    this.multiplayerTable.joinSharedTable(GameConfig.defaultTableId, uid, name);
+
+    // Table selection: use current table from TableSelection
+    const currentTable = this.tableSelection.getCurrentTable();
+    this.multiplayerTable.joinSharedTable(currentTable.id, uid, name);
+    this.tableSelection.joinPresence(uid, name);
+
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
-    this.tableUnsub = this.multiplayerTable.subscribeToTableState(GameConfig.defaultTableId, (state) => {
+    this.tableUnsub = this.multiplayerTable.subscribeToTableState(currentTable.id, (state) => {
       this.presenceLayer?.syncPlayers(state?.players);
       const shots = state?.shared_shots;
       if (shots && typeof shots === 'object') {
@@ -147,7 +164,28 @@ export class GameScene {
         }
       }
     });
-    // Seed a few more fish for an active trench
+
+    // Start clip recording
+    this.shareClip.startRecording();
+    this.clipRecording = true;
+
+    // Boss raid every ~3 minutes (only on public/tournament tables)
+    if (!currentTable.isPractice) {
+      this.bossRaidTimer = setInterval(() => {
+        if (!this.bossRaid.isActive()) {
+          this.bossRaid.startRaid(uid, (result) => {
+            console.info('[BossRaid] completed', result);
+          });
+        }
+      }, 180000);
+      // First raid after 60s
+      setTimeout(() => {
+        if (!this.bossRaid.isActive()) {
+          this.bossRaid.startRaid(uid);
+        }
+      }, 60000);
+    }
+
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
     }
@@ -173,13 +211,12 @@ export class GameScene {
       }
     });
 
-    // Hold = continuous auto-fire toward aim; release stops
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.isPlaying) return;
       canvas.setPointerCapture?.(e.pointerId);
       syncAim(e.clientX, e.clientY);
       this.autoFireActive = true;
-      this.autoFireTimer = 0; // interval counted from this shot; no instant double-fire
+      this.autoFireTimer = 0;
       this.fireWeapon(this.lastTargetX, this.lastTargetY);
     });
 
@@ -194,7 +231,6 @@ export class GameScene {
     canvas.addEventListener('pointerup', endHold);
     canvas.addEventListener('pointercancel', endHold);
     canvas.addEventListener('pointerleave', () => {
-      // only stop if no buttons held (mouse drag off canvas)
       this.autoFireActive = false;
     });
   }
@@ -208,11 +244,11 @@ export class GameScene {
       this.fishManager.resize(width, height);
       this.weaponController.resize(width, height);
       this.particleFX.resize(width, height);
+      this.bossRaid.resize(width, height);
     });
   }
 
   private fireWeapon(targetX: number, targetY: number): void {
-    // Charge only when a shot can actually leave the barrel (fixes multi-SC deduct on cooldown)
     if (!this.weaponController.canFire()) {
       return;
     }
@@ -225,7 +261,7 @@ export class GameScene {
     }
 
     if (!this.uiManager.deductBet()) {
-      return; // Insufficient balance
+      return;
     }
 
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
@@ -238,8 +274,9 @@ export class GameScene {
       targetY
     );
 
+    const currentTable = this.tableSelection.getCurrentTable();
     this.multiplayerTable.broadcastTableShot(
-      GameConfig.defaultTableId,
+      currentTable.id,
       uid,
       targetX,
       targetY,
@@ -247,17 +284,14 @@ export class GameScene {
     );
   }
 
-  /** Push server/local wallet into the DOM HUD */
   public syncWalletBalances(gc: number, sc: number, _source?: string): void {
     this.uiManager.setBalances(gc, sc);
   }
 
   public update(deltaTime: number): void {
-    // Always animate the living background
     this.animatedBackground.update(deltaTime);
 
     if (!this.isPlaying) {
-      // Idle: gentle fish drift for the title scene, no shooting / betting
       this.spatialGrid.clear();
       this.fishManager.update(deltaTime);
       this.particleFX.update(deltaTime);
@@ -266,14 +300,12 @@ export class GameScene {
 
     this.spatialGrid.clear();
 
-    // Fish waves spawn schedule
     this.spawnTimer += deltaTime;
     if (this.spawnTimer > GameConfig.spawnIntervalMs) {
       this.fishManager.spawnRandomWave();
       this.spawnTimer = 0;
     }
 
-    // Hold-to-fire: pace shots by interval AND weapon cooldown
     if (this.autoFireActive) {
       this.autoFireTimer += deltaTime;
       if (this.autoFireTimer >= GameConfig.autoFireIntervalMs) {
@@ -281,11 +313,31 @@ export class GameScene {
           this.fireWeapon(this.lastTargetX, this.lastTargetY);
           this.autoFireTimer = 0;
         }
-        // else keep timer at threshold and retry next frame when cooldown ready
       }
     }
 
-    // Update systems
+    // Update boss raid
+    this.bossRaid.update(deltaTime);
+
+    // Record clip frames
+    if (this.clipRecording) {
+      const projArr: Array<{x:number;y:number;color:number}> = [];
+      const wc = this.weaponController as any;
+      if (wc.activeProjectiles) {
+        for (const p of wc.activeProjectiles.values()) {
+          projArr.push({ x: p.x, y: p.y, color: p.currencyType === 'SC' ? 0x00ffcc : 0xffb703 });
+        }
+      }
+      const fishArr: Array<{x:number;y:number;type:string;hpPct:number}> = [];
+      const fm = this.fishManager as any;
+      if (fm.activeFish) {
+        for (const f of fm.activeFish.values()) {
+          fishArr.push({ x: f.x, y: f.y, type: f.typeId, hpPct: f.hp / (f.maxHp || 1) });
+        }
+      }
+      this.shareClip.captureFrame(projArr, fishArr);
+    }
+
     this.fishManager.update(deltaTime, this.lastTargetX, this.lastTargetY);
     this.weaponController.update(deltaTime);
     this.particleFX.update(deltaTime);
