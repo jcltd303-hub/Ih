@@ -102,8 +102,16 @@ export class PayoutEngine {
       const saved = localStorage.getItem(CONFIG_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+        let rtp = typeof parsed.targetRtp === 'number' ? parsed.targetRtp : 90;
+        // One-time migrate classic 92% default → 90% house policy
+        try {
+          if (!localStorage.getItem('fish_frenzy_rtp90_migrated') && rtp === 92) {
+            rtp = 90;
+            localStorage.setItem('fish_frenzy_rtp90_migrated', '1');
+          }
+        } catch { /* ignore */ }
         return {
-          targetRtp: typeof parsed.targetRtp === 'number' ? parsed.targetRtp : 92,
+          targetRtp: rtp,
           gambleKillEnabled: parsed.gambleKillEnabled !== false,
           gambleBonusMultiplierEnabled: parsed.gambleBonusMultiplierEnabled !== false,
           volatility: parsed.volatility || 'medium',
@@ -115,7 +123,7 @@ export class PayoutEngine {
       /* default */
     }
     return {
-      targetRtp: 92,
+      targetRtp: 90,
       gambleKillEnabled: true,
       gambleBonusMultiplierEnabled: true,
       volatility: 'medium',
@@ -297,7 +305,7 @@ export class PayoutEngine {
     isInstantKill: boolean;
   } {
     this.stats.totalHits++;
-    const loosenessFactor = this.config.targetRtp / 92;
+    const loosenessFactor = this.config.targetRtp / 90;
     const scale = this.profitabilityScale();
 
     const baseHitRate = 0.24 * loosenessFactor;
@@ -341,7 +349,7 @@ export class PayoutEngine {
     isJackpot: boolean;
   } {
     this.stats.totalKills++;
-    const loosenessFactor = this.config.targetRtp / 92;
+    const loosenessFactor = this.config.targetRtp / 90;
     const scale = this.profitabilityScale();
 
     if (!this.config.gambleBonusMultiplierEnabled) {
@@ -396,7 +404,7 @@ export class PayoutEngine {
     const aimAccuracy = options?.aimAccuracy ?? 0.7;
     const batches = Math.max(5, options?.batches ?? 20);
     const shotsPerBatch = Math.max(1, Math.floor(simShots / batches));
-    const loosenessFactor = targetRtp / 92;
+    const loosenessFactor = targetRtp / 90;
 
     let seed = options?.seed ?? 42;
     const rng = () => {

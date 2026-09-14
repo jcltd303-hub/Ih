@@ -5,7 +5,7 @@ describe('PayoutEngine', () => {
   beforeEach(() => {
     PayoutEngine.resetSessionStats();
     PayoutEngine.saveConfig({
-      targetRtp: 92,
+      targetRtp: 90,
       gambleKillEnabled: true,
       gambleBonusMultiplierEnabled: true,
       volatility: 'medium'

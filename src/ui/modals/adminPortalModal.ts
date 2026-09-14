@@ -286,7 +286,7 @@ const config = PayoutEngine.getConfig();
     });
 
     document.getElementById('admin-run-sim-btn')?.addEventListener('click', () => {
-      const currentRtp = parseInt(slider ? slider.value : '92', 10);
+      const currentRtp = parseInt(slider ? slider.value : '90', 10);
       const simResult = PayoutEngine.runMonteCarlo(50000, currentRtp, { batches: 25 });
       const outputEl = document.getElementById('admin-sim-output');
       if (outputEl) {

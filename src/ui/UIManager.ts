@@ -219,41 +219,16 @@ export class UIManager {
           </button>
         </div>
 
-        <!-- System Controls & Modals -->
+        <!-- Lobby + essentials only (shop/streak/admin live in Lobby) -->
         <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-          <!-- Streak Protocol -->
-          <button id="hud-streak-btn" title="Daily Streak Protocol" style="background: #1e293b; color: #fbbf24; border: 1px solid #f59e0b; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-            ⚡ STREAK
+          <button id="hud-lobby-btn" title="Open Lobby" style="background: linear-gradient(135deg,#0f766e,#155e75); color: #ecfeff; border: 1px solid #22d3ee; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 0 12px rgba(34,211,238,0.25);">
+            ⌂ LOBBY
           </button>
-
-          <!-- Armory / Loadout -->
-          <button id="hud-armory-btn" title="Cannon Armory Skins" style="background: #1e293b; color: #f43f5e; border: 1px solid #e11d48; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-            🎯 ARMORY
+          <button id="hud-theme-toggle" title="Toggle theme" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
+            🎨
           </button>
-
-          <!-- Provably Fair -->
-          <button id="hud-provably-fair-btn" title="Provably Fair Cryptographic Audit" style="background: #1e293b; color: #38bdf8; border: 1px solid #0284c7; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            🛡️ AUDIT
-          </button>
-
-          <!-- Admin Portal (Looseness & Payout %) -->
-          <button id="hud-admin-btn" title="Operator Admin Portal & Game Looseness Console" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid #f59e0b; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 4px; box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);">
-            ⚙️ ADMIN <span id="hud-admin-rtp-badge" style="background: #f59e0b; color: #000; font-size: 9px; padding: 1px 4px; border-radius: 4px; margin-left: 2px;">${PayoutEngine.getTargetRtp()}%</span>
-          </button>
-
-          <!-- Leaderboard -->
-          <button id="hud-leaderboard-btn" title="Tournament Leaderboard" style="background: #1e293b; color: #a78bfa; border: 1px solid #7c3aed; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            🏆 RANKS
-          </button>
-
-          <!-- Theme Toggle (Can-Tech vs Horror) -->
-          <button id="hud-theme-toggle" title="Toggle Light (Can-Tech) / Dark (Horror) Theme" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            🎨 THEME
-          </button>
-
-          <!-- Sound Toggle -->
-          <button id="hud-sound-toggle" title="Audio Effects" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            🔊 ON
+          <button id="hud-sound-toggle" title="Audio" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
+            🔊
           </button>
         </div>
       </div>
@@ -307,15 +282,11 @@ export class UIManager {
     this.themeBtn.addEventListener('click', () => this.toggleTheme());
     this.soundBtn.addEventListener('click', () => this.toggleSound());
 
-    document.getElementById('hud-streak-btn')?.addEventListener('click', () => this.showStreakModal());
-    document.getElementById('hud-armory-btn')?.addEventListener('click', () => this.showArmoryModal());
-    document.getElementById('hud-provably-fair-btn')?.addEventListener('click', () => this.showAuditModal());
-    document.getElementById('hud-admin-btn')?.addEventListener('click', () => this.showAdminPortalModal());
-    document.getElementById('hud-leaderboard-btn')?.addEventListener('click', () => this.showLeaderboardModal());
+    document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
 
-    // Keyboard shortcut to open Admin Portal (~ or Shift+A)
+    // Operator shortcut still opens Admin from Lobby tools
     window.addEventListener('keydown', (e) => {
-      if (e.key === '`' || e.key === '~' || (e.shiftKey && (e.key === 'A' || e.key === 'a'))) {
+      if (e.key === '`' || e.key === '~') {
         this.showAdminPortalModal();
       }
     });
@@ -358,6 +329,74 @@ export class UIManager {
       addBalance: (gc, sc) => this.addBalance(gc, sc),
       getScBalance: () => this.scBalance
     };
+  }
+
+
+  /** Full-screen lobby: shop, streak, ranks, audit, operator tools — off the combat HUD. */
+  public showLobby(): void {
+    SoundManager.playUiSound('modal_open');
+    const rtp = PayoutEngine.getTargetRtp();
+    const profit = PayoutEngine.getProfitSnapshot();
+    this.modalContainer.innerHTML = `
+      <div style="background:linear-gradient(160deg,#0b1224 0%,#0f172a 40%,#081018 100%); border:2px solid #22d3ee; border-radius:18px; padding:22px; max-width:560px; width:100%; color:#e2e8f0; box-shadow:0 20px 50px rgba(0,0,0,0.75); max-height:90vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div>
+            <div style="font-size:11px; letter-spacing:3px; color:#22d3ee; font-weight:800;">FISH FRENZY</div>
+            <h2 style="margin:4px 0 0; font-size:22px; font-weight:900;">LOBBY</h2>
+          </div>
+          <button id="lobby-close-btn" style="background:transparent;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">✕</button>
+        </div>
+        <p style="margin:0 0 16px; font-size:12px; color:#94a3b8; line-height:1.45;">
+          Combat HUD stays clean. Shop, rewards, and operator tools live here.
+          Target RTP <strong style="color:#fbbf24;">${rtp}%</strong>
+          · House edge ~<strong>${(100 - rtp).toFixed(0)}%</strong>
+          · P&amp;L ${profit.isProfitable ? '<span style="color:#34d399">OK</span>' : '<span style="color:#f87171">REVIEW</span>'}
+        </p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button class="lobby-tile" data-lobby="shop" style="text-align:left; background:#1e293b; border:1px solid #e11d48; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
+            <div style="font-size:18px; margin-bottom:4px;">🎯</div>
+            <div style="font-weight:800; color:#fb7185;">SHOP / ARMORY</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Unlock & equip turret chassis</div>
+          </button>
+          <button class="lobby-tile" data-lobby="streak" style="text-align:left; background:#1e293b; border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
+            <div style="font-size:18px; margin-bottom:4px;">⚡</div>
+            <div style="font-weight:800; color:#fbbf24;">STREAK</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Daily login rewards</div>
+          </button>
+          <button class="lobby-tile" data-lobby="ranks" style="text-align:left; background:#1e293b; border:1px solid #7c3aed; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
+            <div style="font-size:18px; margin-bottom:4px;">🏆</div>
+            <div style="font-weight:800; color:#c4b5fd;">RANKS</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Tournament leaderboard</div>
+          </button>
+          <button class="lobby-tile" data-lobby="audit" style="text-align:left; background:#1e293b; border:1px solid #0284c7; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
+            <div style="font-size:18px; margin-bottom:4px;">🛡️</div>
+            <div style="font-weight:800; color:#38bdf8;">AUDIT</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Provably fair seed check</div>
+          </button>
+          <button class="lobby-tile" data-lobby="operator" style="grid-column:1 / -1; text-align:left; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
+            <div style="font-size:18px; margin-bottom:4px;">⚙️</div>
+            <div style="font-weight:800; color:#fbbf24;">OPERATOR · PAYOUTS & MONTE CARLO</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Set RTP (90% default), run sims, deposit vs payout P&amp;L</div>
+          </button>
+        </div>
+        <button id="lobby-resume-btn" style="margin-top:16px; width:100%; background:linear-gradient(135deg,#00ffcc,#0891b2); color:#0a0f1d; border:none; padding:12px; border-radius:10px; font-weight:900; letter-spacing:1px; cursor:pointer;">
+          ▶ RESUME TRENCH
+        </button>
+      </div>
+    `;
+    this.modalContainer.style.display = 'flex';
+    document.getElementById('lobby-close-btn')?.addEventListener('click', () => this.closeModal());
+    document.getElementById('lobby-resume-btn')?.addEventListener('click', () => this.closeModal());
+    this.modalContainer.querySelectorAll('.lobby-tile').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = (btn as HTMLElement).getAttribute('data-lobby');
+        if (id === 'shop') this.showArmoryModal();
+        else if (id === 'streak') this.showStreakModal();
+        else if (id === 'ranks') this.showLeaderboardModal();
+        else if (id === 'audit') this.showAuditModal();
+        else if (id === 'operator') this.showAdminPortalModal();
+      });
+    });
   }
 
   private async showStreakModal(): Promise<void> {

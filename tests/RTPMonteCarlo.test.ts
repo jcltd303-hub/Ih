@@ -6,11 +6,11 @@ describe('Enhanced Monte Carlo RTP & profitability', () => {
   beforeEach(() => {
     PayoutEngine.resetSessionStats();
     PayoutEngine.resetLedger();
-    PayoutEngine.setPayoutPolicy(92, 105);
+    PayoutEngine.setPayoutPolicy(90, 105);
   });
 
   it('50k-shot Monte Carlo at 92% target stays near target with positive house edge', () => {
-    const result = PayoutEngine.runMonteCarlo(50_000, 92, { batches: 25, seed: 7 });
+    const result = PayoutEngine.runMonteCarlo(50_000, 90, { batches: 25, seed: 7 });
     expect(result.shots).toBe(50_000);
     expect(result.houseEdgePct).toBeGreaterThan(0);
     expect(result.realizedRtp).toBeGreaterThan(60);
@@ -59,7 +59,7 @@ describe('Deposit vs payout profitability ledger', () => {
   beforeEach(() => {
     PayoutEngine.resetSessionStats();
     PayoutEngine.resetLedger();
-    PayoutEngine.setPayoutPolicy(92, 105);
+    PayoutEngine.setPayoutPolicy(90, 105);
   });
 
   it('tracks deposits, handle, payouts and cash profit', () => {
@@ -83,8 +83,8 @@ describe('Deposit vs payout profitability ledger', () => {
     const cfg = PayoutEngine.getConfig();
     expect(cfg.targetRtp).toBeLessThanOrEqual(120);
     expect(cfg.maxLifetimeRtpGuard).toBeLessThanOrEqual(150);
-    PayoutEngine.setPayoutPolicy(92, 105);
-    expect(PayoutEngine.getTargetRtp()).toBe(92);
+    PayoutEngine.setPayoutPolicy(90, 105);
+    expect(PayoutEngine.getTargetRtp()).toBe(90);
   });
 
   it('flags unprofitable when payouts exceed deposits heavily', () => {

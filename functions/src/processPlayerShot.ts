@@ -17,7 +17,7 @@ function evaluateServerHit(
   skinBonus: number,
   targetRtp: number
 ) {
-  const looseness = targetRtp / 92;
+  const looseness = targetRtp / 90;
   const baseHitRate = 0.24 * looseness;
   const isLuckyHit = Math.random() < 0.06 * looseness;
   const hitPayout = isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate;
@@ -36,7 +36,7 @@ function evaluateServerHit(
 }
 
 function evaluateServerKill(baseMultiplier: number, fishType: FishType, targetRtp: number) {
-  const looseness = targetRtp / 92;
+  const looseness = targetRtp / 90;
   const roll = Math.random();
   if (roll < 0.02 * looseness) {
     return { finalMultiplier: baseMultiplier * 10, bonusLabel: '10X JACKPOT', isJackpot: true };
@@ -116,7 +116,7 @@ export const processPlayerShot = onCall(async (request) => {
       ? rawFishType
       : 'small';
   const skinBonus = typeof rawSkinBonus === 'number' && rawSkinBonus > 0 ? Math.min(rawSkinBonus, 3) : 1;
-  const targetRtp = 92;
+  const targetRtp = 90;
 
   const userWalletRef = db.collection('users').doc(userId).collection('wallet').doc('balances');
 
