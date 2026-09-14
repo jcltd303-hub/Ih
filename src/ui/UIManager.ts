@@ -29,6 +29,9 @@ export class UIManager {
   private onAutoFireToggleCallback?: (enabled: boolean) => void;
   private onBetChangeCallback?: (bet: number, currency: 'GC' | 'SC') => void;
   private onLoadoutChangeCallback?: () => void;
+  private onPlayCallback?: () => void;
+  private startScreenEl: HTMLElement | null = null;
+  private isGameActive: boolean = false;
 
   constructor(
     rootElement: HTMLElement,
@@ -37,12 +40,14 @@ export class UIManager {
       onAutoFireToggle?: (enabled: boolean) => void;
       onBetChange?: (bet: number, currency: 'GC' | 'SC') => void;
       onLoadoutChange?: () => void;
+      onPlay?: () => void;
     }
   ) {
     this.onThemeChangeCallback = callbacks?.onThemeChange;
     this.onAutoFireToggleCallback = callbacks?.onAutoFireToggle;
     this.onBetChangeCallback = callbacks?.onBetChange;
     this.onLoadoutChangeCallback = callbacks?.onLoadoutChange;
+    this.onPlayCallback = callbacks?.onPlay;
 
     this.container = document.createElement('div');
     this.container.id = 'fish-frenzy-hud';
@@ -56,6 +61,78 @@ export class UIManager {
 
     this.renderHUD();
     this.createModalContainer(rootElement);
+    // HUD starts hidden until Play
+    this.container.style.visibility = 'hidden';
+  }
+
+  /** Full-screen cyber title card with Play CTA */
+  public showStartScreen(): void {
+    if (this.startScreenEl) return;
+
+    this.startScreenEl = document.createElement('div');
+    this.startScreenEl.id = 'fish-frenzy-start';
+    this.startScreenEl.style.cssText = `
+      position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; pointer-events: auto;
+      background: radial-gradient(ellipse at center, rgba(8,16,40,0.55) 0%, rgba(2,4,12,0.88) 70%);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #e2e8f0; text-align: center; padding: 24px; box-sizing: border-box;
+    `;
+    this.startScreenEl.innerHTML = `
+      <div style="max-width: 520px; width: 100%;">
+        <div style="font-size: 11px; letter-spacing: 4px; color: #00ffcc; font-weight: 700; margin-bottom: 10px;">
+          CYBER TRENCH ARCADE
+        </div>
+        <h1 style="margin: 0 0 8px; font-size: clamp(28px, 6vw, 42px); font-weight: 900; line-height: 1.1;
+          background: linear-gradient(135deg, #00f0ff 0%, #ff007f 50%, #fbbf24 100%);
+          -webkit-background-clip: text; background-clip: text; color: transparent;">
+          FISH FRENZY
+        </h1>
+        <p style="margin: 0 0 28px; font-size: 13px; color: #94a3b8; line-height: 1.5;">
+          Aim the modular turret. School the trench. Hunt the Leviathan.<br/>
+          Provably fair RTP · 4 tactical chassis · Boid swarm physics
+        </p>
+        <button id="ff-play-btn" style="
+          background: linear-gradient(135deg, #00ffcc 0%, #0891b2 100%);
+          color: #0a0f1d; border: none; padding: 16px 48px; border-radius: 12px;
+          font-size: 16px; font-weight: 900; letter-spacing: 2px; cursor: pointer;
+          box-shadow: 0 0 28px rgba(0,255,204,0.45); transition: transform 0.15s, box-shadow 0.15s;
+        ">▶  PLAY</button>
+        <div style="margin-top: 22px; font-size: 11px; color: #64748b;">
+          Click / tap to aim &amp; fire · Auto-fire available in HUD
+        </div>
+      </div>
+    `;
+
+    const root = this.container.parentElement || document.body;
+    root.appendChild(this.startScreenEl);
+
+    const playBtn = document.getElementById('ff-play-btn');
+    playBtn?.addEventListener('click', () => {
+      SoundManager.playUiSound('modal_open');
+      this.onPlayCallback?.();
+    });
+    playBtn?.addEventListener('mouseenter', () => {
+      if (playBtn) {
+        playBtn.style.transform = 'scale(1.05)';
+        playBtn.style.boxShadow = '0 0 40px rgba(0,255,204,0.7)';
+      }
+    });
+    playBtn?.addEventListener('mouseleave', () => {
+      if (playBtn) {
+        playBtn.style.transform = 'scale(1)';
+        playBtn.style.boxShadow = '0 0 28px rgba(0,255,204,0.45)';
+      }
+    });
+  }
+
+  public hideStartScreen(): void {
+    if (this.startScreenEl) {
+      this.startScreenEl.remove();
+      this.startScreenEl = null;
+    }
+    this.isGameActive = true;
+    this.container.style.visibility = 'visible';
   }
 
   private renderHUD(): void {

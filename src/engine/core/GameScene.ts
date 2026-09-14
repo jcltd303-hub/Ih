@@ -28,6 +28,8 @@ export class GameScene {
   private autoFireTimer: number = 0;
   private lastTargetX: number = 0;
   private lastTargetY: number = 0;
+  /** Game flow: idle until player hits Play on the start screen */
+  private isPlaying: boolean = false;
 
   constructor(app: Application, uiRoot: HTMLElement) {
     this.app = app;
@@ -60,6 +62,9 @@ export class GameScene {
       },
       onLoadoutChange: () => {
         this.weaponController.refreshCannonSkin();
+      },
+      onPlay: () => {
+        this.startPlay();
       }
     });
 
@@ -93,14 +98,26 @@ export class GameScene {
     this.setupInputListeners();
     this.setupResizeListener();
 
-    // Join shared table channel
+    // Show start screen; gameplay + multiplayer join after Play
+    this.uiManager.showStartScreen();
+  }
+
+  private startPlay(): void {
+    if (this.isPlaying) return;
+    this.isPlaying = true;
+    this.uiManager.hideStartScreen();
     this.multiplayerTable.joinSharedTable('abyssal_trench_table_01', 'player_local', 'NeonStriker');
+    // Seed a few more fish for an active trench
+    for (let i = 0; i < 4; i++) {
+      this.fishManager.spawnRandomWave();
+    }
   }
 
   private setupInputListeners(): void {
     const canvas = this.app.canvas;
 
     canvas.addEventListener('pointermove', (e) => {
+      if (!this.isPlaying) return;
       const rect = canvas.getBoundingClientRect();
       this.lastTargetX = e.clientX - rect.left;
       this.lastTargetY = e.clientY - rect.top;
@@ -108,6 +125,7 @@ export class GameScene {
     });
 
     canvas.addEventListener('pointerdown', (e) => {
+      if (!this.isPlaying) return;
       const rect = canvas.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
@@ -157,6 +175,17 @@ export class GameScene {
   }
 
   public update(deltaTime: number): void {
+    // Always animate the living background
+    this.animatedBackground.update(deltaTime);
+
+    if (!this.isPlaying) {
+      // Idle: gentle fish drift for the title scene, no shooting / betting
+      this.spatialGrid.clear();
+      this.fishManager.update(deltaTime);
+      this.particleFX.update(deltaTime);
+      return;
+    }
+
     this.spatialGrid.clear();
 
     // Fish waves spawn schedule
@@ -176,7 +205,6 @@ export class GameScene {
     }
 
     // Update systems
-    this.animatedBackground.update(deltaTime);
     this.fishManager.update(deltaTime, this.lastTargetX, this.lastTargetY);
     this.weaponController.update(deltaTime);
     this.particleFX.update(deltaTime);

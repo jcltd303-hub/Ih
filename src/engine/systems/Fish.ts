@@ -1,6 +1,7 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { BossManager } from './BossManager';
 import { SpriteSheetManager, FishAnimationRig } from './SpriteSheetManager';
+import { BoidSwarmManager } from './BoidSwarmManager';
 
 export class Fish {
   public id: string;
@@ -112,108 +113,96 @@ export class Fish {
   ): void {
     if (!this.isAlive) return;
 
-    let steerX = 0;
-    let steerY = 0;
+    // Build lightweight boid views for flocking (small + medium participate; bosses light touch)
+    const flock = neighbors
+      .filter((f) => f.isAlive)
+      .map((f) => ({
+        id: f.id,
+        x: f.x,
+        y: f.y,
+        vx: f.vx,
+        vy: f.vy,
+        typeId: f.typeId
+      }));
 
-    // 1. Separation & Cohesion steering behaviors if peers exist
-    if (neighbors.length > 0 && this.typeId === 'small') {
-      let sepX = 0;
-      let sepY = 0;
-      let cohX = 0;
-      let cohY = 0;
-      let count = 0;
+    const selfBoid = {
+      id: this.id,
+      x: this.x,
+      y: this.y,
+      vx: this.vx,
+      vy: this.vy,
+      typeId: this.typeId
+    };
 
-      for (const other of neighbors) {
-        if (other.id === this.id) continue;
-        const dx = this.x - other.x;
-        const dy = this.y - other.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+    const { ax, ay } = BoidSwarmManager.computeSteering(selfBoid, flock, threatX, threatY);
 
-        if (dist > 0 && dist < 50) {
-          // Separation
-          sepX += (dx / dist) / dist;
-          sepY += (dy / dist) / dist;
-        }
-
-        cohX += other.x;
-        cohY += other.y;
-        count++;
-      }
-
-      if (count > 0) {
-        steerX += sepX * 1.5;
-        steerY += sepY * 1.5;
-
-        // Cohesion towards flock center
-        cohX /= count;
-        cohY /= count;
-        const toCenterX = cohX - this.x;
-        const toCenterY = cohY - this.y;
-        const centerDist = Math.sqrt(toCenterX * toCenterX + toCenterY * toCenterY);
-        if (centerDist > 0) {
-          steerX += (toCenterX / centerDist) * 0.4;
-          steerY += (toCenterY / centerDist) * 0.4;
-        }
-      }
-    }
-
-    // 2. Threat Evasion (Harder to catch: sudden erratic bursts away from crosshair/shots)
+    // Threat panic (erratic jinking for small/medium)
     if (threatX !== undefined && threatY !== undefined) {
       const tdx = this.x - threatX;
       const tdy = this.y - threatY;
       const tdist = Math.sqrt(tdx * tdx + tdy * tdy);
-
-      if (tdist < 180 && tdist > 0) {
-        this.panicTimer = 45; // panic frames
-        const evasionStrength = (1 - tdist / 180) * 3.5;
-        steerX += (tdx / tdist) * evasionStrength * 2.2;
-        steerY += (tdy / tdist) * evasionStrength * 2.2;
+      const panicRadius = this.typeId === 'boss' ? 200 : this.typeId === 'medium' ? 170 : 180;
+      if (tdist > 0 && tdist < panicRadius) {
+        this.panicTimer = this.typeId === 'small' ? 50 : this.typeId === 'medium' ? 35 : 20;
       }
     }
 
+    let extraX = 0;
+    let extraY = 0;
     if (this.panicTimer > 0) {
       this.panicTimer--;
-      // Erratic jinking
-      steerX += (Math.random() - 0.5) * 1.8;
-      steerY += (Math.random() - 0.5) * 1.8;
+      if (this.typeId !== 'boss') {
+        extraX = (Math.random() - 0.5) * 1.9;
+        extraY = (Math.random() - 0.5) * 1.9;
+      }
     }
 
-    // Apply steering acceleration
-    this.vx += steerX * 0.2 * dtScale;
-    this.vy += steerY * 0.2 * dtScale;
+    // Boss: slow deliberate cruise with mild vertical sway
+    if (this.typeId === 'boss') {
+      extraY += Math.sin(Date.now() * 0.0015 + this.x * 0.01) * 0.15;
+    }
 
-    // Speed limiting & dash multipliers
+    this.vx += (ax + extraX) * dtScale;
+    this.vy += (ay + extraY) * dtScale;
+
+    const weights = BoidSwarmManager.getWeights(this.typeId);
     const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-    const effectiveMaxSpeed = this.panicTimer > 0 ? this.maxSpeed * 1.6 : this.maxSpeed;
+    const effectiveMaxSpeed =
+      this.panicTimer > 0 && this.typeId !== 'boss'
+        ? weights.maxSpeed * 1.55
+        : weights.maxSpeed;
 
     if (currentSpeed > effectiveMaxSpeed) {
       this.vx = (this.vx / currentSpeed) * effectiveMaxSpeed;
       this.vy = (this.vy / currentSpeed) * effectiveMaxSpeed;
     } else if (currentSpeed < 0.8 && this.typeId !== 'boss') {
-      // Ensure minimum cruising velocity so fish never stall
       const angle = Math.atan2(this.vy, this.vx) || Math.random() * Math.PI * 2;
-      this.vx = Math.cos(angle) * 1.2;
-      this.vy = Math.sin(angle) * 1.2;
+      this.vx = Math.cos(angle) * 1.15;
+      this.vy = Math.sin(angle) * 1.15;
     }
 
-    // Update positions
     this.x += this.vx * dtScale;
     this.y += this.vy * dtScale;
 
-    // Screen wrap-around with vertical bounds containment
+    // Screen wrap-around with vertical bounds
     if (this.x < -120) this.x = screenWidth + 110;
     if (this.x > screenWidth + 120) this.x = -110;
-    if (this.y < 80) { this.y = 80; this.vy *= -1; }
-    if (this.y > screenHeight - 100) { this.y = screenHeight - 100; this.vy *= -1; }
+    if (this.y < 80) {
+      this.y = 80;
+      this.vy *= -1;
+    }
+    if (this.y > screenHeight - 100) {
+      this.y = screenHeight - 100;
+      this.vy *= -1;
+    }
 
     this.container.x = this.x;
     this.container.y = this.y;
 
-    // Sprite sheet animated swimming and 3D turning logic
+    // Sprite sheet animated swimming and 3D turning
     if (this.animRig) {
       const heading = this.vx < -0.25 ? 'left' : this.vx > 0.25 ? 'right' : this.facing;
 
-      // Trigger 3D turn transition when heading switches
       if (heading !== this.facing && !this.animRig.isTurning) {
         this.facing = heading;
         const turnAnim = heading === 'left' ? 'turn_left' : 'turn_right';
@@ -225,17 +214,14 @@ export class Fish {
           }
         });
       } else if (!this.animRig.isTurning) {
-        // Maintain continuous swim loop
         const activeSwim = this.facing === 'left' ? 'swim_left' : 'swim_right';
         if (this.animRig.currentState !== activeSwim) {
           this.animRig.playState(activeSwim);
         }
       }
 
-      // Dynamic animation playback rate based on velocity
       this.animRig.setSpeed(Math.max(0.7, currentSpeed / this.maxSpeed));
     } else if (this.bossInstance) {
-      // Articulated serpentine spine simulation & kinetic animation
       this.bossInstance.update(dtScale, this.vx, this.vy);
     }
   }

@@ -57,17 +57,21 @@ export class FishManager {
   }
 
   public spawnRandomWave(): void {
-    if (this.activeFish.size >= 12) return;
+    if (this.activeFish.size >= 18) return;
 
     // Guarantee only one active boss at any time
     const hasBoss = Array.from(this.activeFish.values()).some(f => f.typeId === 'boss' && f.isAlive);
     const roll = Math.random();
     if (roll > 0.90 && !hasBoss) {
       this.spawnFish('boss');
-    } else if (roll > 0.45) {
+    } else if (roll > 0.55) {
       this.spawnFish('medium');
     } else {
-      this.spawnFish('small');
+      // Spawn a small school (2–4 tetras) for visible flocking
+      const schoolSize = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < schoolSize && this.activeFish.size < 18; i++) {
+        this.spawnFish('small');
+      }
     }
   }
 

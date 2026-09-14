@@ -39,12 +39,28 @@ export class WeaponController {
   private screenHeight: number;
   private projectileIdCounter = 0;
   private lastFiredTime: number = 0;
-  private fireCooldownMs: number = 140; // Rate of fire limiter
+  private fireCooldownMs: number = 140; // Rate of fire limiter (overridden per skin)
   private cannonGraphic: Graphics;
   public turretRig: TurretAnimationRig;
   public cannonX: number;
   public cannonY: number;
   private onWinCallback?: (winAmount: number, currencyType: 'GC' | 'SC') => void;
+
+  /** Per-turret combat profile: cooldown, projectile speed, damage multiplier */
+  private static readonly WEAPON_STATS: Record<
+    TurretSkinId,
+    { cooldownMs: number; projectileSpeed: number; damageMult: number; spreadDeg: number }
+  > = {
+    plasma_neon: { cooldownMs: 115, projectileSpeed: 28, damageMult: 1.0, spreadDeg: 0 },
+    cyber_gold: { cooldownMs: 180, projectileSpeed: 22, damageMult: 1.35, spreadDeg: 2 },
+    abyssal_dread: { cooldownMs: 220, projectileSpeed: 18, damageMult: 1.7, spreadDeg: 4 },
+    default: { cooldownMs: 140, projectileSpeed: 24, damageMult: 1.15, spreadDeg: 1.5 }
+  };
+
+  private getActiveWeaponStats() {
+    const skin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
+    return WeaponController.WEAPON_STATS[skin] ?? WeaponController.WEAPON_STATS.plasma_neon;
+  }
 
   constructor(
     stage: Container,
@@ -164,11 +180,13 @@ export class WeaponController {
     targetX: number,
     targetY: number
   ): Promise<boolean> {
+    const stats = this.getActiveWeaponStats();
     const now = Date.now();
-    if (now - this.lastFiredTime < this.fireCooldownMs) {
+    if (now - this.lastFiredTime < stats.cooldownMs) {
       return false;
     }
     this.lastFiredTime = now;
+    this.fireCooldownMs = stats.cooldownMs;
 
     this.updateAim(targetX, targetY);
 
@@ -180,8 +198,13 @@ export class WeaponController {
     this.projectileIdCounter++;
     const projectileId = `proj_${this.projectileIdCounter}`;
 
-    const angle = Math.atan2(targetY - this.cannonY, targetX - this.cannonX);
-    const speed = 24;
+    let angle = Math.atan2(targetY - this.cannonY, targetX - this.cannonX);
+    // Per-skin spread for heavier weapons
+    if (stats.spreadDeg > 0) {
+      const spreadRad = ((Math.random() - 0.5) * 2 * stats.spreadDeg * Math.PI) / 180;
+      angle += spreadRad;
+    }
+    const speed = stats.projectileSpeed;
     const vx = Math.cos(angle) * speed;
     const vy = Math.sin(angle) * speed;
 
@@ -371,9 +394,10 @@ export class WeaponController {
         const fish = this.fishManager.getFish(hitEntity.id);
         const fishType = fish?.typeId || 'small';
 
-        // Loadout bonus
-        const activeSkin = LoadoutManager.getLoadout().activeCannonSkin;
-        const skinBonus = activeSkin ? 1.25 : 1.0;
+        // Loadout + per-turret damage profile
+        const weaponStats =
+          WeaponController.WEAPON_STATS[proj.turretSkin] ?? WeaponController.WEAPON_STATS.plasma_neon;
+        const skinBonus = 1.0 * weaponStats.damageMult;
 
         // Evaluate gamble hit via PayoutEngine (governed by Admin Looseness slider)
         const evalHit = PayoutEngine.evaluateHit(proj.betAmount, fishType, skinBonus);
