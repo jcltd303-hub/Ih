@@ -9,6 +9,7 @@ import { AbyssalPostProcessor } from '../systems/AbyssalPostProcessor';
 import { UIManager } from '../../ui/UIManager';
 import { MultiplayerTableManager } from '../../network/MultiplayerTableManager';
 import { TournamentManager } from '../../network/TournamentManager';
+import { GameConfig } from '../../config/GameConfig';
 
 export class GameScene {
   private app: Application;
@@ -78,10 +79,10 @@ export class GameScene {
       (winAmount, currencyType) => {
         if (currencyType === 'SC') {
           this.uiManager.addBalance(0, winAmount);
-          TournamentManager.addScore('player_local', winAmount * 10);
+          TournamentManager.addScore(GameConfig.localPlayerId, winAmount * 10);
         } else {
           this.uiManager.addBalance(winAmount * 100, 0);
-          TournamentManager.addScore('player_local', winAmount);
+          TournamentManager.addScore(GameConfig.localPlayerId, winAmount);
         }
         this.postProcessor.triggerImpactGlitch(0.015);
       }
@@ -106,9 +107,13 @@ export class GameScene {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
-    this.multiplayerTable.joinSharedTable('abyssal_trench_table_01', 'player_local', 'NeonStriker');
+    this.multiplayerTable.joinSharedTable(
+      GameConfig.defaultTableId,
+      GameConfig.localPlayerId,
+      GameConfig.localDisplayName
+    );
     // Seed a few more fish for an active trench
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
     }
   }
@@ -157,8 +162,8 @@ export class GameScene {
     }
 
     this.weaponController.fireCannon(
-      'player_local',
-      'session_live_777',
+      GameConfig.localPlayerId,
+      GameConfig.localSessionId,
       currency,
       betAmount,
       targetX,
@@ -166,8 +171,8 @@ export class GameScene {
     );
 
     this.multiplayerTable.broadcastTableShot(
-      'abyssal_trench_table_01',
-      'player_local',
+      GameConfig.defaultTableId,
+      GameConfig.localPlayerId,
       targetX,
       targetY,
       betAmount
@@ -190,7 +195,7 @@ export class GameScene {
 
     // Fish waves spawn schedule
     this.spawnTimer += deltaTime;
-    if (this.spawnTimer > 1800) {
+    if (this.spawnTimer > GameConfig.spawnIntervalMs) {
       this.fishManager.spawnRandomWave();
       this.spawnTimer = 0;
     }
@@ -198,7 +203,7 @@ export class GameScene {
     // Auto-fire mechanism
     if (this.autoFireActive) {
       this.autoFireTimer += deltaTime;
-      if (this.autoFireTimer > 160) {
+      if (this.autoFireTimer > GameConfig.autoFireIntervalMs) {
         this.fireWeapon(this.lastTargetX, this.lastTargetY);
         this.autoFireTimer = 0;
       }

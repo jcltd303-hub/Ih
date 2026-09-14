@@ -2,6 +2,7 @@ import { Container } from 'pixi.js';
 import { SpatialHashGrid, EntityBounds } from './SpatialHashGrid';
 import { Fish } from './Fish';
 import { SoundManager } from '../../audio/SoundManager';
+import { GameConfig } from '../../config/GameConfig';
 
 export type FishEntity = Fish;
 
@@ -21,7 +22,7 @@ export class FishManager {
     this.screenHeight = screenHeight;
 
     // Initial seed wave
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < GameConfig.initialWaveCount; i++) {
       this.spawnRandomWave();
     }
   }
@@ -57,7 +58,7 @@ export class FishManager {
   }
 
   public spawnRandomWave(): void {
-    if (this.activeFish.size >= 18) return;
+    if (this.activeFish.size >= GameConfig.maxActiveFish) return;
 
     // Guarantee only one active boss at any time
     const hasBoss = Array.from(this.activeFish.values()).some(f => f.typeId === 'boss' && f.isAlive);
@@ -67,9 +68,10 @@ export class FishManager {
     } else if (roll > 0.55) {
       this.spawnFish('medium');
     } else {
-      // Spawn a small school (2–4 tetras) for visible flocking
-      const schoolSize = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < schoolSize && this.activeFish.size < 18; i++) {
+      // Spawn a small school for visible flocking
+      const span = GameConfig.schoolSizeMax - GameConfig.schoolSizeMin + 1;
+      const schoolSize = GameConfig.schoolSizeMin + Math.floor(Math.random() * span);
+      for (let i = 0; i < schoolSize && this.activeFish.size < GameConfig.maxActiveFish; i++) {
         this.spawnFish('small');
       }
     }

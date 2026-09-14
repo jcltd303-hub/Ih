@@ -1,9 +1,22 @@
 {
   "rules": {
+    ".read": false,
+    ".write": false,
     "tables": {
       "$tableId": {
         ".read": "auth != null",
-        ".write": "auth != null"
+        "players": {
+          "$playerId": {
+            ".write": "auth != null && auth.uid == $playerId",
+            ".validate": "newData.hasChildren(['userId', 'username', 'lastActive']) && newData.child('userId').val() == auth.uid"
+          }
+        },
+        "shared_shots": {
+          ".write": "auth != null",
+          "$shotId": {
+            ".validate": "newData.hasChildren(['userId', 'targetX', 'targetY', 'bet', 'timestamp']) && newData.child('userId').val() == auth.uid && newData.child('bet').isNumber() && newData.child('bet').val() > 0 && newData.child('bet').val() <= 1000"
+          }
+        }
       }
     }
   }

@@ -14,6 +14,8 @@ export class MultiplayerTableManager {
   private activeTableId: string | null = null;
   private localPlayer: TablePlayer | null = null;
   private connectionSub?: () => void;
+  private lastShotBroadcastMs = 0;
+  private static readonly MIN_SHOT_INTERVAL_MS = 80;
 
   constructor() {
     this.initConnectionMonitor();
@@ -59,6 +61,14 @@ export class MultiplayerTableManager {
   }
 
   public broadcastTableShot(tableId: string, userId: string, targetX: number, targetY: number, bet: number): void {
+    const now = Date.now();
+    if (now - this.lastShotBroadcastMs < MultiplayerTableManager.MIN_SHOT_INTERVAL_MS) {
+      return;
+    }
+    if (!(bet > 0) || bet > 1000 || !Number.isFinite(targetX) || !Number.isFinite(targetY)) {
+      return;
+    }
+    this.lastShotBroadcastMs = now;
     try {
       const shotsRef = ref(rtdb, `tables/${tableId}/shared_shots`);
       push(shotsRef, {
@@ -66,7 +76,7 @@ export class MultiplayerTableManager {
         targetX,
         targetY,
         bet,
-        timestamp: Date.now()
+        timestamp: now
       });
     } catch (e) {
       console.warn('[MultiplayerTableManager] Shot broadcast fallback:', e);

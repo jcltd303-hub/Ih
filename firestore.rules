@@ -2,32 +2,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // User profile: owner read; wallet writes only via Admin SDK (Cloud Functions)
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
       allow write: if false;
 
-      match /wallet/balances {
-        allow read: if request.auth != null && request.auth.uid == userId;
+      match /wallet/{docId} {
+        allow read: if isOwner(userId);
         allow write: if false;
       }
 
+      match /settings/{docId} {
+        allow read, write: if isOwner(userId)
+          && !('sweepstakesCoins' in request.resource.data)
+          && !('goldCoins' in request.resource.data);
+      }
+
+      match /loadout/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Block arbitrary subcollection writes (prevents client balance tampering)
       match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
     }
 
+    // Shared tables: authenticated read; player docs only writable by self
     match /tables/{tableId} {
-      allow read, write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if false;
+
+      match /players/{playerId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && request.auth.uid == playerId;
+      }
     }
 
+    // Tournaments: public read for auth users; scores only via Admin SDK
     match /tournaments/{tournamentId} {
-      allow read: if request.auth != null;
+      allow read: if isSignedIn();
       allow write: if false;
     }
 
+    // Compliance audit: create-only for signed-in users; no client reads
     match /compliance_audit_logs/{logId} {
       allow read: if false;
-      allow create: if request.auth != null;
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['userId', 'timestamp'])
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
