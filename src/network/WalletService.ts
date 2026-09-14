@@ -18,6 +18,7 @@ export type WalletCurrency = 'GC' | 'SC';
 export interface WalletBalances {
   goldCoins: number;
   sweepstakesCoins: number;
+  source?: 'server' | 'local' | 'pending';
 }
 
 export interface WalletRequestResult {
@@ -33,6 +34,7 @@ type BalanceListener = (balances: WalletBalances) => void;
 const DEFAULT_BALANCES: WalletBalances = {
   goldCoins: 10000,
   sweepstakesCoins: 50,
+  source: 'local',
 };
 
 export class WalletService {
@@ -73,6 +75,18 @@ export class WalletService {
     };
   }
 
+  public onChange(listener: BalanceListener): () => void {
+    return this.subscribe(listener);
+  }
+
+  public applyServerBalances(gc: number, sc: number): void {
+    this.setBalances({
+      goldCoins: gc,
+      sweepstakesCoins: sc,
+      source: 'server',
+    });
+  }
+
   public async connect(): Promise<WalletBalances> {
     this.disconnect();
 
@@ -98,6 +112,7 @@ export class WalletService {
         this.setBalances({
           goldCoins: Number(data.goldCoins ?? 0),
           sweepstakesCoins: Number(data.sweepstakesCoins ?? 0),
+          source: 'server',
         });
       },
       (error) => {

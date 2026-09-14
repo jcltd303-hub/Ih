@@ -1,4 +1,5 @@
 import { WalletService } from '../network/WalletService';
+import { AuthManager } from '../network/AuthManager';
 import { FeatureFlags } from '../config/FeatureFlags';
 import { SoundManager } from '../audio/SoundManager';
 import { GameTheme } from '../engine/systems/ThemeManager';
@@ -202,35 +203,184 @@ export class UIManager {
           opacity:.72;
         "></div>
 
-        <div style="
-          display:flex;
-          justify-content:center;
-          gap:8px;
-          margin-bottom:16px;
-        ">
-          <button data-theme="can-tech" id="ff-theme-can" style="
-            padding:8px 12px;
-            border-radius:8px;
-            border:1px solid rgba(0,220,255,.3);
-            background:rgba(0,180,255,.08);
-            color:#fff;
-            cursor:pointer;
-          ">CAN-TECH</button>
+        <!-- LOBBY SETTINGS: AUDIO & THEME -->
+        <style>
+          @keyframes ff-insistent-bounce {
+            0% {
+              transform: translateY(-8px) scale(0.95);
+              filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.6));
+            }
+            50% {
+              transform: translateY(6px) scale(1.22);
+              filter: drop-shadow(0 0 18px rgba(0, 255, 204, 1)) drop-shadow(0 0 28px rgba(255, 215, 0, 0.9));
+            }
+            100% {
+              transform: translateY(-8px) scale(0.95);
+              filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.6));
+            }
+          }
+          @keyframes ff-pulse-border {
+            0% { box-shadow: 0 0 12px rgba(0, 220, 255, 0.3), inset 0 0 10px rgba(0, 220, 255, 0.1); }
+            100% { box-shadow: 0 0 28px rgba(0, 255, 204, 0.65), inset 0 0 18px rgba(0, 255, 204, 0.25); }
+          }
+          @keyframes ff-hand-beacon {
+            0% { transform: scale(0.85); opacity: 0.85; }
+            100% { transform: scale(1.6); opacity: 0; }
+          }
+        </style>
 
-          <button data-theme="horror" id="ff-theme-horror" style="
-            padding:8px 12px;
-            border-radius:8px;
-            border:1px solid rgba(255,80,100,.3);
-            background:rgba(255,60,80,.08);
-            color:#fff;
-            cursor:pointer;
-          ">HORROR</button>
+        <div style="
+          padding: 12px 14px;
+          border-radius: 12px;
+          background: rgba(15, 23, 42, 0.85);
+          border: 1px solid rgba(56, 189, 248, 0.3);
+          margin-bottom: 14px;
+          text-align: left;
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.15em; color: #38bdf8;">
+              LOBBY SETTINGS · AUDIO &amp; ENVIRONMENT
+            </div>
+            <div style="font-size: 10px; color: #94a3b8;" id="ff-active-theme-label">CAN-TECH THEME</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+            <button id="ff-lobby-bgm" style="
+              padding: 9px 12px;
+              border-radius: 8px;
+              border: 1.5px solid ${SoundManager.isBgmEnabled() ? '#00ffcc' : '#475569'};
+              background: ${SoundManager.isBgmEnabled() ? 'rgba(0, 255, 204, 0.18)' : 'rgba(30, 41, 59, 0.8)'};
+              color: ${SoundManager.isBgmEnabled() ? '#00ffcc' : '#94a3b8'};
+              font-size: 11px;
+              font-weight: 800;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+            ">
+              <span>🎵</span> <span id="ff-lobby-bgm-text">MUSIC: ${SoundManager.isBgmEnabled() ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <button id="ff-lobby-sfx" style="
+              padding: 9px 12px;
+              border-radius: 8px;
+              border: 1.5px solid ${SoundManager.isSoundEnabled() ? '#38bdf8' : '#475569'};
+              background: ${SoundManager.isSoundEnabled() ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.8)'};
+              color: ${SoundManager.isSoundEnabled() ? '#38bdf8' : '#94a3b8'};
+              font-size: 11px;
+              font-weight: 800;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+            ">
+              <span>🔊</span> <span id="ff-lobby-sfx-text">SFX: ${SoundManager.isSoundEnabled() ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button data-theme="can-tech" id="ff-theme-can" style="
+              padding: 8px 10px;
+              border-radius: 8px;
+              border: 1.5px solid #00d9ff;
+              background: rgba(0, 217, 255, 0.22);
+              color: #ffffff;
+              font-size: 11px;
+              font-weight: 800;
+              cursor: pointer;
+            ">⚡ CAN-TECH (ARCADE)</button>
+
+            <button data-theme="horror" id="ff-theme-horror" style="
+              padding: 8px 10px;
+              border-radius: 8px;
+              border: 1.5px solid rgba(255, 60, 80, 0.35);
+              background: rgba(255, 60, 80, 0.08);
+              color: #ff99aa;
+              font-size: 11px;
+              font-weight: 800;
+              cursor: pointer;
+            ">🩸 HORROR (DREAD)</button>
+          </div>
+        </div>
+
+        <!-- INTRO TUTORIAL WITH INSISTENT HAND ICON PULSING ABOVE -->
+        <div id="ff-intro-tutorial" style="
+          position: relative;
+          margin: 14px 0 10px;
+          padding: 14px 16px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, rgba(0, 220, 255, 0.14), rgba(16, 185, 129, 0.12));
+          border: 1.5px solid #00ffcc;
+          animation: ff-pulse-border 1.5s infinite alternate ease-in-out;
+          text-align: center;
+        ">
+          <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.16em;
+            color: #00ffcc;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+          ">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#00ffcc;box-shadow:0 0 10px #00ffcc;"></span>
+            TUTORIAL BRIEFING · CADET PROTOCOL
+          </div>
+
+          <div id="ff-tutorial-text" style="
+            font-size: 13px;
+            font-weight: 700;
+            color: #f8fafc;
+            line-height: 1.4;
+            margin-bottom: 8px;
+          ">
+            Click the button directly under the insistent pulsing hand below to begin!
+          </div>
+
+          <!-- The insistent hand icon pulsing above the button -->
+          <div id="ff-insistent-hand-container" style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-top: 4px;
+            cursor: pointer;
+          ">
+            <div style="position: relative; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;">
+              <div style="
+                position: absolute;
+                inset: 0;
+                border-radius: 50%;
+                background: rgba(0, 255, 204, 0.3);
+                animation: ff-hand-beacon 1.2s infinite ease-out;
+              "></div>
+              <div id="ff-insistent-hand" style="
+                font-size: 38px;
+                line-height: 1;
+                display: inline-block;
+                animation: ff-insistent-bounce 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+                user-select: none;
+              ">👇</div>
+            </div>
+            <div style="
+              font-size: 10px;
+              font-weight: 900;
+              letter-spacing: 0.2em;
+              color: #00ffcc;
+              text-shadow: 0 0 10px rgba(0, 255, 204, 0.85);
+              margin-top: 2px;
+            ">CLICK BUTTON UNDER HAND</div>
+          </div>
         </div>
 
         <button id="ff-play" style="
           width:100%;
-          padding:16px;
-          border:0;
+          padding:17px;
+          border:2px solid #00ffcc;
           border-radius:12px;
           background:linear-gradient(135deg,#00d9ff,#176cff);
           color:#001018;
@@ -238,8 +388,9 @@ export class UIManager {
           font-weight:900;
           letter-spacing:.08em;
           cursor:pointer;
-          box-shadow:0 0 28px rgba(0,190,255,.25);
-        ">PLAY</button>
+          box-shadow:0 0 35px rgba(0,220,255,.45);
+          transition:transform 0.1s ease, box-shadow 0.2s ease;
+        ">▶ ENTER TRENCH · START HUNT</button>
 
         <div style="
           margin-top:16px;
@@ -359,20 +510,88 @@ export class UIManager {
         }
       });
 
-    root.querySelector<HTMLButtonElement>('#ff-play')
-      ?.addEventListener('click', () => {
-        this.options.onPlay();
-      });
+    const playBtn = root.querySelector<HTMLButtonElement>('#ff-play');
+    const tutorialText = root.querySelector<HTMLElement>('#ff-tutorial-text');
+    const handContainer = root.querySelector<HTMLElement>('#ff-insistent-hand-container');
+    const bgmBtn = root.querySelector<HTMLButtonElement>('#ff-lobby-bgm');
+    const bgmText = root.querySelector<HTMLElement>('#ff-lobby-bgm-text');
+    const sfxBtn = root.querySelector<HTMLButtonElement>('#ff-lobby-sfx');
+    const sfxText = root.querySelector<HTMLElement>('#ff-lobby-sfx-text');
+    const themeCanBtn = root.querySelector<HTMLButtonElement>('#ff-theme-can');
+    const themeHorrorBtn = root.querySelector<HTMLButtonElement>('#ff-theme-horror');
+    const activeThemeLabel = root.querySelector<HTMLElement>('#ff-active-theme-label');
 
-    root.querySelector<HTMLButtonElement>('#ff-theme-can')
-      ?.addEventListener('click', () => {
-        this.options.onThemeChange?.('can-tech');
-      });
+    const executeTutorialPlay = () => {
+      if (!this.startScreenEl) return;
+      if (tutorialText) {
+        tutorialText.innerHTML = '<span style="color:#00ffcc;font-weight:900;">✓ TUTORIAL PASSED · TURRET ARMED · COMMENCING COMBAT!</span>';
+      }
+      SoundManager.playUiSound('click');
+      if (this.currentTheme === 'dark') {
+        SoundManager.playHorrorWhisper(0.8);
+      }
+      SoundManager.startBgm();
+      setTimeout(() => {
+        this.onPlayCallback?.();
+      }, 200);
+    };
 
-    root.querySelector<HTMLButtonElement>('#ff-theme-horror')
-      ?.addEventListener('click', () => {
-        this.options.onThemeChange?.('horror');
-      });
+    playBtn?.addEventListener('click', executeTutorialPlay);
+    handContainer?.addEventListener('click', executeTutorialPlay);
+
+    bgmBtn?.addEventListener('click', () => {
+      const enabled = SoundManager.toggleBgm();
+      if (bgmText) bgmText.textContent = `MUSIC: ${enabled ? 'ON' : 'OFF'}`;
+      if (bgmBtn) {
+        bgmBtn.style.border = `1.5px solid ${enabled ? '#00ffcc' : '#475569'}`;
+        bgmBtn.style.background = enabled ? 'rgba(0, 255, 204, 0.18)' : 'rgba(30, 41, 59, 0.8)';
+        bgmBtn.style.color = enabled ? '#00ffcc' : '#94a3b8';
+      }
+    });
+
+    sfxBtn?.addEventListener('click', () => {
+      const enabled = SoundManager.toggleSound();
+      if (sfxText) sfxText.textContent = `SFX: ${enabled ? 'ON' : 'OFF'}`;
+      if (sfxBtn) {
+        sfxBtn.style.border = `1.5px solid ${enabled ? '#38bdf8' : '#475569'}`;
+        sfxBtn.style.background = enabled ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.8)';
+        sfxBtn.style.color = enabled ? '#38bdf8' : '#94a3b8';
+      }
+    });
+
+    themeCanBtn?.addEventListener('click', () => {
+      this.currentTheme = 'light';
+      this.onThemeChangeCallback?.('light');
+      SoundManager.setTheme('light');
+      if (activeThemeLabel) activeThemeLabel.textContent = 'CAN-TECH THEME (ACTIVE)';
+      if (themeCanBtn) {
+        themeCanBtn.style.border = '1.5px solid #00d9ff';
+        themeCanBtn.style.background = 'rgba(0, 217, 255, 0.25)';
+        themeCanBtn.style.color = '#ffffff';
+      }
+      if (themeHorrorBtn) {
+        themeHorrorBtn.style.border = '1px solid rgba(255, 60, 80, 0.35)';
+        themeHorrorBtn.style.background = 'rgba(255, 60, 80, 0.08)';
+        themeHorrorBtn.style.color = '#ff99aa';
+      }
+    });
+
+    themeHorrorBtn?.addEventListener('click', () => {
+      this.currentTheme = 'dark';
+      this.onThemeChangeCallback?.('dark');
+      SoundManager.setTheme('dark');
+      if (activeThemeLabel) activeThemeLabel.textContent = 'ABYSSAL HORROR THEME (ACTIVE)';
+      if (themeHorrorBtn) {
+        themeHorrorBtn.style.border = '1.5px solid #ff4d6d';
+        themeHorrorBtn.style.background = 'rgba(255, 77, 109, 0.25)';
+        themeHorrorBtn.style.color = '#ffffff';
+      }
+      if (themeCanBtn) {
+        themeCanBtn.style.border = '1px solid rgba(0, 220, 255, 0.3)';
+        themeCanBtn.style.background = 'rgba(0, 180, 255, 0.08)';
+        themeCanBtn.style.color = '#94a3b8';
+      }
+    });
   }
 
   public hideStartScreen(): void {
@@ -422,8 +641,11 @@ export class UIManager {
           <button id="hud-lobby-btn" title="Open Lobby" style="background: linear-gradient(135deg,#0f766e,#155e75); color: #ecfeff; border: 1px solid #22d3ee; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 0 12px rgba(34,211,238,0.25);">
             ⌂ LOBBY
           </button>
-          <button id="hud-sound-toggle" title="Audio" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            🔊
+          <button id="hud-bgm-toggle" title="Toggle Music" style="background: #1e293b; color: ${SoundManager.isBgmEnabled() ? '#00ffcc' : '#94a3b8'}; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
+            ${SoundManager.isBgmEnabled() ? '🎵' : '🔇🎵'}
+          </button>
+          <button id="hud-sound-toggle" title="Toggle Audio Effects" style="background: #1e293b; color: ${SoundManager.isSoundEnabled() ? '#e2e8f0' : '#ef4444'}; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
+            ${SoundManager.isSoundEnabled() ? '🔊' : '🔇'}
           </button>
         </div>
       </div>
@@ -441,8 +663,8 @@ export class UIManager {
     this.soundBtn = document.getElementById('hud-sound-toggle')!;
 
     // Event listeners
-
     this.soundBtn.addEventListener('click', () => this.toggleSound());
+    document.getElementById('hud-bgm-toggle')?.addEventListener('click', () => this.toggleBgm());
 
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
 
@@ -515,6 +737,30 @@ export class UIManager {
           · P&amp;L ${profit.isProfitable ? '<span style="color:#34d399">OK</span>' : '<span style="color:#f87171">REVIEW</span>'}
         </p>
 
+        <!-- LOBBY SETTINGS: AUDIO & THEME CONTROLS -->
+        <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:1px solid #334155;border-radius:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:10px;letter-spacing:2px;color:#22d3ee;font-weight:700;">LOBBY SETTINGS · AUDIO &amp; THEME</div>
+            <div style="font-size:10px;color:#94a3b8;">${this.currentTheme === 'dark' ? 'ABYSSAL HORROR' : 'CAN-TECH ARCADE'}</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button type="button" id="lobby-bgm-toggle" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${SoundManager.isBgmEnabled()?'#00ffcc':'#475569'};background:${SoundManager.isBgmEnabled()?'rgba(0,255,204,0.16)':'#1e293b'};color:${SoundManager.isBgmEnabled()?'#00ffcc':'#94a3b8'};">
+              🎵 MUSIC: ${SoundManager.isBgmEnabled() ? 'ON' : 'OFF'}
+            </button>
+            <button type="button" id="lobby-sfx-toggle" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${SoundManager.isSoundEnabled()?'#38bdf8':'#475569'};background:${SoundManager.isSoundEnabled()?'rgba(56,189,248,0.16)':'#1e293b'};color:${SoundManager.isSoundEnabled()?'#38bdf8':'#94a3b8'};">
+              🔊 SFX: ${SoundManager.isSoundEnabled() ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" id="lobby-theme-can" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${this.currentTheme==='light'?'#00d9ff':'#334155'};background:${this.currentTheme==='light'?'rgba(0,217,255,0.22)':'#1e293b'};color:${this.currentTheme==='light'?'#ffffff':'#94a3b8'};">
+              ⚡ CAN-TECH (ARCADE)
+            </button>
+            <button type="button" id="lobby-theme-horror" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${this.currentTheme==='dark'?'#ff4d6d':'#334155'};background:${this.currentTheme==='dark'?'rgba(255,77,109,0.22)':'#1e293b'};color:${this.currentTheme==='dark'?'#ffffff':'#ff99aa'};">
+              🩸 HORROR (DREAD)
+            </button>
+          </div>
+        </div>
+
         <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:1px solid #334155;border-radius:12px;">
           <div style="font-size:10px;letter-spacing:2px;color:#64748b;font-weight:700;margin-bottom:10px;">STAKE · SET BEFORE RESUME</div>
           <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -574,6 +820,26 @@ export class UIManager {
     });
     document.getElementById('lobby-cur-gc')?.addEventListener('click', () => {
       this.setCurrency('GC');
+      this.showLobby();
+    });
+    document.getElementById('lobby-bgm-toggle')?.addEventListener('click', () => {
+      SoundManager.toggleBgm();
+      this.showLobby();
+    });
+    document.getElementById('lobby-sfx-toggle')?.addEventListener('click', () => {
+      SoundManager.toggleSound();
+      this.showLobby();
+    });
+    document.getElementById('lobby-theme-can')?.addEventListener('click', () => {
+      this.currentTheme = 'light';
+      this.onThemeChangeCallback?.('light');
+      SoundManager.setTheme('light');
+      this.showLobby();
+    });
+    document.getElementById('lobby-theme-horror')?.addEventListener('click', () => {
+      this.currentTheme = 'dark';
+      this.onThemeChangeCallback?.('dark');
+      SoundManager.setTheme('dark');
       this.showLobby();
     });
     this.modalContainer.querySelectorAll('.lobby-bet-chip').forEach((btn) => {
@@ -749,8 +1015,20 @@ export class UIManager {
     if (enabled) {
       SoundManager.playUiSound('click');
     }
-    this.soundBtn.textContent = enabled ? '🔊 ON' : '🔇 OFF';
+    this.soundBtn.textContent = enabled ? '🔊' : '🔇';
     this.soundBtn.style.color = enabled ? '#e2e8f0' : '#ef4444';
+  }
+
+  private toggleBgm(): void {
+    const enabled = SoundManager.toggleBgm();
+    if (enabled) {
+      SoundManager.playUiSound('click');
+    }
+    const bgmBtn = document.getElementById('hud-bgm-toggle');
+    if (bgmBtn) {
+      bgmBtn.textContent = enabled ? '🎵' : '🔇🎵';
+      bgmBtn.style.color = enabled ? '#00ffcc' : '#94a3b8';
+    }
   }
 
   public getCurrentBet(): number {

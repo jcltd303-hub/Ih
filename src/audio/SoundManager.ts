@@ -4,6 +4,7 @@ export class SoundManager {
   private static audioCtx: AudioContext | null = null;
   private static masterGain: GainNode | null = null;
   private static masterCompressor: DynamicsCompressorNode | null = null;
+  private static bgmGain: GainNode | null = null;
   private static noiseBuffer: AudioBuffer | null = null;
   private static enabled: boolean = (() => {
     try {
@@ -13,6 +14,19 @@ export class SoundManager {
     } catch { /* ignore */ }
     return true;
   })();
+
+  private static bgmEnabled: boolean = (() => {
+    try {
+      const v = localStorage.getItem('fish_frenzy_bgm');
+      if (v === '0') return false;
+      if (v === '1') return true;
+    } catch { /* ignore */ }
+    return true;
+  })();
+
+  private static bgmIntervalId: number | null = null;
+  private static bgmStep: number = 0;
+  private static bgmNextStepTime: number = 0;
   private static lastMissTime: number = 0;
   private static lastHitTime: number = 0;
   /** light = can-tech bright FX; dark = horror / abyssal */
@@ -35,6 +49,11 @@ export class SoundManager {
         // Master gain with smooth ramp transitions
         this.masterGain = this.audioCtx.createGain();
         this.masterGain.gain.setValueAtTime(this.enabled ? 1.0 : 0.0, this.audioCtx.currentTime);
+
+        // Dedicated BGM gain node routed into master
+        this.bgmGain = this.audioCtx.createGain();
+        this.bgmGain.gain.setValueAtTime(this.bgmEnabled && this.enabled ? 0.22 : 0.0, this.audioCtx.currentTime);
+        this.bgmGain.connect(this.masterGain);
 
         this.masterCompressor.connect(this.masterGain);
         this.masterGain.connect(this.audioCtx.destination);
@@ -83,6 +102,11 @@ export class SoundManager {
       this.masterGain.gain.cancelScheduledValues(now);
       this.masterGain.gain.linearRampToValueAtTime(this.enabled ? 1.0 : 0.0, now + 0.05);
     }
+    if (this.enabled && this.bgmEnabled) {
+      this.startBgm();
+    } else {
+      this.stopBgm();
+    }
     return this.enabled;
   }
 
@@ -90,8 +114,356 @@ export class SoundManager {
     return this.enabled;
   }
 
-  public static setTheme(theme: 'light' | 'dark'): void {
-    this.currentTheme = theme;
+  // ==========================================
+  // BACKGROUND MUSIC (BGM) ENGINE
+  // ==========================================
+  public static isBgmEnabled(): boolean {
+    return this.bgmEnabled;
+  }
+
+  public static toggleBgm(force?: boolean): boolean {
+    this.bgmEnabled = typeof force === 'boolean' ? force : !this.bgmEnabled;
+    try {
+      localStorage.setItem('fish_frenzy_bgm', this.bgmEnabled ? '1' : '0');
+    } catch { /* ignore */ }
+
+    this.initContext();
+    if (this.audioCtx && this.bgmGain) {
+      const now = this.audioCtx.currentTime;
+      this.bgmGain.gain.cancelScheduledValues(now);
+      this.bgmGain.gain.linearRampToValueAtTime(
+        this.bgmEnabled && this.enabled ? 0.22 : 0.0,
+        now + 0.15
+      );
+    }
+
+    if (this.bgmEnabled && this.enabled) {
+      this.startBgm();
+    } else {
+      this.stopBgm();
+    }
+    return this.bgmEnabled;
+  }
+
+  public static startBgm(): void {
+    if (!this.bgmEnabled || !this.enabled) return;
+    if (this.bgmIntervalId !== null) return; // already active
+
+    this.initContext();
+    if (!this.audioCtx || !this.bgmGain) return;
+
+    this.bgmNextStepTime = this.audioCtx.currentTime + 0.08;
+    this.bgmStep = 0;
+    this.bgmIntervalId = window.setInterval(() => this.tickBgmScheduler(), 45);
+  }
+
+  public static stopBgm(): void {
+    if (this.bgmIntervalId !== null) {
+      clearInterval(this.bgmIntervalId);
+      this.bgmIntervalId = null;
+    }
+    if (this.audioCtx && this.bgmGain) {
+      const now = this.audioCtx.currentTime;
+      this.bgmGain.gain.cancelScheduledValues(now);
+      this.bgmGain.gain.linearRampToValueAtTime(0.001, now + 0.1);
+    }
+  }
+
+  private static tickBgmScheduler(): void {
+    if (!this.audioCtx || !this.bgmGain || !this.bgmEnabled || !this.enabled) return;
+    const lookahead = 0.35;
+    const now = this.audioCtx.currentTime;
+
+    if (this.bgmNextStepTime < now) {
+      this.bgmNextStepTime = now;
+    }
+
+    let iterations = 0;
+    while (this.bgmNextStepTime < now + lookahead && iterations < 32) {
+      iterations++;
+      if (this.currentTheme === 'dark') {
+        this.scheduleHorrorStep(this.bgmStep, this.bgmNextStepTime);
+        // Horror: 60 BPM -> 8th notes (0.5s per step)
+        this.bgmNextStepTime += 0.50;
+      } else {
+        this.scheduleCanTechStep(this.bgmStep, this.bgmNextStepTime);
+        // Can-Tech: 124 BPM -> 16th notes (0.1209s per step)
+        this.bgmNextStepTime += 0.121;
+      }
+      this.bgmStep = (this.bgmStep + 1) % 32;
+    }
+  }
+
+  /** Can-Tech: 124 BPM Cyberpunk / Synthwave groove */
+  private static scheduleCanTechStep(step: number, time: number): void {
+    if (!this.audioCtx || !this.bgmGain) return;
+    const ctx = this.audioCtx;
+    const bgmOut = this.bgmGain;
+
+    // 1. Driving Arpeggiated Synth Bass (16th note pattern)
+    const bassScale = [
+      73.42, 73.42, 146.83, 73.42,  87.31, 73.42, 98.00, 110.00, // D2, D2, D3, D2, F2, D2, G2, A2
+      73.42, 73.42, 130.81, 110.00, 116.54, 116.54, 130.81, 138.59 // D2, D2, C3, A2, Bb2, Bb2, C3, C#3
+    ];
+    const bassFreq = bassScale[step % bassScale.length];
+
+    const bassOsc = ctx.createOscillator();
+    const bassFilt = ctx.createBiquadFilter();
+    const bassG = ctx.createGain();
+
+    bassOsc.type = 'sawtooth';
+    bassOsc.frequency.setValueAtTime(bassFreq, time);
+
+    bassFilt.type = 'lowpass';
+    bassFilt.Q.setValueAtTime(3.8, time);
+    bassFilt.frequency.setValueAtTime(750, time);
+    bassFilt.frequency.exponentialRampToValueAtTime(140, time + 0.11);
+
+    bassG.gain.setValueAtTime(0.13, time);
+    bassG.gain.exponentialRampToValueAtTime(0.001, time + 0.115);
+
+    bassOsc.connect(bassFilt);
+    bassFilt.connect(bassG);
+    bassG.connect(bgmOut);
+
+    bassOsc.start(time);
+    bassOsc.stop(time + 0.12);
+
+    // 2. Warm Cyber Ambient Pad (chords every 8 steps = 2 beats)
+    if (step % 8 === 0) {
+      const chordRoots = [
+        [293.66, 349.23, 440.00], // Dm (D4, F4, A4)
+        [233.08, 293.66, 349.23], // Bb (Bb3, D4, F4)
+        [261.63, 329.63, 392.00], // C  (C4, E4, G4)
+        [220.00, 261.63, 329.63], // Am (A3, C4, E4)
+      ];
+      const chord = chordRoots[(step / 8) % chordRoots.length];
+      chord.forEach((freq, idx) => {
+        const padOsc = ctx.createOscillator();
+        const padFilt = ctx.createBiquadFilter();
+        const padG = ctx.createGain();
+        padOsc.type = 'triangle';
+        padOsc.frequency.setValueAtTime(freq * (idx === 0 ? 0.5 : 1), time);
+
+        padFilt.type = 'lowpass';
+        padFilt.frequency.setValueAtTime(550, time);
+        padFilt.frequency.linearRampToValueAtTime(850, time + 0.45);
+        padFilt.frequency.exponentialRampToValueAtTime(420, time + 0.9);
+
+        padG.gain.setValueAtTime(0.001, time);
+        padG.gain.linearRampToValueAtTime(0.038, time + 0.12);
+        padG.gain.exponentialRampToValueAtTime(0.001, time + 0.94);
+
+        padOsc.connect(padFilt);
+        padFilt.connect(padG);
+        padG.connect(bgmOut);
+
+        padOsc.start(time);
+        padOsc.stop(time + 0.95);
+      });
+    }
+
+    // 3. Crisp High-Tech Arpeggio Plucks (alternate 16th steps)
+    if (step % 2 === 0) {
+      const arpNotes = [587.33, 698.46, 880.00, 1046.50, 880.00, 698.46, 783.99, 659.25];
+      const arpFreq = arpNotes[(step / 2) % arpNotes.length];
+      const arpOsc = ctx.createOscillator();
+      const arpG = ctx.createGain();
+      arpOsc.type = 'sine';
+      arpOsc.frequency.setValueAtTime(arpFreq, time);
+      arpG.gain.setValueAtTime(0.045, time);
+      arpG.gain.exponentialRampToValueAtTime(0.001, time + 0.09);
+
+      arpOsc.connect(arpG);
+      arpG.connect(bgmOut);
+      arpOsc.start(time);
+      arpOsc.stop(time + 0.095);
+    }
+
+    // 4. Subtle Electro Percussion (Kick on 0, 8; Hat tick on 4, 12)
+    if (step % 8 === 0) {
+      // Soft electro kick
+      const kickOsc = ctx.createOscillator();
+      const kickG = ctx.createGain();
+      kickOsc.type = 'sine';
+      kickOsc.frequency.setValueAtTime(115, time);
+      kickOsc.frequency.exponentialRampToValueAtTime(42, time + 0.08);
+      kickG.gain.setValueAtTime(0.12, time);
+      kickG.gain.exponentialRampToValueAtTime(0.001, time + 0.085);
+      kickOsc.connect(kickG);
+      kickG.connect(bgmOut);
+      kickOsc.start(time);
+      kickOsc.stop(time + 0.09);
+    } else if (step % 4 === 2) {
+      // Hi-hat tick
+      const noise = this.getNoiseBuffer();
+      if (noise) {
+        const hatSrc = ctx.createBufferSource();
+        hatSrc.buffer = noise;
+        const hatFilt = ctx.createBiquadFilter();
+        const hatG = ctx.createGain();
+        hatFilt.type = 'highpass';
+        hatFilt.frequency.setValueAtTime(7500, time);
+        hatG.gain.setValueAtTime(0.04, time);
+        hatG.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+        hatSrc.connect(hatFilt);
+        hatFilt.connect(hatG);
+        hatG.connect(bgmOut);
+        hatSrc.start(time);
+        hatSrc.stop(time + 0.045);
+      }
+    }
+  }
+
+  /** Horror Theme: 60 BPM Atmospheric Dread / Abyssal Void Soundscape */
+  private static scheduleHorrorStep(step: number, time: number): void {
+    if (!this.audioCtx || !this.bgmGain) return;
+    const ctx = this.audioCtx;
+    const bgmOut = this.bgmGain;
+
+    // 1. Unsettling Sub-Bass Dissonant Drone (41.2 Hz vs 43.6 Hz microtonal clash)
+    if (step % 4 === 0) {
+      const droneOsc1 = ctx.createOscillator();
+      const droneOsc2 = ctx.createOscillator();
+      const droneFilt = ctx.createBiquadFilter();
+      const droneG = ctx.createGain();
+
+      droneOsc1.type = 'sawtooth';
+      droneOsc1.frequency.setValueAtTime(41.2, time); // Low E1
+      droneOsc2.type = 'triangle';
+      droneOsc2.frequency.setValueAtTime(43.8, time); // Microtonal beating discordance
+
+      droneFilt.type = 'lowpass';
+      droneFilt.frequency.setValueAtTime(110, time);
+
+      droneG.gain.setValueAtTime(0.001, time);
+      droneG.gain.linearRampToValueAtTime(0.14, time + 0.4);
+      droneG.gain.exponentialRampToValueAtTime(0.001, time + 1.95);
+
+      droneOsc1.connect(droneFilt);
+      droneOsc2.connect(droneFilt);
+      droneFilt.connect(droneG);
+      droneG.connect(bgmOut);
+
+      droneOsc1.start(time);
+      droneOsc2.start(time);
+      droneOsc1.stop(time + 1.98);
+      droneOsc2.stop(time + 1.98);
+    }
+
+    // 2. Rhythmic Dread Heartbeat (two muted low-frequency thuds: "thump... thump...")
+    if (step % 4 === 0) {
+      const beatOsc = ctx.createOscillator();
+      const beatG = ctx.createGain();
+      beatOsc.type = 'sine';
+      beatOsc.frequency.setValueAtTime(62, time);
+      beatOsc.frequency.exponentialRampToValueAtTime(26, time + 0.16);
+      beatG.gain.setValueAtTime(0.20, time);
+      beatG.gain.exponentialRampToValueAtTime(0.001, time + 0.17);
+      beatOsc.connect(beatG);
+      beatG.connect(bgmOut);
+      beatOsc.start(time);
+      beatOsc.stop(time + 0.18);
+
+      // Second heartbeat pulse 180ms later
+      const beat2Osc = ctx.createOscillator();
+      const beat2G = ctx.createGain();
+      beat2Osc.type = 'sine';
+      beat2Osc.frequency.setValueAtTime(54, time + 0.18);
+      beat2Osc.frequency.exponentialRampToValueAtTime(24, time + 0.32);
+      beat2G.gain.setValueAtTime(0.14, time + 0.18);
+      beat2G.gain.exponentialRampToValueAtTime(0.001, time + 0.33);
+      beat2Osc.connect(beat2G);
+      beat2G.connect(bgmOut);
+      beat2Osc.start(time + 0.18);
+      beat2Osc.stop(time + 0.34);
+    }
+
+    // 3. Cold Devil's Tritone / Diminished Bell Pings
+    const chimeMap: Record<number, number> = {
+      1: 622.25, // Eb5
+      3: 440.00, // A4 (Tritone clash against Eb!)
+      7: 587.33, // D5
+      9: 415.30, // G#4 (Diminished 5th against D!)
+      13: 523.25 // C5
+    };
+    if (chimeMap[step % 16]) {
+      const freq = chimeMap[step % 16];
+      const chimeOsc = ctx.createOscillator();
+      const chimeMod = ctx.createOscillator();
+      const chimeModG = ctx.createGain();
+      const chimeG = ctx.createGain();
+
+      chimeOsc.type = 'sine';
+      chimeOsc.frequency.setValueAtTime(freq, time);
+
+      // Ring-mod creepy hollow metallic resonance
+      chimeMod.type = 'triangle';
+      chimeMod.frequency.setValueAtTime(freq * 0.49, time);
+      chimeModG.gain.setValueAtTime(freq * 0.18, time);
+      chimeMod.connect(chimeModG);
+      chimeModG.connect(chimeOsc.frequency);
+
+      chimeG.gain.setValueAtTime(0.001, time);
+      chimeG.gain.linearRampToValueAtTime(0.075, time + 0.02);
+      chimeG.gain.exponentialRampToValueAtTime(0.001, time + 1.2);
+
+      chimeOsc.connect(chimeG);
+      chimeG.connect(bgmOut);
+
+      chimeMod.start(time);
+      chimeOsc.start(time);
+      chimeMod.stop(time + 1.25);
+      chimeOsc.stop(time + 1.25);
+    }
+
+    // 4. Ghostly Noise Wind / Scraping Tide
+    if (step % 8 === 2) {
+      const noise = this.getNoiseBuffer();
+      if (noise) {
+        const windSrc = ctx.createBufferSource();
+        windSrc.buffer = noise;
+        const windFilt = ctx.createBiquadFilter();
+        const windG = ctx.createGain();
+
+        windFilt.type = 'bandpass';
+        windFilt.Q.setValueAtTime(5.5, time);
+        windFilt.frequency.setValueAtTime(320, time);
+        windFilt.frequency.linearRampToValueAtTime(1250, time + 0.6);
+        windFilt.frequency.exponentialRampToValueAtTime(280, time + 1.4);
+
+        windG.gain.setValueAtTime(0.001, time);
+        windG.gain.linearRampToValueAtTime(0.065, time + 0.35);
+        windG.gain.exponentialRampToValueAtTime(0.001, time + 1.45);
+
+        windSrc.connect(windFilt);
+        windFilt.connect(windG);
+        windG.connect(bgmOut);
+
+        windSrc.start(time);
+        windSrc.stop(time + 1.5);
+      }
+    }
+  }
+
+  public static setTheme(theme: 'light' | 'dark' | 'can-tech' | 'horror'): void {
+    const normalized: 'light' | 'dark' = (theme === 'dark' || theme === 'horror') ? 'dark' : 'light';
+    const changed = this.currentTheme !== normalized;
+    this.currentTheme = normalized;
+    if (changed) {
+      if (normalized === 'dark') {
+        // Immediate ominous preview feedback
+        this.playHorrorWhisper(0.7);
+        setTimeout(() => this.playHorrorLaughter(0.75, -20), 120);
+      }
+      if (this.bgmEnabled && this.enabled) {
+        // Crossfade BGM to new theme pattern
+        this.bgmStep = 0;
+        if (this.audioCtx) {
+          this.bgmNextStepTime = this.audioCtx.currentTime + 0.05;
+        }
+      }
+    }
   }
 
   public static getTheme(): 'light' | 'dark' {
@@ -107,7 +479,250 @@ export class SoundManager {
     return this.currentTheme === 'dark' ? 0.92 : 1.0;
   }
 
-  /** Low dissonant stinger used in horror mode */
+  // ==========================================
+  // HORROR SUITE: SHRIEK, LAUGHTER & WHISPERS
+  // ==========================================
+  /**
+   * Blood-curdling Creature / Banshee Shriek with rapid FM flutter and resonant screech
+   */
+  public static playHorrorShriek(intensity: number = 1.0, isBanshee: boolean = false): void {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.audioCtx || !this.masterCompressor) return;
+
+    try {
+      const ctx = this.audioCtx;
+      const now = ctx.currentTime;
+      const duration = isBanshee ? 1.35 : 0.85;
+
+      // 1. FM Modulator (creates horrifying vocal cord strain / flutter tremor at 34-46 Hz)
+      const modOsc = ctx.createOscillator();
+      const modGain = ctx.createGain();
+      modOsc.type = 'sawtooth';
+      modOsc.frequency.setValueAtTime(36, now);
+      modOsc.frequency.linearRampToValueAtTime(46, now + duration * 0.4);
+      modOsc.frequency.linearRampToValueAtTime(26, now + duration);
+      modGain.gain.setValueAtTime(260 * intensity, now);
+      modGain.gain.linearRampToValueAtTime(380 * intensity, now + 0.15);
+      modGain.gain.exponentialRampToValueAtTime(10, now + duration);
+
+      // 2. Primary Piercing Screech Carrier
+      const carrierOsc = ctx.createOscillator();
+      const carrierGain = ctx.createGain();
+      carrierOsc.type = 'sawtooth';
+      const startPitch = isBanshee ? 1600 : 1350;
+      const peakPitch = isBanshee ? 2650 : 2150;
+      const endPitch = isBanshee ? 460 : 380;
+      carrierOsc.frequency.setValueAtTime(startPitch, now);
+      carrierOsc.frequency.exponentialRampToValueAtTime(peakPitch, now + 0.12);
+      carrierOsc.frequency.exponentialRampToValueAtTime(endPitch, now + duration);
+
+      modOsc.connect(modGain);
+      modGain.connect(carrierOsc.frequency);
+
+      // 3. Dissonant secondary screaming oscillator (sharp minor second for pure biological terror)
+      const dissOsc = ctx.createOscillator();
+      const dissGain = ctx.createGain();
+      dissOsc.type = 'triangle';
+      dissOsc.frequency.setValueAtTime(startPitch * 1.0595, now);
+      dissOsc.frequency.exponentialRampToValueAtTime(peakPitch * 1.06, now + 0.12);
+      dissOsc.frequency.exponentialRampToValueAtTime(endPitch * 1.06, now + duration);
+
+      modGain.connect(dissOsc.frequency);
+
+      // 4. Resonant Screech Filter
+      const shriekFilter = ctx.createBiquadFilter();
+      shriekFilter.type = 'bandpass';
+      shriekFilter.Q.setValueAtTime(4.5, now);
+      shriekFilter.frequency.setValueAtTime(1800, now);
+      shriekFilter.frequency.exponentialRampToValueAtTime(2800, now + 0.14);
+      shriekFilter.frequency.exponentialRampToValueAtTime(600, now + duration);
+
+      const peakVol = 0.38 * intensity;
+      carrierGain.gain.setValueAtTime(0.001, now);
+      carrierGain.gain.linearRampToValueAtTime(peakVol, now + 0.05);
+      carrierGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      dissGain.gain.setValueAtTime(0.001, now);
+      dissGain.gain.linearRampToValueAtTime(peakVol * 0.7, now + 0.06);
+      dissGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      carrierOsc.connect(carrierGain);
+      dissOsc.connect(dissGain);
+      carrierGain.connect(shriekFilter);
+      dissGain.connect(shriekFilter);
+
+      // 5. Screaming air friction noise layer
+      const noise = this.getNoiseBuffer();
+      if (noise) {
+        const noiseSrc = ctx.createBufferSource();
+        noiseSrc.buffer = noise;
+        const nFilter = ctx.createBiquadFilter();
+        const nGain = ctx.createGain();
+        nFilter.type = 'bandpass';
+        nFilter.Q.setValueAtTime(7.5, now);
+        nFilter.frequency.setValueAtTime(2500, now);
+        nFilter.frequency.exponentialRampToValueAtTime(1100, now + duration);
+        nGain.gain.setValueAtTime(0.001, now);
+        nGain.gain.linearRampToValueAtTime(0.24 * intensity, now + 0.04);
+        nGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        noiseSrc.connect(nFilter);
+        nFilter.connect(nGain);
+        nGain.connect(this.masterCompressor);
+        noiseSrc.start(now);
+        noiseSrc.stop(now + duration + 0.05);
+      }
+
+      // 6. Subsonic dread punch
+      const sub = ctx.createOscillator();
+      const subGain = ctx.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(115, now);
+      sub.frequency.exponentialRampToValueAtTime(32, now + duration * 0.7);
+      subGain.gain.setValueAtTime(0.28 * intensity, now);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.75);
+      sub.connect(subGain);
+      subGain.connect(this.masterCompressor);
+
+      shriekFilter.connect(this.masterCompressor);
+
+      modOsc.start(now);
+      carrierOsc.start(now);
+      dissOsc.start(now);
+      sub.start(now);
+
+      modOsc.stop(now + duration + 0.05);
+      carrierOsc.stop(now + duration + 0.05);
+      dissOsc.stop(now + duration + 0.05);
+      sub.stop(now + duration + 0.05);
+    } catch {
+      // Guard
+    }
+  }
+
+  /**
+   * Sinister Demonic Cackle / Ominous Laughter using formant vocal tract simulation
+   */
+  public static playHorrorLaughter(intensity: number = 1.0, pitchShift: number = 0): void {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.audioCtx || !this.masterCompressor) return;
+
+    try {
+      const ctx = this.audioCtx;
+      const now = ctx.currentTime;
+
+      // Descending guttural laughter bursts ("HA... HA... HA... heh... heh... heh...")
+      const syllables = [
+        { t: 0.00, freq: 175 + pitchShift, len: 0.16, vol: 0.32 },
+        { t: 0.15, freq: 160 + pitchShift, len: 0.15, vol: 0.35 },
+        { t: 0.29, freq: 142 + pitchShift, len: 0.15, vol: 0.34 },
+        { t: 0.43, freq: 125 + pitchShift, len: 0.16, vol: 0.32 },
+        { t: 0.58, freq: 108 + pitchShift, len: 0.18, vol: 0.28 },
+        { t: 0.75, freq: 88 + pitchShift, len: 0.26, vol: 0.25 },
+      ];
+
+      // Formant filters to simulate human vocal cavity
+      const f1 = ctx.createBiquadFilter();
+      f1.type = 'bandpass';
+      f1.frequency.setValueAtTime(520, now);
+      f1.Q.setValueAtTime(4.0, now);
+
+      const f2 = ctx.createBiquadFilter();
+      f2.type = 'bandpass';
+      f2.frequency.setValueAtTime(1180, now);
+      f2.Q.setValueAtTime(3.5, now);
+
+      // Tremolo / throat flutter LFO
+      const tremOsc = ctx.createOscillator();
+      const tremGain = ctx.createGain();
+      tremOsc.type = 'sine';
+      tremOsc.frequency.setValueAtTime(7.5, now);
+      tremGain.gain.setValueAtTime(18, now);
+      tremOsc.start(now);
+      tremOsc.stop(now + 1.2);
+
+      f1.connect(this.masterCompressor);
+      f2.connect(this.masterCompressor);
+
+      syllables.forEach((s) => {
+        const sTime = now + s.t;
+        const osc = ctx.createOscillator();
+        const subOsc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(s.freq, sTime);
+        osc.frequency.exponentialRampToValueAtTime(s.freq * 0.88, sTime + s.len);
+
+        tremOsc.connect(osc.frequency);
+
+        // Demonic sub-octave growl
+        subOsc.type = 'triangle';
+        subOsc.frequency.setValueAtTime(s.freq * 0.5, sTime);
+        subOsc.frequency.exponentialRampToValueAtTime(s.freq * 0.44, sTime + s.len);
+
+        const v = s.vol * intensity;
+        gain.gain.setValueAtTime(0.001, sTime);
+        gain.gain.linearRampToValueAtTime(v, sTime + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.001, sTime + s.len);
+
+        osc.connect(gain);
+        subOsc.connect(gain);
+        gain.connect(f1);
+        gain.connect(f2);
+
+        osc.start(sTime);
+        subOsc.start(sTime);
+        osc.stop(sTime + s.len + 0.02);
+        subOsc.stop(sTime + s.len + 0.02);
+      });
+    } catch {
+      // Guard
+    }
+  }
+
+  /**
+   * Eerie Ghostly Whisper / Spectral Sigh
+   */
+  public static playHorrorWhisper(intensity: number = 0.5): void {
+    if (!this.enabled) return;
+    this.initContext();
+    if (!this.audioCtx || !this.masterCompressor) return;
+
+    try {
+      const ctx = this.audioCtx;
+      const now = ctx.currentTime;
+      const noise = this.getNoiseBuffer();
+      if (!noise) return;
+
+      const src = ctx.createBufferSource();
+      src.buffer = noise;
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      filter.type = 'bandpass';
+      filter.Q.setValueAtTime(6.0, now);
+      filter.frequency.setValueAtTime(800, now);
+      filter.frequency.linearRampToValueAtTime(1400, now + 0.35);
+      filter.frequency.exponentialRampToValueAtTime(450, now + 0.9);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.18 * intensity, now + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterCompressor);
+
+      src.start(now);
+      src.stop(now + 1.0);
+    } catch {
+      // Guard
+    }
+  }
+
+  /** Low dissonant stinger with tritone cluster used in horror mode */
   private static playHorrorStinger(intensity: number = 0.3): void {
     if (!this.audioCtx || !this.masterCompressor) return;
     try {
@@ -481,6 +1096,9 @@ export class SoundManager {
       const now = ctx.currentTime;
 
       if (severity === 'instant_kill') {
+        if (this.currentTheme === 'dark') {
+          this.playHorrorShriek(0.9, true);
+        }
         // --- Cinematic Seismic Implosion + Ascending Sonic Boom ---
         // 1. Bass implosion transient
         const sub = ctx.createOscillator();
@@ -685,6 +1303,10 @@ export class SoundManager {
       const now = ctx.currentTime;
 
       // Submarine Sonar Ping (Pure resonant 880 Hz with long cavernous reverberation)
+      if (this.currentTheme === 'dark') {
+        this.playHorrorShriek(1.15);
+        setTimeout(() => this.playHorrorLaughter(0.9, -15), 450);
+      }
       const pingOsc = ctx.createOscillator();
       const pingGain = ctx.createGain();
       pingOsc.type = 'sine';
@@ -737,10 +1359,12 @@ export class SoundManager {
       const now = ctx.currentTime;
       if (this.currentTheme === 'dark') {
         this.playHorrorStinger(1);
+        this.playHorrorShriek(1.3, true);
         // Heartbeat thuds
         [0, 0.35, 0.7].forEach((off) => {
           this.playFilteredNoise(now + off, 0.12, 70, 1.2, 'lowpass', 0.4);
         });
+        setTimeout(() => this.playHorrorLaughter(0.9, -10), 550);
         const scream = ctx.createOscillator();
         const sGain = ctx.createGain();
         scream.type = 'sawtooth';
@@ -799,6 +1423,10 @@ export class SoundManager {
       const now = ctx.currentTime;
 
       // 1. Initial concussive detonation
+      if (this.currentTheme === 'dark') {
+        this.playHorrorShriek(1.25);
+        setTimeout(() => this.playHorrorLaughter(1.1, -12), 480);
+      }
       this.playFilteredNoise(now, 0.35, 240, 1.5, 'lowpass', 0.45);
 
       const sub = ctx.createOscillator();

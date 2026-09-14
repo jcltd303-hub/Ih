@@ -2,7 +2,6 @@ import { Container, Graphics } from 'pixi.js';
 import { SpatialHashGrid } from './SpatialHashGrid';
 import { FishManager } from './FishManager';
 import { ParticleFXManager } from './ParticleFXManager';
-import { CryptoSigner } from '../../network/CryptoSigner';
 import { OfflineTransactionQueue } from '../../network/OfflineTransactionQueue';
 import { ShotSettlement } from '../../network/ShotSettlement';
 import { HapticManager } from '../../network/HapticManager';
@@ -117,15 +116,9 @@ export class WeaponController {
       try {
         const processShot = httpsCallable(functions, 'processPlayerShot');
         const timestamp = queued.timestamp;
-        const nonce = Math.random().toString(36).substring(2);
-        const signature = await CryptoSigner.generateSignature(
-          queued.userId,
-          queued.sessionId,
-          queued.betAmount,
-          queued.targetId,
-          timestamp,
-          nonce
-        );
+        const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
         await processShot({
           sessionId: queued.sessionId,
@@ -134,8 +127,7 @@ export class WeaponController {
           targetId: queued.targetId,
           clientHitConfirmed: queued.clientHitConfirmed,
           timestamp,
-          nonce,
-          signature
+          requestId
         });
         return true;
       } catch (err) {
@@ -333,18 +325,11 @@ export class WeaponController {
 
   private async dispatchServerShot(projectile: Projectile): Promise<void> {
     const timestamp = Date.now();
-    const nonce = Math.random().toString(36).substring(2);
+    const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     try {
-      const signature = await CryptoSigner.generateSignature(
-        projectile.userId,
-        projectile.sessionId,
-        projectile.betAmount,
-        'pending_collision',
-        timestamp,
-        nonce
-      );
-
       // Invoke server-authoritative verification if online
       const processShot = httpsCallable(functions, 'processPlayerShot');
       await processShot({
@@ -354,8 +339,7 @@ export class WeaponController {
         targetId: 'pending_collision',
         clientHitConfirmed: false,
         timestamp,
-        nonce,
-        signature
+        requestId
       });
     } catch {
       // Offline fallback: enqueue in durable offline queue for auto-sync on reconnection
