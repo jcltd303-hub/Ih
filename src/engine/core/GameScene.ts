@@ -72,9 +72,7 @@ export class GameScene {
         this.animatedBackground.setTheme(theme);
         this.fishManager.setTheme(theme);
       },
-      onAutoFireToggle: (enabled) => {
-        this.autoFireActive = enabled;
-      },
+      // Auto-fire is hold-to-fire on canvas (no HUD toggle)
       onLoadoutChange: () => {
         this.weaponController.refreshCannonSkin();
       },
@@ -149,12 +147,16 @@ export class GameScene {
   private setupInputListeners(): void {
     const canvas = this.app.canvas;
 
+    const syncAim = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      this.lastTargetX = clientX - rect.left;
+      this.lastTargetY = clientY - rect.top;
+      this.weaponController.updateAim(this.lastTargetX, this.lastTargetY);
+    };
+
     canvas.addEventListener('pointermove', (e) => {
       if (!this.isPlaying) return;
-      const rect = canvas.getBoundingClientRect();
-      this.lastTargetX = e.clientX - rect.left;
-      this.lastTargetY = e.clientY - rect.top;
-      this.weaponController.updateAim(this.lastTargetX, this.lastTargetY);
+      syncAim(e.clientX, e.clientY);
       this.aimBroadcastTimer += 1;
       if (this.aimBroadcastTimer > 8) {
         this.aimBroadcastTimer = 0;
@@ -162,15 +164,29 @@ export class GameScene {
       }
     });
 
+    // Hold = continuous auto-fire toward aim; release stops
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.isPlaying) return;
-      const rect = canvas.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const clickY = e.clientY - rect.top;
-      this.lastTargetX = clickX;
-      this.lastTargetY = clickY;
+      canvas.setPointerCapture?.(e.pointerId);
+      syncAim(e.clientX, e.clientY);
+      this.autoFireActive = true;
+      this.autoFireTimer = GameConfig.autoFireIntervalMs; // fire immediately on press
+      this.fireWeapon(this.lastTargetX, this.lastTargetY);
+    });
 
-      this.fireWeapon(clickX, clickY);
+    const endHold = (e: PointerEvent) => {
+      this.autoFireActive = false;
+      try {
+        canvas.releasePointerCapture?.(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    };
+    canvas.addEventListener('pointerup', endHold);
+    canvas.addEventListener('pointercancel', endHold);
+    canvas.addEventListener('pointerleave', () => {
+      // only stop if no buttons held (mouse drag off canvas)
+      this.autoFireActive = false;
     });
   }
 

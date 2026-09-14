@@ -14,7 +14,6 @@ export class UIManager {
   private gcBalanceEl!: HTMLElement;
   private scBalanceEl!: HTMLElement;
   private betDisplayEl!: HTMLElement;
-  private autoFireBtn!: HTMLElement;
   private currencyBtn!: HTMLElement;
   private themeBtn!: HTMLElement;
   private soundBtn!: HTMLElement;
@@ -120,7 +119,7 @@ export class UIManager {
           box-shadow: 0 0 28px rgba(0,255,204,0.45); transition: transform 0.15s, box-shadow 0.15s;
         ">▶  PLAY</button>
         <div style="margin-top: 22px; font-size: 11px; color: #64748b;">
-          Click / tap to aim &amp; fire · Auto-fire available in HUD
+          Hold to fire · Release to stop · Aim with pointer
         </div>
       </div>
     `;
@@ -235,11 +234,6 @@ export class UIManager {
 
       <!-- BOTTOM TACTICAL WEAPON HUD -->
       <div id="hud-bottombar" style="display: flex; justify-content: center; align-items: center; width: 100%; pointer-events: auto; padding-bottom: 8px; gap: 16px; flex-wrap: wrap;">
-        <!-- Auto Fire Toggle -->
-        <button id="hud-autofire-btn" style="background: #1e293b; color: #94a3b8; border: 1px solid #475569; padding: 12px 18px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 13px; letter-spacing: 0.5px; transition: all 0.2s;">
-          AUTO-FIRE: OFF
-        </button>
-
         <!-- Bet Selector Console -->
         <div style="background: rgba(15, 23, 42, 0.94); border: 1px solid #334155; padding: 10px 24px; border-radius: 14px; display: flex; align-items: center; gap: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
           <button id="hud-bet-decrease" style="background: #1e293b; color: #ffffff; border: 1px solid #475569; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
@@ -258,7 +252,7 @@ export class UIManager {
 
         <!-- Target Lock Tip -->
         <div style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; text-align: left; max-width: 140px; line-height: 1.3;">
-          CLICK TO TARGET<br/>
+          HOLD TO FIRE<br/>
           <span style="color: #00ffcc;">APEX BOSS: 100x</span>
         </div>
       </div>
@@ -268,7 +262,6 @@ export class UIManager {
     this.gcBalanceEl = document.getElementById('hud-gc-balance')!;
     this.scBalanceEl = document.getElementById('hud-sc-balance')!;
     this.betDisplayEl = document.getElementById('hud-bet-display')!;
-    this.autoFireBtn = document.getElementById('hud-autofire-btn')!;
     this.currencyBtn = document.getElementById('hud-currency-toggle')!;
     this.themeBtn = document.getElementById('hud-theme-toggle')!;
     this.soundBtn = document.getElementById('hud-sound-toggle')!;
@@ -278,7 +271,6 @@ export class UIManager {
     document.getElementById('hud-bet-increase')?.addEventListener('click', () => this.adjustBet(1));
 
     this.currencyBtn.addEventListener('click', () => this.toggleCurrency());
-    this.autoFireBtn.addEventListener('click', () => this.toggleAutoFire());
     this.themeBtn.addEventListener('click', () => this.toggleTheme());
     this.soundBtn.addEventListener('click', () => this.toggleSound());
 
@@ -524,15 +516,7 @@ export class UIManager {
   }
 
   private toggleAutoFire(): void {
-    this.autoFireEnabled = !this.autoFireEnabled;
-    SoundManager.playUiSound(this.autoFireEnabled ? 'autofire_on' : 'autofire_off');
-    this.autoFireBtn.textContent = `AUTO-FIRE: ${this.autoFireEnabled ? 'ON' : 'OFF'}`;
-    this.autoFireBtn.style.background = this.autoFireEnabled ? '#00ffcc' : '#1e293b';
-    this.autoFireBtn.style.color = this.autoFireEnabled ? '#000000' : '#94a3b8';
-
-    if (this.onAutoFireToggleCallback) {
-      this.onAutoFireToggleCallback(this.autoFireEnabled);
-    }
+    /* hold-to-fire on canvas; no HUD toggle */
   }
 
   private toggleTheme(): void {
