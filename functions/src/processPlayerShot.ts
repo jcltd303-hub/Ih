@@ -1,44 +1,70 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
-import { assertRateLimit, assertDailyScLoss, assertBetAmount, MAX_SHOTS_PER_MINUTE } from './limits';
+import { assertRateLimit, assertBetAmount, MAX_SHOTS_PER_MINUTE, MAX_DAILY_SC_LOSS } from './limits';
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 const db = admin.firestore();
-const HMAC_SECRET = process.env.HMAC_SECRET_KEY || 'fish_frenzy_secure_hmac_secret_key';
 
 type FishType = 'small' | 'medium' | 'boss';
 
-/** Server-side RTP / hit evaluation (authoritative). */
+/**
+ * Deterministic, provably-fair roll derived from the session's committed
+ * server seed + client seed + a sequential nonce — same SHA-256
+ * construction as ProvablyFairAuditor.verifyOutcome() on the client, so any
+ * roll used to settle a shot can be independently recomputed once the
+ * server seed is revealed.
+ */
+function deriveRoll(serverSeed: string, clientSeed: string, nonce: number): number {
+  const hashHex = crypto.createHash('sha256').update(`${serverSeed}:${clientSeed}:${nonce}`).digest('hex');
+  const intVal = parseInt(hashHex.substring(0, 8), 16);
+  return intVal / 0xffffffff; // [0, 1)
+}
+
+/** Sequential RNG bound to a session; each call consumes the next nonce. */
+function makeSessionRng(serverSeed: string, clientSeed: string, startNonce: number) {
+  let n = startNonce;
+  return {
+    next: () => deriveRoll(serverSeed, clientSeed, n++),
+    consumed: () => n - startNonce
+  };
+}
+
 function evaluateServerHit(
   betAmount: number,
   fishType: FishType,
   skinBonus: number,
-  targetRtp: number
+  targetRtp: number,
+  rng: () => number
 ) {
   const looseness = targetRtp / 90;
   const baseHitRate = 0.24 * looseness;
-  const isLuckyHit = Math.random() < 0.06 * looseness;
+  const isLuckyHit = rng() < 0.06 * looseness;
   const hitPayout = isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate;
 
-  const critRoll = Math.random();
+  const critRoll = rng();
   const isSuperCrit = critRoll < 0.04 * looseness;
   const isCrit = !isSuperCrit && critRoll < 0.16 * looseness;
   const critMultiplier = isSuperCrit ? 3.5 : isCrit ? 2.0 : 1.0;
-  const randomJitter = 0.9 + Math.random() * 0.3;
+  const randomJitter = 0.9 + rng() * 0.3;
   const damage = 1.0 * skinBonus * critMultiplier * randomJitter;
 
   const baseInstant = fishType === 'small' ? 0.22 : fishType === 'medium' ? 0.1 : 0.032;
-  const isInstantKill = Math.random() < baseInstant * looseness;
+  const isInstantKill = rng() < baseInstant * looseness;
 
   return { hitPayout, isLuckyHit, damage, isCrit, isSuperCrit, isInstantKill };
 }
 
-function evaluateServerKill(baseMultiplier: number, fishType: FishType, targetRtp: number) {
+function evaluateServerKill(
+  baseMultiplier: number,
+  fishType: FishType,
+  targetRtp: number,
+  rng: () => number
+) {
   const looseness = targetRtp / 90;
-  const roll = Math.random();
+  const roll = rng();
   if (roll < 0.02 * looseness) {
     return { finalMultiplier: baseMultiplier * 10, bonusLabel: '10X JACKPOT', isJackpot: true };
   }
@@ -64,8 +90,13 @@ function baseMultiplierFor(fishType: FishType): number {
 
 /**
  * Server-authoritative shot settlement.
- * Deducts bet, evaluates hit/kill when client reports a collision target,
- * credits payout, returns balances for HUD sync.
+ * Deducts bet, evaluates hit/kill using rolls derived from the session's
+ * committed provably-fair seed, credits payout, returns balances for HUD sync.
+ *
+ * Request integrity comes from Firebase Auth (request.auth.uid, verified
+ * server-side against the ID token) plus a per-request idempotency key —
+ * NOT a shared-secret signature, which can't be kept secret from a client
+ * that has to compute it itself.
  */
 export const processPlayerShot = onCall(async (request) => {
   const data = request.data || {};
@@ -78,8 +109,7 @@ export const processPlayerShot = onCall(async (request) => {
     fishType: rawFishType,
     skinBonus: rawSkinBonus,
     timestamp,
-    nonce,
-    signature
+    requestId
   } = data;
   const userId = request.auth?.uid;
 
@@ -91,62 +121,60 @@ export const processPlayerShot = onCall(async (request) => {
   }
   assertBetAmount(betAmount, currencyType);
   await assertRateLimit(userId, 'shot', MAX_SHOTS_PER_MINUTE);
-  if (!sessionId || !nonce || !signature || typeof timestamp !== 'number') {
-    throw new HttpsError('invalid-argument', 'Missing signed shot fields.');
+
+  if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('sess_')) {
+    throw new HttpsError('invalid-argument', 'A committed fairness session is required.');
   }
-
-  const payload = `${userId}:${sessionId}:${betAmount}:${targetId}:${timestamp}:${nonce}`;
-  const expectedSignature = crypto
-    .createHmac('sha256', HMAC_SECRET)
-    .update(payload)
-    .digest('hex');
-
-  if (signature !== expectedSignature) {
-    throw new HttpsError('permission-denied', 'Cryptographic signature verification failed.');
+  if (!requestId || typeof requestId !== 'string' || typeof timestamp !== 'number') {
+    throw new HttpsError('invalid-argument', 'Missing request fields.');
   }
-
   if (Math.abs(Date.now() - timestamp) > 60000) {
-    throw new HttpsError('invalid-argument', 'Transaction timestamp expired.');
+    throw new HttpsError('invalid-argument', 'Request timestamp expired.');
   }
 
-  // Replay protection: store nonce briefly
-  const nonceRef = db.collection('users').doc(userId).collection('nonces').doc(String(nonce));
   const fishType: FishType =
     rawFishType === 'boss' || rawFishType === 'medium' || rawFishType === 'small'
       ? rawFishType
       : 'small';
   const skinBonus = typeof rawSkinBonus === 'number' && rawSkinBonus > 0 ? Math.min(rawSkinBonus, 3) : 1;
-  const targetRtp = 90;
+
+  // Idempotency key: prevents a retried/duplicated call from paying out
+  // twice. It only needs to be unique per attempt — it is not a secret and
+  // does not need to be signed.
+  const requestRef = db
+    .collection('users')
+    .doc(userId)
+    .collection('processedRequests')
+    .doc(String(requestId));
 
   const userWalletRef = db.collection('users').doc(userId).collection('wallet').doc('balances');
-  const sessionRef =
-    typeof sessionId === 'string' && sessionId.startsWith('sess_')
-      ? db.collection('users').doc(userId).collection('sessions').doc(sessionId)
-      : null;
+  const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
+  const today = new Date().toISOString().slice(0, 10);
+  const dailyStatsRef = db.collection('users').doc(userId).collection('dailyStats').doc(today);
 
   const result = await db.runTransaction(async (transaction) => {
-    let fairNonce = 0;
-    if (sessionRef) {
-      const sess = await transaction.get(sessionRef);
-      if (sess.exists) {
-        const s = sess.data()!;
-        if (s.status === 'active') {
-          fairNonce = Number(s.nonce) || 0;
-          transaction.update(sessionRef, { nonce: fairNonce + 1 });
-        }
-      }
+    const requestDoc = await transaction.get(requestRef);
+    if (requestDoc.exists) {
+      throw new HttpsError('already-exists', 'Duplicate request.');
     }
 
-    const nonceDoc = await transaction.get(nonceRef);
-    if (nonceDoc.exists) {
-      throw new HttpsError('already-exists', 'Replay detected.');
+    const sessionSnap = await transaction.get(sessionRef);
+    if (!sessionSnap.exists || sessionSnap.data()?.status !== 'active') {
+      throw new HttpsError(
+        'failed-precondition',
+        'No active fairness session. Call startGameSession first.'
+      );
     }
+    const session = sessionSnap.data()!;
+    const serverSeed: string = session.serverSeed;
+    const clientSeed: string = session.clientSeed;
+    const targetRtp: number = Number(session.targetRtp) || 90;
+    const startNonce: number = Number(session.nonce) || 0;
 
     const walletDoc = await transaction.get(userWalletRef);
     if (!walletDoc.exists) {
       throw new HttpsError('not-found', 'User wallet not found. Call ensureUserWallet first.');
     }
-
     const walletData = walletDoc.data()!;
     const balanceKey = currencyType === 'SC' ? 'sweepstakesCoins' : 'goldCoins';
     const currentBalance = Number(walletData[balanceKey]) || 0;
@@ -154,6 +182,19 @@ export const processPlayerShot = onCall(async (request) => {
     if (currentBalance < betAmount) {
       throw new HttpsError('failed-precondition', 'Insufficient funds for bet.');
     }
+
+    // Enforce the daily SC loss cap BEFORE settling, so a single bet can
+    // never push a player past the cap (previously checked after the fact).
+    let existingNetLoss = 0;
+    if (currencyType === 'SC') {
+      const dailySnap = await transaction.get(dailyStatsRef);
+      existingNetLoss = dailySnap.exists ? Number(dailySnap.data()!.scNetLoss) || 0 : 0;
+      if (existingNetLoss >= MAX_DAILY_SC_LOSS) {
+        throw new HttpsError('failed-precondition', `Daily SC loss cap (${MAX_DAILY_SC_LOSS}) reached.`);
+      }
+    }
+
+    const rng = makeSessionRng(serverSeed, clientSeed, startNonce);
 
     let payoutAmount = 0;
     let hitResult: ReturnType<typeof evaluateServerHit> | null = null;
@@ -164,24 +205,42 @@ export const processPlayerShot = onCall(async (request) => {
       Boolean(clientHitConfirmed) && typeof targetId === 'string' && targetId !== 'pending_collision';
 
     if (isCollision) {
-      hitResult = evaluateServerHit(betAmount, fishType, skinBonus, targetRtp);
+      hitResult = evaluateServerHit(betAmount, fishType, skinBonus, targetRtp, rng.next);
       payoutAmount += hitResult.hitPayout;
 
-      // Treat as kill if instant gamble or target was already low-HP (client reports kill)
       if (hitResult.isInstantKill || data.clientKillConfirmed === true) {
         killed = true;
-        killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, targetRtp);
+        killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, targetRtp, rng.next);
         payoutAmount += betAmount * killResult.finalMultiplier * 0.7;
       }
     }
 
+    const netLoss = betAmount - payoutAmount;
+    if (currencyType === 'SC' && netLoss > 0 && existingNetLoss + netLoss > MAX_DAILY_SC_LOSS) {
+      throw new HttpsError('failed-precondition', `Daily SC loss cap (${MAX_DAILY_SC_LOSS}) reached.`);
+    }
+
     const finalBalance = currentBalance - betAmount + payoutAmount;
 
-    transaction.set(nonceRef, { ts: timestamp, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    transaction.set(requestRef, {
+      ts: timestamp,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    transaction.update(sessionRef, { nonce: startNonce + rng.consumed() });
     transaction.update(userWalletRef, {
       [balanceKey]: finalBalance,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
+    if (currencyType === 'SC' && netLoss > 0) {
+      transaction.set(
+        dailyStatsRef,
+        {
+          scNetLoss: existingNetLoss + netLoss,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+    }
 
     return {
       success: true,
@@ -196,13 +255,10 @@ export const processPlayerShot = onCall(async (request) => {
       kill: killResult,
       killed,
       serverAuthoritative: true,
-      fairNonce
+      fairNonceStart: startNonce,
+      fairNonceEnd: startNonce + rng.consumed()
     };
   });
 
-  const netLoss = Number(result.betAmount || 0) - Number(result.payoutAmount || 0);
-  if (currencyType === 'SC' && netLoss > 0) {
-    await assertDailyScLoss(userId, netLoss);
-  }
   return result;
 });
