@@ -15,7 +15,6 @@ export class UIManager {
   private scBalanceEl!: HTMLElement;
   private betDisplayEl!: HTMLElement;
   private currencyBtn!: HTMLElement;
-  private themeBtn!: HTMLElement;
   private soundBtn!: HTMLElement;
   private modalContainer!: HTMLElement;
 
@@ -112,6 +111,20 @@ export class UIManager {
             padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;
           ">Sign in with Google to save progress</button>
         </div>
+
+        <div style="margin: 0 auto 22px; max-width: 400px;">
+          <div style="font-size: 10px; letter-spacing: 2px; color: #64748b; font-weight: 700; margin-bottom: 10px;">SELECT TRENCH THEME</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button type="button" id="ff-theme-light" class="ff-theme-pick" data-theme="light" style="
+              background: linear-gradient(160deg,#0e7490,#164e63); border: 2px solid #22d3ee; border-radius: 12px;
+              padding: 14px 10px; cursor: pointer; color: #ecfeff; font-weight: 800; font-size: 12px;
+            ">⚡ CAN-TECH<br/><span style="font-size:10px;font-weight:600;color:#a5f3fc;">Neon arcade · bright FX</span></button>
+            <button type="button" id="ff-theme-dark" class="ff-theme-pick" data-theme="dark" style="
+              background: linear-gradient(160deg,#1c1917,#450a0a); border: 2px solid #7f1d1d; border-radius: 12px;
+              padding: 14px 10px; cursor: pointer; color: #fecaca; font-weight: 800; font-size: 12px;
+            ">💀 HORROR<br/><span style="font-size:10px;font-weight:600;color:#f87171;">Abyssal · scary audio</span></button>
+          </div>
+        </div>
         <button id="ff-play-btn" style="
           background: linear-gradient(135deg, #00ffcc 0%, #0891b2 100%);
           color: #0a0f1d; border: none; padding: 16px 48px; border-radius: 12px;
@@ -126,6 +139,44 @@ export class UIManager {
 
     const root = this.container.parentElement || document.body;
     root.appendChild(this.startScreenEl);
+
+
+    const applyThemePick = (theme: 'light' | 'dark') => {
+      this.currentTheme = theme;
+      try { localStorage.setItem('fish_frenzy_theme', theme); } catch { /* ignore */ }
+      SoundManager.setTheme(theme);
+      this.onThemeChangeCallback?.(theme);
+      const lightBtn = document.getElementById('ff-theme-light') as HTMLElement | null;
+      const darkBtn = document.getElementById('ff-theme-dark') as HTMLElement | null;
+      if (lightBtn && darkBtn) {
+        lightBtn.style.boxShadow = theme === 'light' ? '0 0 20px rgba(34,211,238,0.55)' : 'none';
+        darkBtn.style.boxShadow = theme === 'dark' ? '0 0 20px rgba(248,113,113,0.45)' : 'none';
+        lightBtn.style.borderColor = theme === 'light' ? '#22d3ee' : '#334155';
+        darkBtn.style.borderColor = theme === 'dark' ? '#f87171' : '#44403c';
+      }
+      if (this.startScreenEl) {
+        this.startScreenEl.style.background = theme === 'dark'
+          ? 'radial-gradient(ellipse at center, rgba(40,8,8,0.55) 0%, rgba(2,2,6,0.92) 70%)'
+          : 'radial-gradient(ellipse at center, rgba(8,16,40,0.55) 0%, rgba(2,4,12,0.88) 70%)';
+      }
+      if (theme === 'dark') {
+        SoundManager.playUiSound('modal_open');
+      } else {
+        SoundManager.playUiSound('click');
+      }
+    };
+
+    document.getElementById('ff-theme-light')?.addEventListener('click', () => applyThemePick('light'));
+    document.getElementById('ff-theme-dark')?.addEventListener('click', () => applyThemePick('dark'));
+
+    // Restore last theme on intro
+    try {
+      const saved = localStorage.getItem('fish_frenzy_theme');
+      if (saved === 'dark' || saved === 'light') applyThemePick(saved);
+      else applyThemePick('light');
+    } catch {
+      applyThemePick('light');
+    }
 
     const playBtn = document.getElementById('ff-play-btn');
     playBtn?.addEventListener('click', () => {
@@ -223,9 +274,6 @@ export class UIManager {
           <button id="hud-lobby-btn" title="Open Lobby" style="background: linear-gradient(135deg,#0f766e,#155e75); color: #ecfeff; border: 1px solid #22d3ee; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 0 12px rgba(34,211,238,0.25);">
             ⌂ LOBBY
           </button>
-          <button id="hud-theme-toggle" title="Toggle theme" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            🎨
-          </button>
           <button id="hud-sound-toggle" title="Audio" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
             🔊
           </button>
@@ -263,7 +311,6 @@ export class UIManager {
     this.scBalanceEl = document.getElementById('hud-sc-balance')!;
     this.betDisplayEl = document.getElementById('hud-bet-display')!;
     this.currencyBtn = document.getElementById('hud-currency-toggle')!;
-    this.themeBtn = document.getElementById('hud-theme-toggle')!;
     this.soundBtn = document.getElementById('hud-sound-toggle')!;
 
     // Event listeners
@@ -271,7 +318,6 @@ export class UIManager {
     document.getElementById('hud-bet-increase')?.addEventListener('click', () => this.adjustBet(1));
 
     this.currencyBtn.addEventListener('click', () => this.toggleCurrency());
-    this.themeBtn.addEventListener('click', () => this.toggleTheme());
     this.soundBtn.addEventListener('click', () => this.toggleSound());
 
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());

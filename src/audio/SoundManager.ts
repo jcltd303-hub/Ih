@@ -15,6 +15,8 @@ export class SoundManager {
   })();
   private static lastMissTime: number = 0;
   private static lastHitTime: number = 0;
+  /** light = can-tech bright FX; dark = horror / abyssal */
+  private static currentTheme: 'light' | 'dark' = 'light';
 
   private static initContext(): void {
     if (!this.audioCtx) {
@@ -88,6 +90,54 @@ export class SoundManager {
     return this.enabled;
   }
 
+  public static setTheme(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+  }
+
+  public static getTheme(): 'light' | 'dark' {
+    return this.currentTheme;
+  }
+
+  /** Pitch / gain flavour per theme */
+  private static themePitch(): number {
+    return this.currentTheme === 'dark' ? 0.72 : 1.0;
+  }
+
+  private static themeMasterGainMul(): number {
+    return this.currentTheme === 'dark' ? 0.92 : 1.0;
+  }
+
+  /** Low dissonant stinger used in horror mode */
+  private static playHorrorStinger(intensity: number = 0.3): void {
+    if (!this.audioCtx || !this.masterCompressor) return;
+    try {
+      const ctx = this.audioCtx;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      osc2.type = 'square';
+      osc.frequency.setValueAtTime(55 + intensity * 40, now);
+      osc2.frequency.setValueAtTime(82.5 + intensity * 30, now); // tritone-ish
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(400, now);
+      filter.frequency.exponentialRampToValueAtTime(120, now + 0.4);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.22 * intensity, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterCompressor);
+      osc.start(now);
+      osc2.start(now);
+      osc.stop(now + 0.56);
+      osc2.stop(now + 0.56);
+    } catch { /* guard */ }
+  }
+
   // ==========================================
   // 1. PER-TURRET FIRING ACOUSTICS
   // ==========================================
@@ -98,6 +148,9 @@ export class SoundManager {
 
     try {
       const ctx = this.audioCtx;
+      if (this.currentTheme === 'dark') {
+        this.playHorrorStinger(0.35 + Math.min(0.4, betAmount / 40));
+      }
       const now = ctx.currentTime;
       const isHighBet = betAmount >= 50;
       const isMedBet = betAmount >= 10;
@@ -263,6 +316,9 @@ export class SoundManager {
     if (!this.enabled) return;
     this.initContext();
     if (!this.audioCtx || !this.masterCompressor) return;
+    if (this.currentTheme === 'dark' && fishType === 'boss') {
+      this.playHorrorStinger(0.55);
+    }
 
     const now = this.audioCtx.currentTime;
     // Throttle duplicate hits within 35ms to prevent audio clutter
@@ -679,6 +735,25 @@ export class SoundManager {
     try {
       const ctx = this.audioCtx;
       const now = ctx.currentTime;
+      if (this.currentTheme === 'dark') {
+        this.playHorrorStinger(1);
+        // Heartbeat thuds
+        [0, 0.35, 0.7].forEach((off) => {
+          this.playFilteredNoise(now + off, 0.12, 70, 1.2, 'lowpass', 0.4);
+        });
+        const scream = ctx.createOscillator();
+        const sGain = ctx.createGain();
+        scream.type = 'sawtooth';
+        scream.frequency.setValueAtTime(110, now);
+        scream.frequency.exponentialRampToValueAtTime(40, now + 0.9);
+        sGain.gain.setValueAtTime(0.3, now);
+        sGain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+        scream.connect(sGain);
+        sGain.connect(this.masterCompressor);
+        scream.start(now);
+        scream.stop(now + 1.05);
+        return;
+      }
 
       // Rev-up turbine scream
       const revOsc = ctx.createOscillator();

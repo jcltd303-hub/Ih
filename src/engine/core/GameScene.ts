@@ -10,6 +10,7 @@ import { UIManager } from '../../ui/UIManager';
 import { MultiplayerTableManager } from '../../network/MultiplayerTableManager';
 import { TournamentManager } from '../../network/TournamentManager';
 import { GameConfig } from '../../config/GameConfig';
+import { SoundManager } from '../../audio/SoundManager';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 
@@ -71,6 +72,7 @@ export class GameScene {
         this.themeManager.setTheme(theme);
         this.animatedBackground.setTheme(theme);
         this.fishManager.setTheme(theme);
+        SoundManager.setTheme(theme);
       },
       // Auto-fire is hold-to-fire on canvas (no HUD toggle)
       onLoadoutChange: () => {
