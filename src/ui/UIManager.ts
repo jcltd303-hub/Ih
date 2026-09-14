@@ -866,6 +866,13 @@ export class UIManager {
     return this.betTiers[this.currentBetIndex];
   }
 
+  public setBalances(gc: number, sc: number): void {
+    this.gcBalance = Math.max(0, gc);
+    this.scBalance = Math.max(0, sc);
+    if (this.gcBalanceEl) this.gcBalanceEl.textContent = this.gcBalance.toLocaleString();
+    if (this.scBalanceEl) this.scBalanceEl.textContent = this.scBalance.toFixed(2);
+  }
+
   public getCurrency(): 'GC' | 'SC' {
     return this.activeCurrency;
   }

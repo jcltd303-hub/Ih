@@ -31,8 +31,16 @@ export class GameScene {
   private lastTargetY: number = 0;
   /** Game flow: idle until player hits Play on the start screen */
   private isPlaying: boolean = false;
+  private postFxEnabled: boolean = true;
+  private particlesEnabled: boolean = true;
 
-  constructor(app: Application, uiRoot: HTMLElement) {
+  constructor(
+    app: Application,
+    uiRoot: HTMLElement,
+    options?: { postFxEnabled?: boolean; particlesEnabled?: boolean }
+  ) {
+    this.postFxEnabled = options?.postFxEnabled !== false;
+    this.particlesEnabled = options?.particlesEnabled !== false;
     this.app = app;
     const width = this.app.screen.width;
     const height = this.app.screen.height;
@@ -88,9 +96,11 @@ export class GameScene {
       }
     );
 
-    const postFilter = this.postProcessor.getFilter();
-    if (postFilter) {
-      this.worldContainer.filters = [postFilter];
+    if (this.postFxEnabled) {
+      const postFilter = this.postProcessor.getFilter();
+      if (postFilter) {
+        this.worldContainer.filters = [postFilter];
+      }
     }
 
     this.lastTargetX = width / 2;
@@ -177,6 +187,11 @@ export class GameScene {
       targetY,
       betAmount
     );
+  }
+
+  /** Push server/local wallet into the DOM HUD */
+  public syncWalletBalances(gc: number, sc: number, _source?: string): void {
+    this.uiManager.setBalances(gc, sc);
   }
 
   public update(deltaTime: number): void {

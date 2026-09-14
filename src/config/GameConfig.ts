@@ -43,6 +43,10 @@ export const GameConfig = {
   localPlayerId: 'player_local',
   localSessionId: 'session_live_777',
   localDisplayName: 'NeonStriker'
-} as const;
+};
 
-export type GameConfigType = typeof GameConfig;
+
+/** Runtime override (performance presets) */
+export function setMaxActiveFish(n: number): void {
+  (GameConfig as { maxActiveFish: number }).maxActiveFish = Math.max(4, Math.min(32, n));
+}
