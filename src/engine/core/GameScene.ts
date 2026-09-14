@@ -10,6 +10,8 @@ import { UIManager } from '../../ui/UIManager';
 import { MultiplayerTableManager } from '../../network/MultiplayerTableManager';
 import { TournamentManager } from '../../network/TournamentManager';
 import { GameConfig } from '../../config/GameConfig';
+import { FeatureFlags } from '../../config/FeatureFlags';
+import { isFirebaseConfigured } from '../../network/FirebaseClient';
 import { SoundManager } from '../../audio/SoundManager';
 import { FairnessSession } from '../../network/FairnessSession';
 import { AuthManager } from '../../network/AuthManager';
@@ -129,6 +131,7 @@ export class GameScene {
     });
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
+    // Presence is cosmetic (not authoritative table settlement)
     this.multiplayerTable.joinSharedTable(GameConfig.defaultTableId, uid, name);
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
@@ -216,6 +219,10 @@ export class GameScene {
 
     const betAmount = this.uiManager.getCurrentBet();
     const currency = this.uiManager.getCurrency();
+    if (currency === 'SC' && FeatureFlags.realSc && !isFirebaseConfigured) {
+      console.warn('[SC] Real-SC mode requires Firebase — switch to GC or configure env.');
+      return;
+    }
 
     if (!this.uiManager.deductBet()) {
       return; // Insufficient balance

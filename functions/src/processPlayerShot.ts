@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { assertRateLimit, assertDailyScLoss, assertBetAmount, MAX_SHOTS_PER_MINUTE } from './limits';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -85,12 +86,11 @@ export const processPlayerShot = onCall(async (request) => {
   if (!userId) {
     throw new HttpsError('unauthenticated', 'User must be authenticated to fire shots.');
   }
-  if (typeof betAmount !== 'number' || betAmount <= 0 || betAmount > 1000) {
-    throw new HttpsError('invalid-argument', 'Invalid bet amount.');
-  }
   if (currencyType !== 'SC' && currencyType !== 'GC') {
     throw new HttpsError('invalid-argument', 'Invalid currency.');
   }
+  assertBetAmount(betAmount, currencyType);
+  await assertRateLimit(userId, 'shot', MAX_SHOTS_PER_MINUTE);
   if (!sessionId || !nonce || !signature || typeof timestamp !== 'number') {
     throw new HttpsError('invalid-argument', 'Missing signed shot fields.');
   }
@@ -124,7 +124,7 @@ export const processPlayerShot = onCall(async (request) => {
       ? db.collection('users').doc(userId).collection('sessions').doc(sessionId)
       : null;
 
-  return await db.runTransaction(async (transaction) => {
+  const result = await db.runTransaction(async (transaction) => {
     let fairNonce = 0;
     if (sessionRef) {
       const sess = await transaction.get(sessionRef);
@@ -199,4 +199,10 @@ export const processPlayerShot = onCall(async (request) => {
       fairNonce
     };
   });
+
+  const netLoss = Number(result.betAmount || 0) - Number(result.payoutAmount || 0);
+  if (currencyType === 'SC' && netLoss > 0) {
+    await assertDailyScLoss(userId, netLoss);
+  }
+  return result;
 });

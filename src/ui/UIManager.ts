@@ -1,3 +1,4 @@
+import { FeatureFlags } from '../config/FeatureFlags';
 import { SoundManager } from '../audio/SoundManager';
 import { GameTheme } from '../engine/systems/ThemeManager';
 import { LoadoutManager, SKIN_PRICES } from '../network/LoadoutManager';
@@ -131,7 +132,7 @@ export class UIManager {
           box-shadow: 0 0 28px rgba(0,255,204,0.45); transition: transform 0.15s, box-shadow 0.15s;
         ">▶  PLAY</button>
         <div style="margin-top: 22px; font-size: 11px; color: #64748b;">
-          Hold to fire · Release to stop · Aim with pointer
+          Hold to fire · Stake in Lobby · <a href="/legal/terms.html" style="color:#38bdf8">Terms</a>
         </div>
       </div>
     `;
@@ -624,7 +625,7 @@ export class UIManager {
     if (this.activeCurrency === 'SC') {
       if (this.scBalance < bet) return false;
       this.scBalance -= bet;
-      this.scBalanceEl.textContent = this.scBalance.toFixed(2);
+      if (this.scBalanceEl) this.scBalanceEl.textContent = this.scBalance.toFixed(2);
     } else {
       if (this.gcBalance < bet * 100) return false;
       this.gcBalance -= bet * 100;

@@ -47,3 +47,11 @@ html, body, #app {
   padding-left: max(16px, env(safe-area-inset-left)) !important;
   padding-right: max(16px, env(safe-area-inset-right)) !important;
 }
+
+.ff-reduced-motion *,
+.ff-reduced-motion *::before,
+.ff-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

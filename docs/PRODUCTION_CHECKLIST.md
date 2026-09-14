@@ -1,51 +1,45 @@
 # Fish Frenzy — Production checklist
 
-Use this before any **real-value SC** or public store launch. GC / offline arcade can ship earlier with “demo” labeling.
+## Code complete (this repo)
 
-## P0 — Must ship for real SC
+- [x] Server shot settlement, session commit–reveal, wallet rules (client write denied)
+- [x] Rate limit (shots/min), max bet, daily SC loss cap (`functions/src/limits.ts`)
+- [x] Optional App Check init (`VITE_FIREBASE_APPCHECK_SITE_KEY`)
+- [x] Age gate + Terms / Privacy / Responsible play pages (`public/legal/`)
+- [x] `VITE_FF_REAL_SC` blocks SC when Firebase not configured
+- [x] Multiplayer documented as **cosmetic presence** (not authoritative)
+- [x] Reduced-motion CSS class + `prefers-reduced-motion`
+- [x] Analytics hooks, onboarding, operator Monte Carlo (demo tools)
+- [x] Fairness audit UI (reveal seed)
 
-- [ ] **Firebase project** (prod + staging) with real `VITE_FIREBASE_*` in CI secrets — never commit keys that can write admin data
-- [ ] **Anonymous + Google Auth** enabled; test account recovery
-- [ ] Deploy **`firestore.rules`**, **`database.rules.json`**, **Cloud Functions**
-- [ ] **`HMAC_SECRET_KEY`** (and any seed secrets) only in Functions secrets — not in the web bundle
-- [ ] **SC balances** mutate only in Cloud Functions (`ensureUserWallet`, `processPlayerShot`) — client writes denied by rules
-- [ ] **`startGameSession` / `revealSessionSeed`** live; every SC session starts with commit–reveal
-- [ ] **Rate limits** on callable functions (App Check + per-UID quotas)
-- [ ] **App Check** (Play Integrity / DeviceCheck) on callables
-- [ ] Legal: jurisdiction, age gate, ToS, privacy policy, responsible-play links
-- [ ] Confirm product is **sweepstakes / social casino / skill** path with counsel — do not invent compliance
+## Ops / business (you must do)
 
-## P1 — Strongly recommended
+- [ ] Create **prod + staging** Firebase projects; set `VITE_FIREBASE_*` in CI/hosting secrets
+- [ ] Enable Anonymous + Google Auth; test recovery
+- [ ] `firebase deploy` rules + functions; `firebase functions:secrets:set HMAC_SECRET_KEY`
+- [ ] Enable **App Check** enforcement on callables in Firebase console
+- [ ] Legal counsel: sweepstakes / social casino / skill path; jurisdiction; age policy
+- [ ] Staging load test + pen test on wallet endpoints
+- [ ] Monitoring/alerts on function errors and realized RTP vs 90%
+- [ ] Store listings, real brand icons, privacy nutrition labels
+- [ ] Optional Sentry (or similar) DSN
 
-- [ ] Staging environment + emulator tests in CI for rules + `processPlayerShot`
-- [ ] Monitoring: function errors, RTP realized vs 90% target, wallet anomalies
-- [ ] Max bet / max daily SC loss caps server-side
-- [ ] Multiplayer marked cosmetic **or** made authoritative
-- [ ] WebGL context loss recovery (reload CTA already present)
-- [ ] Penetration test on wallet and session endpoints
-- [ ] Freeze client RTP tools as **operator/demo only**; production math on server at **90%** target
+## Enable real SC mode
 
-## P2 — Store / polish
+```bash
+# .env.local
+VITE_FF_REAL_SC=true
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_APPCHECK_SITE_KEY=...
+```
 
-- [ ] Real icons/splash (replace generated placeholders)
-- [ ] Capacitor iOS/Android store listings, privacy nutrition labels
-- [ ] Crash reporting (e.g. Sentry)
-- [ ] Accessibility: contrast, touch targets, reduced-motion option
+Deploy functions first. Client SC then expects online settlement.
 
-## Demo / GC-only (acceptable now)
+## Limits (server)
 
-- [x] Playable loop, lobby stake, hold-to-fire
-- [x] Local P&L + Monte Carlo for operators
-- [x] Offline fallback when Firebase unset
-- [x] Client commit–reveal **fallback** when offline (not sufficient for SC)
-
-## Current architecture notes
-
-| Layer | Role |
-|-------|------|
-| Client `PayoutEngine` | UX FX + operator Monte Carlo / local demo ledger |
-| `processPlayerShot` | Authoritative SC debit/credit when configured |
-| `FairnessSession` | Commit hash at session start; reveal for audit |
-| Firestore rules | Wallet write **false** for clients |
-
-**Rule of thumb:** if SC can buy anything of value, the browser is untrusted. Ship Functions first.
+| Cap | Value |
+|-----|-------|
+| Max bet SC/GC | 10 |
+| Shots / minute / UID | 120 |
+| Daily SC net loss | 500 |
+| Target RTP | 90% |

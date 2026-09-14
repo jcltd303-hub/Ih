@@ -1,4 +1,3 @@
-/** Feature flags from Vite env (string "true"/"1"). */
 function flag(name: string, defaultOn = false): boolean {
   const v = import.meta.env[name];
   if (v === undefined || v === '') return defaultOn;
@@ -10,5 +9,18 @@ export const FeatureFlags = {
   googleAuth: flag('VITE_FF_GOOGLE_AUTH', true),
   analytics: flag('VITE_FF_ANALYTICS', true),
   onboarding: flag('VITE_FF_ONBOARDING', true),
-  economySinks: flag('VITE_FF_ECONOMY', true)
+  economySinks: flag('VITE_FF_ECONOMY', true),
+  /** SC requires configured Firebase — no offline SC spend. */
+  realSc: flag('VITE_FF_REAL_SC', false),
+  ageGate: flag('VITE_FF_AGE_GATE', true),
+  reducedMotion: flag('VITE_FF_REDUCED_MOTION', false)
 } as const;
+
+export function prefersReducedMotion(): boolean {
+  if (FeatureFlags.reducedMotion) return true;
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}

@@ -12,9 +12,21 @@ import { createRoot } from 'react-dom/client';
 import { createElement } from 'react';
 import App from './App';
 import { Analytics } from './network/Analytics';
+import { showAgeGate } from './ui/AgeGate';
+import { initAppCheck } from './network/AppCheckInit';
+import { FeatureFlags, prefersReducedMotion } from './config/FeatureFlags';
 import { maybeShowOnboarding } from './ui/OnboardingTips';
 
 window.addEventListener('DOMContentLoaded', async () => {
+  initAppCheck();
+  if (prefersReducedMotion()) {
+    document.documentElement.classList.add('ff-reduced-motion');
+  }
+  if (FeatureFlags.ageGate) {
+    const ok = await showAgeGate(document.body);
+    if (!ok) return;
+  }
+
   const root = document.getElementById('app') || document.body;
 
   // Performance tier (mobile/desktop / user override)
