@@ -5,7 +5,14 @@ export class SoundManager {
   private static masterGain: GainNode | null = null;
   private static masterCompressor: DynamicsCompressorNode | null = null;
   private static noiseBuffer: AudioBuffer | null = null;
-  private static enabled: boolean = true;
+  private static enabled: boolean = (() => {
+    try {
+      const v = localStorage.getItem('fish_frenzy_sound');
+      if (v === '0') return false;
+      if (v === '1') return true;
+    } catch { /* ignore */ }
+    return true;
+  })();
   private static lastMissTime: number = 0;
   private static lastHitTime: number = 0;
 
@@ -66,6 +73,9 @@ export class SoundManager {
 
   public static toggleSound(): boolean {
     this.enabled = !this.enabled;
+    try {
+      localStorage.setItem('fish_frenzy_sound', this.enabled ? '1' : '0');
+    } catch { /* ignore */ }
     if (this.audioCtx && this.masterGain) {
       const now = this.audioCtx.currentTime;
       this.masterGain.gain.cancelScheduledValues(now);

@@ -11,6 +11,8 @@ import { GameConfig, setMaxActiveFish } from './config/GameConfig';
 import { createRoot } from 'react-dom/client';
 import { createElement } from 'react';
 import App from './App';
+import { Analytics } from './network/Analytics';
+import { maybeShowOnboarding } from './ui/OnboardingTips';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('app') || document.body;
@@ -44,7 +46,17 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   root.appendChild(app.canvas);
 
-  await AssetLoader.loadGameAssets();
+  try {
+    await AssetLoader.loadGameAssets();
+  } catch (err) {
+    console.error('[Fish Frenzy] Asset load failed', err);
+    Analytics.track('asset_load_error', { message: String(err) });
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100;background:#7f1d1d;color:#fecaca;padding:10px 16px;border-radius:8px;font:12px monospace;';
+    banner.textContent = 'Asset load issue — some sprites may be missing. Game continues.';
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 6000);
+  }
 
   const gameScene = new GameScene(app, root, {
     postFxEnabled: perf.postFxEnabled,
@@ -71,4 +83,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     root.appendChild(statusHost);
   }
   createRoot(statusHost).render(createElement(App));
+
+  Analytics.track('session_start', { tier: perf.tier, maxFish: perf.maxFish });
+  maybeShowOnboarding(root instanceof HTMLElement ? root : document.body);
+
+  window.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    Analytics.track('webgl_context_lost');
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:100;background:#1e293b;color:#fbbf24;padding:10px 16px;border-radius:8px;font:12px monospace;';
+    banner.textContent = 'Graphics context lost — reload the page to recover.';
+    document.body.appendChild(banner);
+  }, { capture: true });
 });

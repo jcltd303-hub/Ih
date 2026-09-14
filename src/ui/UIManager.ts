@@ -3,7 +3,7 @@ import { TournamentManager } from '../network/TournamentManager';
 import { ProvablyFairAuditor } from '../utils/ProvablyFairAuditor';
 import { SoundManager } from '../audio/SoundManager';
 import { GameTheme } from '../engine/systems/ThemeManager';
-import { LoadoutManager } from '../network/LoadoutManager';
+import { LoadoutManager, SKIN_PRICES } from '../network/LoadoutManager';
 import { PayoutEngine } from '../engine/systems/PayoutEngine';
 
 export class UIManager {
@@ -450,6 +450,8 @@ export class UIManager {
         <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
           ${availableSkins.map(skin => {
             const isEquipped = currentLoadout.activeCannonSkin === skin.id;
+            const isUnlocked = currentLoadout.unlockedSkins.includes(skin.id);
+            const price = SKIN_PRICES[skin.id] ?? 0;
             return `
               <div style="background: ${isEquipped ? 'rgba(225, 29, 72, 0.18)' : '#1e293b'}; border: 1.5px solid ${isEquipped ? '#f43f5e' : skin.border}; border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
                 <div style="display: flex; align-items: center; gap: 14px; flex: 1;">
@@ -465,7 +467,7 @@ export class UIManager {
                   </div>
                 </div>
                 <button class="armory-equip-btn" data-skin="${skin.id}" style="background: ${isEquipped ? '#f43f5e' : '#334155'}; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; transition: background 0.15s;">
-                  ${isEquipped ? '✓ EQUIPPED' : 'EQUIP'}
+                  ${isEquipped ? '✓ EQUIPPED' : (isUnlocked ? 'EQUIP' : `UNLOCK ${price} SC`)}
                 </button>
               </div>
             `;
@@ -487,8 +489,20 @@ export class UIManager {
       btn.addEventListener('click', (e) => {
         SoundManager.playUiSound('autofire_on');
         const targetSkin = (e.currentTarget as HTMLElement).getAttribute('data-skin')!;
+        let loadout = LoadoutManager.getLoadout();
+        if (!loadout.unlockedSkins.includes(targetSkin)) {
+          const price = SKIN_PRICES[targetSkin] ?? 0;
+          const result = LoadoutManager.unlockSkin(targetSkin, this.scBalance);
+          if (!result.ok) {
+            const status = document.getElementById('modal-armory-status');
+            if (status) status.textContent = `Need ${price} SC to unlock (you have ${this.scBalance.toFixed(2)}).`;
+            return;
+          }
+          this.setBalances(this.gcBalance, result.newSc);
+          loadout = LoadoutManager.getLoadout();
+        }
         LoadoutManager.saveLoadout({
-          ...currentLoadout,
+          ...loadout,
           activeCannonSkin: targetSkin
         });
         if (this.onLoadoutChangeCallback) {

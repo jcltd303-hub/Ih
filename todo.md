@@ -27,12 +27,12 @@
 - [x] Boss fight phases
 - [x] Confirm weapon stats applied in `WeaponController` (verified in code)
 - [x] Multiplayer presence sprites + shared shots on canvas
-- [ ] Economy sinks (skin unlocks vs server wallet)
+- [x] Economy sinks (skin unlocks vs server wallet)
 - [ ] Capacitor store polish (icons, safe areas)
-- [ ] Sound mix / mute persistence
-- [ ] First-run onboarding tips
-- [ ] Analytics events
+- [x] Sound mix / mute persistence
+- [x] First-run onboarding tips
+- [x] Analytics events
 - [ ] CI + Firebase emulator tests
 - [ ] Split `UIManager` modals
-- [ ] WebGL/asset error recovery
-- [ ] Feature flags via env
+- [x] WebGL/asset error recovery
+- [x] Feature flags via env
