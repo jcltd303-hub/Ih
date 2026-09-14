@@ -11,6 +11,7 @@ import { MultiplayerTableManager } from '../../network/MultiplayerTableManager';
 import { TournamentManager } from '../../network/TournamentManager';
 import { GameConfig } from '../../config/GameConfig';
 import { AuthManager } from '../../network/AuthManager';
+import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 
 export class GameScene {
   private app: Application;
@@ -24,6 +25,10 @@ export class GameScene {
   private postProcessor: AbyssalPostProcessor;
   private uiManager: UIManager;
   private multiplayerTable: MultiplayerTableManager;
+  private presenceLayer: MultiplayerPresenceLayer | null = null;
+  private tableUnsub: (() => void) | null = null;
+  private lastSeenShotTs = 0;
+  private aimBroadcastTimer = 0;
 
   private spawnTimer: number = 0;
   private autoFireActive: boolean = false;
@@ -118,11 +123,23 @@ export class GameScene {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
-    this.multiplayerTable.joinSharedTable(
-      GameConfig.defaultTableId,
-      GameConfig.localPlayerId,
-      GameConfig.localDisplayName
-    );
+    const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
+    const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
+    this.multiplayerTable.joinSharedTable(GameConfig.defaultTableId, uid, name);
+    this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
+    this.presenceLayer.setLocalUserId(uid);
+    this.tableUnsub = this.multiplayerTable.subscribeToTableState(GameConfig.defaultTableId, (state) => {
+      this.presenceLayer?.syncPlayers(state?.players);
+      const shots = state?.shared_shots;
+      if (shots && typeof shots === 'object') {
+        for (const shot of Object.values(shots) as any[]) {
+          if (!shot || typeof shot.timestamp !== 'number') continue;
+          if (shot.timestamp <= this.lastSeenShotTs) continue;
+          this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
+          this.presenceLayer?.showRemoteShot(shot);
+        }
+      }
+    });
     // Seed a few more fish for an active trench
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
@@ -138,6 +155,11 @@ export class GameScene {
       this.lastTargetX = e.clientX - rect.left;
       this.lastTargetY = e.clientY - rect.top;
       this.weaponController.updateAim(this.lastTargetX, this.lastTargetY);
+      this.aimBroadcastTimer += 1;
+      if (this.aimBroadcastTimer > 8) {
+        this.aimBroadcastTimer = 0;
+        this.multiplayerTable.updateLocalAim(this.lastTargetX, this.lastTargetY);
+      }
     });
 
     canvas.addEventListener('pointerdown', (e) => {

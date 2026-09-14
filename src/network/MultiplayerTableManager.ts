@@ -60,6 +60,19 @@ export class MultiplayerTableManager {
     }
   }
 
+  public updateLocalAim(x: number, y: number): void {
+    if (!this.activeTableId || !this.localPlayer) return;
+    this.localPlayer.x = x;
+    this.localPlayer.y = y;
+    this.localPlayer.lastActive = Date.now();
+    try {
+      const playerRef = ref(rtdb, `tables/${this.activeTableId}/players/${this.localPlayer.userId}`);
+      set(playerRef, this.localPlayer);
+    } catch {
+      /* offline */
+    }
+  }
+
   public broadcastTableShot(tableId: string, userId: string, targetX: number, targetY: number, bet: number): void {
     const now = Date.now();
     if (now - this.lastShotBroadcastMs < MultiplayerTableManager.MIN_SHOT_INTERVAL_MS) {

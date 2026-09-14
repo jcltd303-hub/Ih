@@ -25,8 +25,8 @@
 ## Later
 
 - [x] Boss fight phases
-- [ ] Confirm weapon stats applied in `WeaponController` (already wired; re-verify in playtest)
-- [ ] Multiplayer presence sprites + shared shots on canvas
+- [x] Confirm weapon stats applied in `WeaponController` (verified in code)
+- [x] Multiplayer presence sprites + shared shots on canvas
 - [ ] Economy sinks (skin unlocks vs server wallet)
 - [ ] Capacitor store polish (icons, safe areas)
 - [ ] Sound mix / mute persistence
