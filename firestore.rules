@@ -30,6 +30,13 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      // Fairness sessions: client may read metadata; server seed field is still
+      // readable after reveal — prefer revealSessionSeed callable for production.
+      match /sessions/{sessionId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
       // Block arbitrary subcollection writes (prevents client balance tampering)
       match /{document=**} {
         allow read: if isOwner(userId);

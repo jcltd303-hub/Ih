@@ -31,6 +31,14 @@ export class WalletService {
     return this.instance;
   }
 
+  /**
+   * When Firebase is configured, SC is treated as server-authoritative:
+   * local optimistic deduct is for UX only; HUD should resync from snapshots.
+   */
+  public scRequiresServer(): boolean {
+    return isFirebaseConfigured;
+  }
+
   public getBalances(): WalletBalances {
     return { ...this.balances };
   }

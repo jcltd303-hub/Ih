@@ -11,6 +11,7 @@ import { MultiplayerTableManager } from '../../network/MultiplayerTableManager';
 import { TournamentManager } from '../../network/TournamentManager';
 import { GameConfig } from '../../config/GameConfig';
 import { SoundManager } from '../../audio/SoundManager';
+import { FairnessSession } from '../../network/FairnessSession';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 
@@ -123,6 +124,9 @@ export class GameScene {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
+    void FairnessSession.getInstance().begin().then((sess) => {
+      console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…');
+    });
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
     this.multiplayerTable.joinSharedTable(GameConfig.defaultTableId, uid, name);
@@ -220,7 +224,7 @@ export class GameScene {
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     void this.weaponController.fireCannon(
       uid,
-      GameConfig.localSessionId,
+      FairnessSession.getInstance().getSessionId(),
       currency,
       betAmount,
       targetX,

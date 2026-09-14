@@ -119,8 +119,24 @@ export const processPlayerShot = onCall(async (request) => {
   const targetRtp = 90;
 
   const userWalletRef = db.collection('users').doc(userId).collection('wallet').doc('balances');
+  const sessionRef =
+    typeof sessionId === 'string' && sessionId.startsWith('sess_')
+      ? db.collection('users').doc(userId).collection('sessions').doc(sessionId)
+      : null;
 
   return await db.runTransaction(async (transaction) => {
+    let fairNonce = 0;
+    if (sessionRef) {
+      const sess = await transaction.get(sessionRef);
+      if (sess.exists) {
+        const s = sess.data()!;
+        if (s.status === 'active') {
+          fairNonce = Number(s.nonce) || 0;
+          transaction.update(sessionRef, { nonce: fairNonce + 1 });
+        }
+      }
+    }
+
     const nonceDoc = await transaction.get(nonceRef);
     if (nonceDoc.exists) {
       throw new HttpsError('already-exists', 'Replay detected.');
@@ -179,7 +195,8 @@ export const processPlayerShot = onCall(async (request) => {
       hit: hitResult,
       kill: killResult,
       killed,
-      serverAuthoritative: true
+      serverAuthoritative: true,
+      fairNonce
     };
   });
 });
