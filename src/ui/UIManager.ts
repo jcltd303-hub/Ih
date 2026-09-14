@@ -1,3 +1,4 @@
+import { WalletService } from '../network/WalletService';
 import { FeatureFlags } from '../config/FeatureFlags';
 import { SoundManager } from '../audio/SoundManager';
 import { GameTheme } from '../engine/systems/ThemeManager';
@@ -78,165 +79,312 @@ export class UIManager {
   public showStartScreen(): void {
     if (this.startScreenEl) return;
 
+    const wallet = WalletService.getInstance();
+
     this.startScreenEl = document.createElement('div');
     this.startScreenEl.id = 'fish-frenzy-start';
-    this.startScreenEl.style.cssText = `
-      position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; pointer-events: auto;
-      background: radial-gradient(ellipse at center, rgba(8,16,40,0.55) 0%, rgba(2,4,12,0.88) 70%);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: #e2e8f0; text-align: center; padding: 24px; box-sizing: border-box;
-    `;
-    this.startScreenEl.innerHTML = `
-      <div style="max-width: 520px; width: 100%;">
-        <div style="font-size: 11px; letter-spacing: 4px; color: #00ffcc; font-weight: 700; margin-bottom: 10px;">
-          CYBER TRENCH ARCADE
-        </div>
-        <h1 style="margin: 0 0 8px; font-size: clamp(28px, 6vw, 42px); font-weight: 900; line-height: 1.1;
-          background: linear-gradient(135deg, #00f0ff 0%, #ff007f 50%, #fbbf24 100%);
-          -webkit-background-clip: text; background-clip: text; color: transparent;">
-          FISH FRENZY
-        </h1>
-        <p style="margin: 0 0 20px; font-size: 13px; color: #94a3b8; line-height: 1.5;">
-          Aim the modular turret. School the trench. Hunt the Leviathan.<br/>
-          Provably fair RTP · 4 tactical chassis · Boid swarm physics
-        </p>
-        <div id="ff-auth-banner" style="
-          margin: 0 auto 20px; max-width: 360px; padding: 10px 14px; border-radius: 10px;
-          background: rgba(15,23,42,0.85); border: 1px solid #334155; font-size: 11px; color: #94a3b8;
-        ">
-          <div id="ff-auth-status">Playing as guest — progress is local until you sign in.</div>
-          <button id="ff-google-btn" type="button" style="
-            margin-top: 10px; background: #1e293b; color: #e2e8f0; border: 1px solid #475569;
-            padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;
-          ">Sign in with Google to save progress</button>
-        </div>
 
-        <div style="margin: 0 auto 22px; max-width: 400px;">
-          <div style="font-size: 10px; letter-spacing: 2px; color: #64748b; font-weight: 700; margin-bottom: 10px;">SELECT TRENCH THEME</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <button type="button" id="ff-theme-light" class="ff-theme-pick" data-theme="light" style="
-              background: linear-gradient(160deg,#0e7490,#164e63); border: 2px solid #22d3ee; border-radius: 12px;
-              padding: 14px 10px; cursor: pointer; color: #ecfeff; font-weight: 800; font-size: 12px;
-            ">⚡ CAN-TECH<br/><span style="font-size:10px;font-weight:600;color:#a5f3fc;">Neon arcade · bright FX</span></button>
-            <button type="button" id="ff-theme-dark" class="ff-theme-pick" data-theme="dark" style="
-              background: linear-gradient(160deg,#1c1917,#450a0a); border: 2px solid #7f1d1d; border-radius: 12px;
-              padding: 14px 10px; cursor: pointer; color: #fecaca; font-weight: 800; font-size: 12px;
-            ">💀 HORROR<br/><span style="font-size:10px;font-weight:600;color:#f87171;">Abyssal · scary audio</span></button>
+    Object.assign(this.startScreenEl.style, {
+      position: 'fixed',
+      inset: '0',
+      zIndex: '9999',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      boxSizing: 'border-box',
+      background:
+        'radial-gradient(circle at 50% 35%, rgba(25,55,75,.72), rgba(3,7,13,.98) 72%)',
+      color: '#fff',
+      fontFamily: 'system-ui, sans-serif',
+    });
+
+    this.startScreenEl.innerHTML = `
+      <div style="
+        width:min(560px,100%);
+        max-height:calc(100vh - 48px);
+        overflow:auto;
+        box-sizing:border-box;
+        padding:28px;
+        border:1px solid rgba(100,220,255,.35);
+        border-radius:20px;
+        background:rgba(5,12,20,.92);
+        box-shadow:0 0 50px rgba(0,180,255,.16);
+        text-align:center;
+      ">
+        <div style="
+          font-size:11px;
+          letter-spacing:.22em;
+          opacity:.65;
+          margin-bottom:8px;
+        ">CYBER TRENCH ARCADE</div>
+
+        <div style="
+          font-size:clamp(34px,8vw,58px);
+          line-height:.95;
+          font-weight:900;
+          letter-spacing:.04em;
+          margin-bottom:10px;
+        ">FISH FRENZY</div>
+
+        <div style="
+          font-size:13px;
+          opacity:.72;
+          margin-bottom:22px;
+        ">ENTER THE TRENCH · LOAD YOUR WALLET · PLAY</div>
+
+        <div id="ff-auth-status" style="
+          padding:10px 12px;
+          border-radius:10px;
+          background:rgba(255,255,255,.05);
+          font-size:12px;
+          margin-bottom:16px;
+        "></div>
+
+        <div style="
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:10px;
+          margin-bottom:16px;
+        ">
+          <div style="
+            padding:14px;
+            border-radius:12px;
+            background:rgba(255,190,0,.08);
+            border:1px solid rgba(255,190,0,.2);
+          ">
+            <div style="font-size:10px;opacity:.6;letter-spacing:.12em;">GOLD COINS</div>
+            <div id="ff-lobby-gc" style="font-size:24px;font-weight:800;">—</div>
+          </div>
+
+          <div style="
+            padding:14px;
+            border-radius:12px;
+            background:rgba(0,220,255,.08);
+            border:1px solid rgba(0,220,255,.2);
+          ">
+            <div style="font-size:10px;opacity:.6;letter-spacing:.12em;">SWEEPSTAKES COINS</div>
+            <div id="ff-lobby-sc" style="font-size:24px;font-weight:800;">—</div>
           </div>
         </div>
-        <button id="ff-play-btn" style="
-          background: linear-gradient(135deg, #00ffcc 0%, #0891b2 100%);
-          color: #0a0f1d; border: none; padding: 16px 48px; border-radius: 12px;
-          font-size: 16px; font-weight: 900; letter-spacing: 2px; cursor: pointer;
-          box-shadow: 0 0 28px rgba(0,255,204,0.45); transition: transform 0.15s, box-shadow 0.15s;
-        ">▶  PLAY</button>
-        <div style="margin-top: 22px; font-size: 11px; color: #64748b;">
-          Hold to fire · Stake in Lobby · <a href="/legal/terms.html" style="color:#38bdf8">Terms</a>
+
+        <div style="
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:10px;
+          margin-bottom:12px;
+        ">
+          <button id="ff-deposit" style="
+            padding:13px;
+            border-radius:10px;
+            border:1px solid rgba(0,230,255,.4);
+            background:rgba(0,180,255,.13);
+            color:#fff;
+            font-weight:800;
+            cursor:pointer;
+          ">DEPOSIT</button>
+
+          <button id="ff-withdraw" style="
+            padding:13px;
+            border-radius:10px;
+            border:1px solid rgba(255,120,180,.4);
+            background:rgba(255,80,150,.10);
+            color:#fff;
+            font-weight:800;
+            cursor:pointer;
+          ">WITHDRAW</button>
+        </div>
+
+        <div id="ff-wallet-status" style="
+          min-height:18px;
+          margin:6px 0 14px;
+          font-size:11px;
+          opacity:.72;
+        "></div>
+
+        <div style="
+          display:flex;
+          justify-content:center;
+          gap:8px;
+          margin-bottom:16px;
+        ">
+          <button data-theme="can-tech" id="ff-theme-can" style="
+            padding:8px 12px;
+            border-radius:8px;
+            border:1px solid rgba(0,220,255,.3);
+            background:rgba(0,180,255,.08);
+            color:#fff;
+            cursor:pointer;
+          ">CAN-TECH</button>
+
+          <button data-theme="horror" id="ff-theme-horror" style="
+            padding:8px 12px;
+            border-radius:8px;
+            border:1px solid rgba(255,80,100,.3);
+            background:rgba(255,60,80,.08);
+            color:#fff;
+            cursor:pointer;
+          ">HORROR</button>
+        </div>
+
+        <button id="ff-play" style="
+          width:100%;
+          padding:16px;
+          border:0;
+          border-radius:12px;
+          background:linear-gradient(135deg,#00d9ff,#176cff);
+          color:#001018;
+          font-size:18px;
+          font-weight:900;
+          letter-spacing:.08em;
+          cursor:pointer;
+          box-shadow:0 0 28px rgba(0,190,255,.25);
+        ">PLAY</button>
+
+        <div style="
+          margin-top:16px;
+          font-size:10px;
+          line-height:1.5;
+          opacity:.45;
+        ">
+          Hold to fire · Stake in Lobby · Wallet transactions are processed server-side · Terms
         </div>
       </div>
     `;
 
-    const root = this.container.parentElement || document.body;
-    root.appendChild(this.startScreenEl);
+    document.body.appendChild(this.startScreenEl);
 
+    const root = this.startScreenEl;
 
-    const applyThemePick = (theme: 'light' | 'dark') => {
-      this.currentTheme = theme;
-      try { localStorage.setItem('fish_frenzy_theme', theme); } catch { /* ignore */ }
-      SoundManager.setTheme(theme);
-      this.onThemeChangeCallback?.(theme);
-      const lightBtn = document.getElementById('ff-theme-light') as HTMLElement | null;
-      const darkBtn = document.getElementById('ff-theme-dark') as HTMLElement | null;
-      if (lightBtn && darkBtn) {
-        lightBtn.style.boxShadow = theme === 'light' ? '0 0 20px rgba(34,211,238,0.55)' : 'none';
-        darkBtn.style.boxShadow = theme === 'dark' ? '0 0 20px rgba(248,113,113,0.45)' : 'none';
-        lightBtn.style.borderColor = theme === 'light' ? '#22d3ee' : '#334155';
-        darkBtn.style.borderColor = theme === 'dark' ? '#f87171' : '#44403c';
-      }
-      if (this.startScreenEl) {
-        this.startScreenEl.style.background = theme === 'dark'
-          ? 'radial-gradient(ellipse at center, rgba(40,8,8,0.55) 0%, rgba(2,2,6,0.92) 70%)'
-          : 'radial-gradient(ellipse at center, rgba(8,16,40,0.55) 0%, rgba(2,4,12,0.88) 70%)';
-      }
-      if (theme === 'dark') {
-        SoundManager.playUiSound('modal_open');
-      } else {
-        SoundManager.playUiSound('click');
+    const gcEl = root.querySelector<HTMLElement>('#ff-lobby-gc');
+    const scEl = root.querySelector<HTMLElement>('#ff-lobby-sc');
+    const authEl = root.querySelector<HTMLElement>('#ff-auth-status');
+    const statusEl = root.querySelector<HTMLElement>('#ff-wallet-status');
+
+    const renderWallet = () => {
+      const b = wallet.getBalances();
+
+      if (gcEl) gcEl.textContent = b.goldCoins.toLocaleString();
+      if (scEl) scEl.textContent = b.sweepstakesCoins.toLocaleString();
+
+      if (authEl) {
+        const auth = AuthManager.getInstance();
+        const state = auth.getState();
+
+        authEl.textContent = state.displayName
+          ? `SIGNED IN · ${state.displayName}`
+          : 'GUEST / LOCAL SESSION';
       }
     };
 
-    document.getElementById('ff-theme-light')?.addEventListener('click', () => applyThemePick('light'));
-    document.getElementById('ff-theme-dark')?.addEventListener('click', () => applyThemePick('dark'));
+    const unsubscribeWallet = wallet.subscribe(renderWallet);
 
-    // Restore last theme on intro
-    try {
-      const saved = localStorage.getItem('fish_frenzy_theme');
-      if (saved === 'dark' || saved === 'light') applyThemePick(saved);
-      else applyThemePick('light');
-    } catch {
-      applyThemePick('light');
-    }
+    // Keep the subscription attached to this lobby only.
+    (root as any).__walletUnsubscribe = unsubscribeWallet;
 
-    const playBtn = document.getElementById('ff-play-btn');
-    playBtn?.addEventListener('click', () => {
-      SoundManager.playUiSound('modal_open');
-      this.onPlayCallback?.();
+    void wallet.connect().then(renderWallet).catch((error) => {
+      console.error('[Lobby] wallet connect failed', error);
+      if (statusEl) statusEl.textContent = 'Wallet unavailable.';
     });
 
-    const googleBtn = document.getElementById('ff-google-btn');
-    googleBtn?.addEventListener('click', async () => {
-      try {
-        const { AuthManager } = await import('../network/AuthManager');
-        const state = await AuthManager.getInstance().linkGoogle();
-        const status = document.getElementById('ff-auth-status');
-        if (status) {
-          status.textContent = state.isAnonymous
-            ? 'Playing as guest — progress is local until you sign in.'
-            : `Signed in as ${state.displayName} — wallet will sync when online.`;
+    root.querySelector<HTMLButtonElement>('#ff-deposit')
+      ?.addEventListener('click', async () => {
+        const amountText = window.prompt('Deposit amount (SC):', '10');
+        if (amountText === null) return;
+
+        const amount = Number(amountText);
+
+        if (!Number.isFinite(amount) || amount <= 0) {
+          if (statusEl) statusEl.textContent = 'Enter a valid amount.';
+          return;
         }
-        if (googleBtn && !state.isAnonymous) {
-          googleBtn.textContent = 'Progress linked';
-          (googleBtn as HTMLButtonElement).disabled = true;
-        }
-        SoundManager.playUiSound('modal_open');
-      } catch (e: any) {
-        const status = document.getElementById('ff-auth-status');
-        if (status) status.textContent = e?.message || 'Sign-in failed. You can still play as guest.';
-      }
-    });
 
-    // Reflect current auth state on banner
-    import('../network/AuthManager').then(({ AuthManager }) => {
-      AuthManager.getInstance().ensureSignedIn().then((state) => {
-        const status = document.getElementById('ff-auth-status');
-        if (!status) return;
-        if (!state.configured) {
-          status.textContent = 'Offline arcade mode — set VITE_FIREBASE_* to enable cloud wallet.';
-        } else if (state.isAnonymous) {
-          status.textContent = `Guest · ${state.displayName} — sign in to save progress.`;
-        } else {
-          status.textContent = `Signed in as ${state.displayName}`;
-          const btn = document.getElementById('ff-google-btn') as HTMLButtonElement | null;
-          if (btn) { btn.textContent = 'Progress linked'; btn.disabled = true; }
+        if (statusEl) statusEl.textContent = 'Creating deposit request…';
+
+        try {
+          const result = await wallet.requestDeposit(amount, 'SC');
+
+          if (statusEl) {
+            statusEl.textContent =
+              `Deposit request ${result.requestId.slice(0, 8)}… pending confirmation.`;
+          }
+        } catch (error) {
+          console.error('[Lobby] deposit failed', error);
+          if (statusEl) {
+            statusEl.textContent =
+              error instanceof Error ? error.message : 'Deposit request failed.';
+          }
         }
-      }).catch(() => {});
-    });
-    playBtn?.addEventListener('mouseenter', () => {
-      if (playBtn) {
-        playBtn.style.transform = 'scale(1.05)';
-        playBtn.style.boxShadow = '0 0 40px rgba(0,255,204,0.7)';
-      }
-    });
-    playBtn?.addEventListener('mouseleave', () => {
-      if (playBtn) {
-        playBtn.style.transform = 'scale(1)';
-        playBtn.style.boxShadow = '0 0 28px rgba(0,255,204,0.45)';
-      }
-    });
+      });
+
+    root.querySelector<HTMLButtonElement>('#ff-withdraw')
+      ?.addEventListener('click', async () => {
+        const balance = wallet.getBalance('SC');
+        const amountText = window.prompt(
+          `Withdraw SC amount (available: ${balance.toLocaleString()}):`,
+          ''
+        );
+
+        if (amountText === null) return;
+
+        const amount = Number(amountText);
+
+        if (!Number.isFinite(amount) || amount <= 0) {
+          if (statusEl) statusEl.textContent = 'Enter a valid amount.';
+          return;
+        }
+
+        if (amount > balance) {
+          if (statusEl) statusEl.textContent = 'Insufficient SC balance.';
+          return;
+        }
+
+        if (statusEl) statusEl.textContent = 'Creating withdrawal request…';
+
+        try {
+          const result = await wallet.requestWithdrawal(amount, 'SC');
+
+          if (statusEl) {
+            statusEl.textContent =
+              `Withdrawal ${result.requestId.slice(0, 8)}… pending processing.`;
+          }
+
+          renderWallet();
+        } catch (error) {
+          console.error('[Lobby] withdrawal failed', error);
+          if (statusEl) {
+            statusEl.textContent =
+              error instanceof Error ? error.message : 'Withdrawal request failed.';
+          }
+        }
+      });
+
+    root.querySelector<HTMLButtonElement>('#ff-play')
+      ?.addEventListener('click', () => {
+        this.options.onPlay();
+      });
+
+    root.querySelector<HTMLButtonElement>('#ff-theme-can')
+      ?.addEventListener('click', () => {
+        this.options.onThemeChange?.('can-tech');
+      });
+
+    root.querySelector<HTMLButtonElement>('#ff-theme-horror')
+      ?.addEventListener('click', () => {
+        this.options.onThemeChange?.('horror');
+      });
   }
 
   public hideStartScreen(): void {
+
+    if (this.startScreenEl) {
+      const unsubscribe = (this.startScreenEl as any).__walletUnsubscribe;
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    }
+
+
     if (this.startScreenEl) {
       this.startScreenEl.remove();
       this.startScreenEl = null;

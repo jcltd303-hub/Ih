@@ -10,3 +10,5 @@ export {
   startGameSession,
   revealSessionSeed
 };
+export { requestDeposit } from './requestDeposit';
+export { requestWithdrawal } from './requestWithdrawal';
