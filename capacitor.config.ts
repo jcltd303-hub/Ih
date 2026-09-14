@@ -8,7 +8,25 @@ const config: CapacitorConfig = {
     androidScheme: 'https'
   },
   plugins: {
-    Haptics: {}
+    Haptics: {},
+    SplashScreen: {
+      launchShowDuration: 1200,
+      backgroundColor: '#0a0f1d',
+      showSpinner: false
+    },
+    StatusBar: {
+      style: 'DARK',
+      backgroundColor: '#0a0f1d'
+    }
+  },
+  ios: {
+    contentInset: 'automatic',
+    backgroundColor: '#0a0f1d',
+    preferredContentMode: 'mobile'
+  },
+  android: {
+    backgroundColor: '#0a0f1d',
+    allowMixedContent: false
   }
 };
 
