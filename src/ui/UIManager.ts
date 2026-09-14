@@ -1,11 +1,13 @@
-import { StreakManager } from '../network/StreakManager';
-import { TournamentManager } from '../network/TournamentManager';
-import { ProvablyFairAuditor } from '../utils/ProvablyFairAuditor';
 import { SoundManager } from '../audio/SoundManager';
 import { GameTheme } from '../engine/systems/ThemeManager';
 import { LoadoutManager, SKIN_PRICES } from '../network/LoadoutManager';
 import { ARMORY_SKINS, skinUnlockLabel } from './modals/armorySkins';
 import { PayoutEngine } from '../engine/systems/PayoutEngine';
+import { showStreakModal as openStreakModal } from './modals/streakModal';
+import { showAuditModal as openAuditModal } from './modals/auditModal';
+import { showLeaderboardModal as openLeaderboardModal } from './modals/leaderboardModal';
+import { showAdminPortalModal as openAdminPortalModal } from './modals/adminPortalModal';
+import type { ModalContext } from './modals/ModalContext';
 
 export class UIManager {
   private container: HTMLElement;
@@ -340,65 +342,20 @@ export class UIManager {
     this.modalContainer.style.display = 'flex';
   }
 
-  private async showStreakModal(): Promise<void> {
-    const streakManager = new StreakManager();
-    const status = await streakManager.getStreakStatus('player_local');
-    const rewards = [1, 2, 3, 5, 7, 10, 15];
-
-    this.modalContainer.innerHTML = `
-      <div style="background: #0f172a; border: 2px solid #f59e0b; border-radius: 16px; padding: 24px; max-width: 440px; width: 100%; color: #ffffff; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h2 style="font-size: 18px; font-weight: 800; color: #fbbf24; margin: 0;">⚡ 7-DAY STREAK PROTOCOL</h2>
-          <button id="modal-close-btn" style="background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">✕</button>
-        </div>
-        <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 18px; line-height: 1.5;">
-          Current Streak: <strong style="color: #fbbf24;">Day ${status.currentStreak} / 7</strong>. Active daily check-in unlocks up to 15 SC on Day 7.
-        </p>
-        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px;">
-          ${rewards.map((sc, i) => {
-            const isCurrentDay = i + 1 === status.currentStreak;
-            const isCompleted = i + 1 < status.currentStreak;
-            const bg = isCurrentDay ? 'rgba(245, 158, 11, 0.3)' : isCompleted ? 'rgba(16, 185, 129, 0.2)' : '#1e293b';
-            const border = isCurrentDay ? '#f59e0b' : isCompleted ? '#10b981' : '#334155';
-            return `
-              <div style="background: ${bg}; border: 1px solid ${border}; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                <div style="font-size: 10px; color: ${isCompleted ? '#34d399' : '#94a3b8'};">${isCompleted ? '✓' : `D${i + 1}`}</div>
-                <div style="font-size: 12px; font-weight: bold; color: #fbbf24; margin-top: 2px;">+${sc}</div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-        <button id="modal-claim-streak-btn" ${status.canClaim ? '' : 'disabled'} style="width: 100%; background: ${status.canClaim ? '#f59e0b' : '#334155'}; color: ${status.canClaim ? '#000000' : '#64748b'}; font-weight: 800; padding: 12px; border-radius: 8px; border: none; cursor: ${status.canClaim ? 'pointer' : 'not-allowed'}; font-size: 14px; transition: all 0.2s;">
-          ${status.canClaim ? `CLAIM TODAY'S REWARD (+${status.nextRewardSC} SC)` : `TODAY'S REWARD CLAIMED (DAY ${status.currentStreak})`}
-        </button>
-        <div id="modal-streak-status" style="font-size: 12px; color: #34d399; margin-top: 12px; text-align: center;"></div>
-      </div>
-    `;
-
-    SoundManager.playUiSound('modal_open');
-    this.modalContainer.style.display = 'flex';
-    document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
-    document.getElementById('modal-claim-streak-btn')?.addEventListener('click', async () => {
-      if (!status.canClaim) return;
-      try {
-        const res = await streakManager.claimDailyLoginReward('player_local');
-        this.addBalance(0, res.rewardSC);
-        SoundManager.playCoinDrop('medium', res.rewardSC);
-        const statusEl = document.getElementById('modal-streak-status');
-        if (statusEl) statusEl.textContent = `✓ Successfully claimed ${res.rewardSC} SC! Day ${res.streak} active.`;
-        const claimBtn = document.getElementById('modal-claim-streak-btn') as HTMLButtonElement;
-        if (claimBtn) {
-          claimBtn.disabled = true;
-          claimBtn.style.background = '#334155';
-          claimBtn.style.color = '#64748b';
-          claimBtn.textContent = `TODAY'S REWARD CLAIMED (DAY ${res.streak})`;
-        }
-      } catch (e: any) {
-        const statusEl = document.getElementById('modal-streak-status');
-        if (statusEl) statusEl.textContent = `⚠️ ${e?.message || 'Reward already claimed.'}`;
-      }
-    });
+  private modalCtx(): ModalContext {
+    return {
+      modalContainer: this.modalContainer,
+      closeModal: () => this.closeModal(),
+      openModal: (html: string) => this.openModal(html),
+      addBalance: (gc, sc) => this.addBalance(gc, sc),
+      getScBalance: () => this.scBalance
+    };
   }
+
+  private async showStreakModal(): Promise<void> {
+    await openStreakModal(this.modalCtx());
+  }
+
 
   private showArmoryModal(): void {
     const currentLoadout = LoadoutManager.getLoadout();
@@ -482,364 +439,19 @@ export class UIManager {
   }
 
   private async showAuditModal(): Promise<void> {
-    const serverSeed = 'fish_frenzy_provably_fair_audit_seed_' + Date.now();
-    const serverHash = await ProvablyFairAuditor.generateServerSeedHash(serverSeed);
-    const clientSeed = 'client_local_entropy_999';
-    const outcomeRoll = ProvablyFairAuditor.verifyOutcome(serverSeed, clientSeed, 1);
-
-    this.modalContainer.innerHTML = `
-      <div style="background: #0f172a; border: 2px solid #0284c7; border-radius: 16px; padding: 24px; max-width: 520px; width: 100%; color: #ffffff; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h2 style="font-size: 18px; font-weight: 800; color: #38bdf8; margin: 0;">🛡️ PROVABLY FAIR AUDITOR</h2>
-          <button id="modal-close-btn" style="background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">✕</button>
-        </div>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 14px; line-height: 1.4;">
-          All ballistic outcomes are cryptographically pre-committed using SHA-256 hash chains. Players can verify that target multipliers were determined prior to weapon fire.
-        </p>
-        <div style="margin-bottom: 12px;">
-          <div style="font-size: 11px; color: #64748b; font-weight: bold; margin-bottom: 4px;">PRE-COMMITTED SERVER SEED (SHA-256)</div>
-          <div style="background: #1e293b; padding: 8px 12px; border-radius: 6px; font-size: 11px; word-break: break-all; color: #38bdf8; font-family: monospace;">
-            ${serverHash}
-          </div>
-        </div>
-        <div style="margin-bottom: 12px;">
-          <div style="font-size: 11px; color: #64748b; font-weight: bold; margin-bottom: 4px;">ACTIVE CLIENT ENTROPY SEED</div>
-          <div style="background: #1e293b; padding: 8px 12px; border-radius: 6px; font-size: 11px; color: #e2e8f0; font-family: monospace;">
-            ${clientSeed}
-          </div>
-        </div>
-        <div style="margin-bottom: 18px; display: flex; justify-content: space-between; background: #1e293b; padding: 12px; border-radius: 8px; align-items: center;">
-          <span style="font-size: 12px; color: #cbd5e1;">Computed RNG Multiplier Roll:</span>
-          <span style="font-size: 16px; font-weight: 800; color: #34d399;">${outcomeRoll.toFixed(2)}x</span>
-        </div>
-        <button id="modal-close-btn-bottom" style="width: 100%; background: #0284c7; color: #ffffff; font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px;">
-          CLOSE AUDIT LEDGER
-        </button>
-      </div>
-    `;
-
-    SoundManager.playUiSound('modal_open');
-    this.modalContainer.style.display = 'flex';
-    document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
-    document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
+    await openAuditModal(this.modalCtx());
   }
+
 
   private showLeaderboardModal(): void {
-    const details = TournamentManager.getDetails();
-    const sorted = TournamentManager.getLeaderboard('player_local');
-
-    this.modalContainer.innerHTML = `
-      <div style="background: #0f172a; border: 2px solid #7c3aed; border-radius: 16px; padding: 24px; max-width: 480px; width: 100%; color: #ffffff; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h2 style="font-size: 18px; font-weight: 800; color: #a78bfa; margin: 0;">🏆 ${details.title}</h2>
-          <button id="modal-close-btn" style="background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">✕</button>
-        </div>
-        <div style="background: rgba(124, 58, 237, 0.15); border: 1px solid #7c3aed; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-size: 10px; color: #cbd5e1; text-transform: uppercase;">PRIZE SYNDICATE</div>
-            <div style="font-size: 16px; font-weight: bold; color: #fbbf24;">${details.prizePoolSC.toLocaleString()} SC</div>
-          </div>
-          <div style="text-align: right;">
-            <div style="font-size: 10px; color: #cbd5e1; text-transform: uppercase;">MIN BET</div>
-            <div style="font-size: 14px; font-weight: bold; color: #00ffcc;">${details.minBetTier} SC</div>
-          </div>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
-          ${sorted.map(entry => `
-            <div style="display: flex; justify-content: space-between; align-items: center; background: ${entry.isPlayer ? 'rgba(124, 58, 237, 0.25)' : '#1e293b'}; border: 1px solid ${entry.isPlayer ? '#7c3aed' : '#334155'}; border-radius: 8px; padding: 10px 14px;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 13px; font-weight: bold; color: ${entry.rank === 1 ? '#fbbf24' : entry.rank === 2 ? '#cbd5e1' : entry.rank === 3 ? '#b45309' : '#64748b'}; width: 24px;">#${entry.rank}</span>
-                <span style="font-size: 13px; font-weight: 600; color: ${entry.isPlayer ? '#a78bfa' : '#ffffff'};">${entry.username}</span>
-              </div>
-              <div style="text-align: right;">
-                <div style="font-size: 14px; font-weight: 800; color: #00ffcc;">${entry.score.toLocaleString()} PTS</div>
-                ${entry.prizeSC > 0 ? `<div style="font-size: 10px; color: #fbbf24; font-weight: bold;">+${entry.prizeSC} SC PRIZE</div>` : ''}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-        <button id="modal-close-btn-bottom" style="width: 100%; background: #7c3aed; color: #ffffff; font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px;">
-          DISMISS
-        </button>
-      </div>
-    `;
-
-    SoundManager.playUiSound('modal_open');
-    this.modalContainer.style.display = 'flex';
-    document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
-    document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
+    openLeaderboardModal(this.modalCtx());
   }
+
 
   public showAdminPortalModal(): void {
-    const config = PayoutEngine.getConfig();
-    const stats = PayoutEngine.getSessionStats();
-
-    const getLoosenessTier = (rtp: number) => {
-      if (rtp < 75) return { label: '🔒 TIGHT', desc: 'High House Margin (25%+ Edge) • Conservative payouts & lower capture odds', color: '#ef4444' };
-      if (rtp < 86) return { label: '⚖️ CONSERVATIVE', desc: 'Arcade Standard (~15-25% Edge) • Moderate hit frequency', color: '#f59e0b' };
-      if (rtp <= 94) return { label: '🎰 STANDARD VEGAS', desc: 'Casino Floor (92% Baseline) • Balanced volatility & instant captures', color: '#38bdf8' };
-      if (rtp <= 100) return { label: '🔥 VERY LOOSE', desc: 'Player Advantageous (95-100%) • Generous gamble capture rate & crits', color: '#34d399' };
-      return { label: '💥 PROMO FRENZY', desc: 'Promotional / VIP Rush (>100%) • Operator subsidy / High capture frequency', color: '#ec4899' };
-    };
-
-    const initialTier = getLoosenessTier(config.targetRtp);
-
-    this.modalContainer.innerHTML = `
-      <div style="background: #0b1120; border: 2px solid #f59e0b; border-radius: 16px; padding: 24px; max-width: 580px; width: 100%; color: #ffffff; box-shadow: 0 16px 48px rgba(0,0,0,0.85); max-height: 90vh; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">
-        <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #1e293b; padding-bottom: 12px;">
-          <div>
-            <h2 style="font-size: 18px; font-weight: 800; color: #fbbf24; margin: 0; display: flex; align-items: center; gap: 8px;">
-              ⚙️ OPERATOR ADMIN PORTAL
-            </h2>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 3px;">
-              GAME LOOSENESS & GAMBLE MATH ENGINE CALIBRATOR
-            </div>
-          </div>
-          <button id="modal-close-btn" style="background: #1e293b; border: 1px solid #334155; color: #94a3b8; width: 32px; height: 32px; border-radius: 8px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
-        </div>
-
-        <!-- Main Looseness Slider Card -->
-        <div style="background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; border-radius: 12px; padding: 18px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
-            <div>
-              <div style="font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">GAME LOOSENESS (TARGET PAYOUT %)</div>
-              <div id="admin-tier-badge" style="font-size: 12px; font-weight: 800; color: ${initialTier.color}; margin-top: 3px;">
-                ${initialTier.label} — <span style="font-weight: normal; font-size: 11px; color: #cbd5e1;">${initialTier.desc}</span>
-              </div>
-            </div>
-            <div style="text-align: right;">
-              <span id="admin-slider-val" style="font-size: 28px; font-weight: 900; color: ${initialTier.color}; font-family: monospace;">
-                ${config.targetRtp}%
-              </span>
-            </div>
-          </div>
-
-          <!-- Slider -->
-          <div style="margin: 14px 0 10px 0;">
-            <input
-              type="range"
-              id="admin-rtp-slider"
-              min="50"
-              max="120"
-              step="1"
-              value="${config.targetRtp}"
-              style="width: 100%; height: 8px; cursor: pointer; accent-color: #f59e0b; border-radius: 4px;"
-            />
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #64748b; margin-top: 4px;">
-              <span>50% (Tightest)</span>
-              <span>75% (Arcade)</span>
-              <span>92% (Standard)</span>
-              <span>100% (Break-Even)</span>
-              <span>120% (Max Loose)</span>
-            </div>
-          </div>
-
-          <!-- Presets -->
-          <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px;">
-            <button class="admin-preset-btn" data-rtp="70" style="background: #1e293b; color: #ef4444; border: 1px solid #7f1d1d; padding: 5px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer;">
-              🔒 Tight (70%)
-            </button>
-            <button class="admin-preset-btn" data-rtp="82" style="background: #1e293b; color: #f59e0b; border: 1px solid #78350f; padding: 5px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer;">
-              ⚖️ Arcade (82%)
-            </button>
-            <button class="admin-preset-btn" data-rtp="92" style="background: #1e293b; color: #38bdf8; border: 1px solid #0369a1; padding: 5px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer;">
-              🎰 Vegas (92%)
-            </button>
-            <button class="admin-preset-btn" data-rtp="96" style="background: #1e293b; color: #34d399; border: 1px solid #065f46; padding: 5px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer;">
-              🔥 Loose (96%)
-            </button>
-            <button class="admin-preset-btn" data-rtp="105" style="background: #1e293b; color: #ec4899; border: 1px solid #831843; padding: 5px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer;">
-              💥 Promo (105%)
-            </button>
-          </div>
-        </div>
-
-        <!-- Gamble Mechanics Toggles -->
-        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-          <div style="font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 10px; text-transform: uppercase;">
-            🎲 GAMBLE MECHANICS TOGGLES
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <label style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; cursor: pointer;">
-              <span>⚡ <strong>Instant Gamble Kill Roll</strong> <span style="color: #64748b; font-size: 11px;">(RNG roll allows any bullet to instantly explode target)</span></span>
-              <input type="checkbox" id="admin-gamble-kill-toggle" ${config.gambleKillEnabled ? 'checked' : ''} style="accent-color: #00ffcc; width: 16px; height: 16px; cursor: pointer;" />
-            </label>
-            <label style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; cursor: pointer;">
-              <span>🎯 <strong>Jackpot Multipliers on Catch</strong> <span style="color: #64748b; font-size: 11px;">(Surprise 2x, 5x, 10x surge on fish capture)</span></span>
-              <input type="checkbox" id="admin-bonus-mult-toggle" ${config.gambleBonusMultiplierEnabled ? 'checked' : ''} style="accent-color: #fbbf24; width: 16px; height: 16px; cursor: pointer;" />
-            </label>
-          </div>
-        </div>
-
-        <!-- Live Session Telemetry -->
-        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">
-              📊 LIVE AUDIT TELEMETRY
-            </div>
-            <button id="admin-reset-stats-btn" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">
-              🔄 RESET STATS
-            </button>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px;">
-            <div style="background: #1e293b; padding: 8px 10px; border-radius: 6px;">
-              <div style="font-size: 10px; color: #64748b;">TOTAL WAGERED</div>
-              <div id="admin-stat-wagered" style="font-size: 13px; font-weight: bold; color: #ffffff;">${stats.totalWagered.toFixed(2)} SC</div>
-            </div>
-            <div style="background: #1e293b; padding: 8px 10px; border-radius: 6px;">
-              <div style="font-size: 10px; color: #64748b;">TOTAL PAID OUT</div>
-              <div id="admin-stat-payout" style="font-size: 13px; font-weight: bold; color: #34d399;">${stats.totalPaidOut.toFixed(2)} SC</div>
-            </div>
-            <div style="background: #1e293b; padding: 8px 10px; border-radius: 6px;">
-              <div style="font-size: 10px; color: #64748b;">REALIZED RTP</div>
-              <div id="admin-stat-rtp" style="font-size: 13px; font-weight: 800; color: ${stats.realizedRtp > 100 ? '#ec4899' : stats.realizedRtp >= 85 ? '#34d399' : '#f59e0b'};">
-                ${stats.realizedRtp.toFixed(2)}%
-              </div>
-            </div>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: 11px;">
-            <div style="color: #94a3b8;">Shots: <strong id="admin-stat-shots" style="color: #ffffff;">${stats.totalShots}</strong></div>
-            <div style="color: #94a3b8;">Hits: <strong id="admin-stat-hits" style="color: #38bdf8;">${stats.totalHits}</strong></div>
-            <div style="color: #94a3b8;">Gamble Kills: <strong id="admin-stat-gk" style="color: #00ffcc;">${stats.instantGambleKills}</strong></div>
-            <div style="color: #94a3b8;">Jackpots: <strong id="admin-stat-jp" style="color: #fbbf24;">${stats.bonusJackpotTriggers}</strong></div>
-          </div>
-        </div>
-
-        <!-- Monte Carlo In-Browser Simulation Test -->
-        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">
-              ⚡ MONTE CARLO RTP BENCHMARK
-            </div>
-            <button id="admin-run-sim-btn" style="background: #0284c7; color: #ffffff; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">
-              SIMULATE 10,000 SHOTS
-            </button>
-          </div>
-          <div id="admin-sim-output" style="font-size: 11px; color: #cbd5e1; background: #1e293b; padding: 8px 12px; border-radius: 6px; min-height: 22px; line-height: 1.4;">
-            Click button above to benchmark the current looseness setting empirically across 10,000 algorithmic rounds.
-          </div>
-        </div>
-
-        <!-- Status Toast -->
-        <div id="admin-save-toast" style="font-size: 11px; color: #34d399; text-align: center; height: 18px; margin-bottom: 8px; font-weight: 700;"></div>
-
-        <button id="modal-close-btn-bottom" style="width: 100%; background: #334155; color: #ffffff; font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px;">
-          CLOSE ADMIN PORTAL
-        </button>
-      </div>
-    `;
-
-    SoundManager.playUiSound('modal_open');
-    this.modalContainer.style.display = 'flex';
-    document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
-    document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
-
-    const slider = document.getElementById('admin-rtp-slider') as HTMLInputElement;
-    const sliderVal = document.getElementById('admin-slider-val');
-    const tierBadge = document.getElementById('admin-tier-badge');
-    const saveToast = document.getElementById('admin-save-toast');
-    const hudBadge = document.getElementById('hud-admin-rtp-badge');
-
-    const updateLooseness = (newRtp: number) => {
-      PayoutEngine.setTargetRtp(newRtp);
-      const tier = getLoosenessTier(newRtp);
-
-      if (slider) slider.value = String(newRtp);
-      if (sliderVal) {
-        sliderVal.textContent = `${newRtp}%`;
-        sliderVal.style.color = tier.color;
-      }
-      if (tierBadge) {
-        tierBadge.innerHTML = `${tier.label} — <span style="font-weight: normal; font-size: 11px; color: #cbd5e1;">${tier.desc}</span>`;
-        tierBadge.style.color = tier.color;
-      }
-      if (hudBadge) {
-        hudBadge.textContent = `${newRtp}%`;
-      }
-      if (saveToast) {
-        saveToast.textContent = `✓ Game looseness successfully calibrated to ${newRtp}% (${tier.label})`;
-        setTimeout(() => {
-          if (saveToast) saveToast.textContent = '';
-        }, 2200);
-      }
-    };
-
-    slider?.addEventListener('input', (e) => {
-      const val = parseInt((e.target as HTMLInputElement).value, 10);
-      updateLooseness(val);
-    });
-
-    const presetButtons = this.modalContainer.querySelectorAll('.admin-preset-btn');
-    presetButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const rtp = parseInt((e.currentTarget as HTMLElement).getAttribute('data-rtp') || '92', 10);
-        updateLooseness(rtp);
-      });
-    });
-
-    document.getElementById('admin-gamble-kill-toggle')?.addEventListener('change', (e) => {
-      const enabled = (e.target as HTMLInputElement).checked;
-      PayoutEngine.saveConfig({ gambleKillEnabled: enabled });
-      if (saveToast) {
-        saveToast.textContent = `✓ Instant Gamble Kill Roll: ${enabled ? 'ENABLED' : 'DISABLED'}`;
-      }
-    });
-
-    document.getElementById('admin-bonus-mult-toggle')?.addEventListener('change', (e) => {
-      const enabled = (e.target as HTMLInputElement).checked;
-      PayoutEngine.saveConfig({ gambleBonusMultiplierEnabled: enabled });
-      if (saveToast) {
-        saveToast.textContent = `✓ Jackpot Multipliers on Catch: ${enabled ? 'ENABLED' : 'DISABLED'}`;
-      }
-    });
-
-    document.getElementById('admin-reset-stats-btn')?.addEventListener('click', () => {
-      PayoutEngine.resetSessionStats();
-      const elWagered = document.getElementById('admin-stat-wagered');
-      const elPayout = document.getElementById('admin-stat-payout');
-      const elRtp = document.getElementById('admin-stat-rtp');
-      const elShots = document.getElementById('admin-stat-shots');
-      const elHits = document.getElementById('admin-stat-hits');
-      const elGk = document.getElementById('admin-stat-gk');
-      const elJp = document.getElementById('admin-stat-jp');
-
-      if (elWagered) elWagered.textContent = '0.00 SC';
-      if (elPayout) elPayout.textContent = '0.00 SC';
-      if (elRtp) {
-        elRtp.textContent = '0.00%';
-        elRtp.style.color = '#f59e0b';
-      }
-      if (elShots) elShots.textContent = '0';
-      if (elHits) elHits.textContent = '0';
-      if (elGk) elGk.textContent = '0';
-      if (elJp) elJp.textContent = '0';
-
-      if (saveToast) {
-        saveToast.textContent = '✓ Session telemetry metrics reset.';
-      }
-    });
-
-    document.getElementById('admin-run-sim-btn')?.addEventListener('click', () => {
-      const currentRtp = parseInt(slider ? slider.value : '92', 10);
-      const simResult = PayoutEngine.runQuickSimulation(10000, currentRtp);
-      const outputEl = document.getElementById('admin-sim-output');
-      if (outputEl) {
-        outputEl.innerHTML = `
-          <div style="color: #38bdf8; font-weight: bold; margin-bottom: 3px;">
-            ✓ 10,000 Shot Monte Carlo Benchmark Complete:
-          </div>
-          <div>Total Wagered: <strong>${simResult.totalWagered.toLocaleString()} SC</strong> | Total Return: <strong style="color: #34d399;">${simResult.totalPayout.toFixed(2)} SC</strong></div>
-          <div style="margin-top: 2px;">
-            Target Looseness: <strong>${currentRtp}%</strong> ➔ Empirical Realized RTP: <strong style="color: ${simResult.realizedRtp >= 90 ? '#34d399' : '#fbbf24'}; font-size: 13px;">${simResult.realizedRtp.toFixed(2)}%</strong>
-          </div>
-          <div style="color: #94a3b8; margin-top: 2px; font-size: 10px;">
-            Instant Captures Triggered: ${simResult.instantKills} | Jackpot Surges: ${simResult.jackpots}
-          </div>
-        `;
-      }
-    });
+    openAdminPortalModal(this.modalCtx());
   }
+
 
   private adjustBet(direction: number): void {
     const newIndex = Math.max(0, Math.min(this.betTiers.length - 1, this.currentBetIndex + direction));

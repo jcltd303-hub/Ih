@@ -41,4 +41,4 @@
 
 - [x] Emulator connect + deploy npm scripts + expanded FIREBASE_SETUP
 - [x] App icon resources for Capacitor
-- [ ] Extract remaining UIManager modals
+- [x] Extract remaining UIManager modals
