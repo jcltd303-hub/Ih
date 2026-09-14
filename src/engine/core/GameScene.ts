@@ -114,6 +114,16 @@ export class GameScene {
           TournamentManager.addScore(GameConfig.localPlayerId, winAmount);
         }
         this.postProcessor.triggerImpactGlitch(0.015);
+      },
+      (userId, damage, fishId) => {
+        if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) {
+          this.bossRaid.recordDamage(userId, damage);
+        }
+      },
+      (killText) => {
+        if (this.clipRecording) {
+          void this.shareClip.shareClip(killText);
+        }
       }
     );
 
