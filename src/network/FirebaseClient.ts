@@ -1,13 +1,12 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getDatabase, Database } from 'firebase/database';
-import { getFunctions, Functions } from 'firebase/functions';
+import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getDatabase, Database, connectDatabaseEmulator } from 'firebase/database';
+import { getFunctions, Functions, connectFunctionsEmulator } from 'firebase/functions';
 
 /**
- * Firebase is configured via Vite env vars (see .env.example).
- * When keys are missing, we still init a placeholder so imports don't crash;
- * AuthManager / WalletService fall back to local offline mode.
+ * Firebase via Vite env (see .env.example).
+ * Set VITE_USE_EMULATORS=true to point Auth/Firestore/RTDB/Functions at local emulators.
  */
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDummyKeyForArcadeClientTesting',
@@ -27,8 +26,35 @@ export const isFirebaseConfigured = Boolean(
     !String(import.meta.env.VITE_FIREBASE_API_KEY).includes('Dummy')
 );
 
+export const useEmulators =
+  import.meta.env.VITE_USE_EMULATORS === 'true' || import.meta.env.VITE_USE_EMULATORS === '1';
+
 export const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
 export const rtdb: Database = getDatabase(app);
-export const functions: Functions = getFunctions(app);
+export const functions: Functions = getFunctions(
+  app,
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || undefined
+);
+
+let emulatorsConnected = false;
+
+/** Idempotent emulator wiring for local dev. */
+export function connectFirebaseEmulatorsIfNeeded(): void {
+  if (!useEmulators || emulatorsConnected) return;
+  try {
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    connectDatabaseEmulator(rtdb, '127.0.0.1', 9000);
+    connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+    emulatorsConnected = true;
+    console.info('[Firebase] Connected to local emulators');
+  } catch (e) {
+    console.warn('[Firebase] Emulator connect failed:', e);
+  }
+}
+
+if (useEmulators) {
+  connectFirebaseEmulatorsIfNeeded();
+}

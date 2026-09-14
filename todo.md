@@ -36,3 +36,9 @@
 - [x] Split `UIManager` modals (armory skins extracted)
 - [x] WebGL/asset error recovery
 - [x] Feature flags via env
+
+## Ops follow-ups
+
+- [x] Emulator connect + deploy npm scripts + expanded FIREBASE_SETUP
+- [ ] App icon resources for Capacitor
+- [ ] Extract remaining UIManager modals

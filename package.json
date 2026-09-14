@@ -11,7 +11,12 @@
     "emulators": "firebase emulators:start",
     "cap:sync": "npx cap sync",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "firebase:emulators": "firebase emulators:start",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules,database",
+    "firebase:deploy:functions": "firebase deploy --only functions",
+    "firebase:deploy": "firebase deploy --only firestore:rules,database,functions",
+    "cap:assets": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",
