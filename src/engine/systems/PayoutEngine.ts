@@ -401,6 +401,322 @@ export class PayoutEngine {
     targetRtp: number = PayoutEngine.config.targetRtp,
     options?: { aimAccuracy?: number; batches?: number; seed?: number }
   ): MonteCarloResult {
+    const aimAccuracy = Math.max(0, Math.min(1, options?.aimAccuracy ?? 0.7));
+    const batches = Math.max(5, options?.batches ?? 20);
+    const shotsPerBatch = Math.max(1, Math.floor(simShots / batches));
+    const loosenessFactor = targetRtp / 90;
+
+    let seed = options?.seed ?? 42;
+    const rng = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+
+    let totalBet = 0;
+    let totalWin = 0;
+    let instantKills = 0;
+    let jackpots = 0;
+    let hits = 0;
+
+    const byFish = {
+      small: { kills: 0, paid: 0 },
+      medium: { kills: 0, paid: 0 },
+      boss: { kills: 0, paid: 0 }
+    };
+
+    const batchRtps: number[] = [];
+
+    for (let b = 0; b < batches; b++) {
+      let bBet = 0;
+      let bWin = 0;
+
+      const n = b === batches - 1
+        ? simShots - shotsPerBatch * (batches - 1)
+        : shotsPerBatch;
+
+      for (let i = 0; i < n; i++) {
+        const bet = 1.0;
+        bBet += bet;
+        totalBet += bet;
+
+        if (rng() >= aimAccuracy) continue;
+        hits++;
+
+        const isLucky = rng() < 0.06 * loosenessFactor;
+        const hitWin = isLucky
+          ? bet * 1.0
+          : bet * (0.24 * loosenessFactor);
+
+        bWin += hitWin;
+        totalWin += hitWin;
+
+        const fr = rng();
+        const fType =
+          fr < 0.55 ? 'small' :
+          fr < 0.9 ? 'medium' : 'boss';
+
+        const baseInstant =
+          fType === 'small' ? 0.22 :
+          fType === 'medium' ? 0.1 : 0.032;
+
+        if (rng() < baseInstant * loosenessFactor) {
+          instantKills++;
+          byFish[fType].kills++;
+
+          const baseMult =
+            fType === 'small' ? 1.2 :
+            fType === 'medium' ? 4.0 : 25.0;
+
+          const br = rng();
+          let mult = baseMult;
+
+          if (br < 0.02 * loosenessFactor) {
+            mult *= 10;
+            jackpots++;
+          } else if (br < 0.09 * loosenessFactor) {
+            mult *= fType === 'boss' ? 3 : 5;
+            jackpots++;
+          } else if (br < 0.28 * loosenessFactor) {
+            mult *= 2;
+          }
+
+          const killPay = bet * mult * 0.7;
+          bWin += killPay;
+          totalWin += killPay;
+          byFish[fType].paid += killPay;
+        }
+      }
+
+      batchRtps.push(bBet > 0 ? (bWin / bBet) * 100 : 0);
+    }
+
+    batchRtps.sort((a, b) => a - b);
+
+    const pct = (p: number) => {
+      const idx = Math.min(
+        batchRtps.length - 1,
+        Math.max(0, Math.floor((p / 100) * batchRtps.length))
+      );
+      return batchRtps[idx];
+    };
+
+    const realizedRtp = totalBet > 0
+      ? (totalWin / totalBet) * 100
+      : 0;
+
+    const houseEdgePct = 100 - realizedRtp;
+
+    return {
+      shots: simShots,
+      targetRtp,
+      totalWagered: totalBet,
+      totalPayout: totalWin,
+      realizedRtp,
+      houseEdgePct,
+      instantKills,
+      jackpots,
+      hitRate: simShots > 0 ? hits / simShots : 0,
+      rtpP5: pct(5),
+      rtpP95: pct(95),
+      minBatchRtp: batchRtps[0] ?? 0,
+      maxBatchRtp: batchRtps[batchRtps.length - 1] ?? 0,
+      byFish,
+      profitableAtTarget: realizedRtp <= targetRtp + 3 && houseEdgePct > 0
+    };
+  }
+
+  /**
+   * Exhaustive payout calibration sweep.
+   *
+   * Runs 100,000 shots at every integer hit ratio from 33% through 100%.
+   * The sweep uses a fixed 90% payout target so hit-ratio effects can be
+   * compared directly. The operator target is then explicitly set to 90%.
+   */
+  public static runHitRatioSweep(
+    simShotsPerRatio: number = 100_000,
+    targetRtp: number = 90
+  ): Array<MonteCarloResult & { hitRatio: number }> {
+    const results: Array<MonteCarloResult & { hitRatio: number }> = [];
+
+    for (let hitRatio = 33; hitRatio <= 100; hitRatio++) {
+      const result = PayoutEngine.runMonteCarlo(
+        simShotsPerRatio,
+        targetRtp,
+        {
+          aimAccuracy: hitRatio / 100,
+          batches: 25,
+          seed: 42_000 + hitRatio
+        }
+      );
+
+      results.push({
+        ...result,
+        hitRatio
+      });
+    }
+
+    return results;
+  }
+
+  ): MonteCarloResult {
+    const aimAccuracy = Math.max(0, Math.min(1, options?.aimAccuracy ?? 0.7));
+    const batches = Math.max(5, options?.batches ?? 20);
+    const shotsPerBatch = Math.max(1, Math.floor(simShots / batches));
+    const loosenessFactor = targetRtp / 90;
+
+    let seed = options?.seed ?? 42;
+    const rng = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+
+    let totalBet = 0;
+    let totalWin = 0;
+    let instantKills = 0;
+    let jackpots = 0;
+    let hits = 0;
+
+    const byFish = {
+      small: { kills: 0, paid: 0 },
+      medium: { kills: 0, paid: 0 },
+      boss: { kills: 0, paid: 0 }
+    };
+
+    const batchRtps: number[] = [];
+
+    for (let b = 0; b < batches; b++) {
+      let bBet = 0;
+      let bWin = 0;
+
+      const n = b === batches - 1
+        ? simShots - shotsPerBatch * (batches - 1)
+        : shotsPerBatch;
+
+      for (let i = 0; i < n; i++) {
+        const bet = 1.0;
+        bBet += bet;
+        totalBet += bet;
+
+        if (rng() >= aimAccuracy) continue;
+        hits++;
+
+        const isLucky = rng() < 0.06 * loosenessFactor;
+        const hitWin = isLucky
+          ? bet * 1.0
+          : bet * (0.24 * loosenessFactor);
+
+        bWin += hitWin;
+        totalWin += hitWin;
+
+        const fr = rng();
+        const fType =
+          fr < 0.55 ? 'small' :
+          fr < 0.9 ? 'medium' : 'boss';
+
+        const baseInstant =
+          fType === 'small' ? 0.22 :
+          fType === 'medium' ? 0.1 : 0.032;
+
+        if (rng() < baseInstant * loosenessFactor) {
+          instantKills++;
+          byFish[fType].kills++;
+
+          const baseMult =
+            fType === 'small' ? 1.2 :
+            fType === 'medium' ? 4.0 : 25.0;
+
+          const br = rng();
+          let mult = baseMult;
+
+          if (br < 0.02 * loosenessFactor) {
+            mult *= 10;
+            jackpots++;
+          } else if (br < 0.09 * loosenessFactor) {
+            mult *= fType === 'boss' ? 3 : 5;
+            jackpots++;
+          } else if (br < 0.28 * loosenessFactor) {
+            mult *= 2;
+          }
+
+          const killPay = bet * mult * 0.7;
+          bWin += killPay;
+          totalWin += killPay;
+          byFish[fType].paid += killPay;
+        }
+      }
+
+      batchRtps.push(bBet > 0 ? (bWin / bBet) * 100 : 0);
+    }
+
+    batchRtps.sort((a, b) => a - b);
+
+    const pct = (p: number) => {
+      const idx = Math.min(
+        batchRtps.length - 1,
+        Math.max(0, Math.floor((p / 100) * batchRtps.length))
+      );
+      return batchRtps[idx];
+    };
+
+    const realizedRtp = totalBet > 0
+      ? (totalWin / totalBet) * 100
+      : 0;
+
+    const houseEdgePct = 100 - realizedRtp;
+
+    return {
+      shots: simShots,
+      targetRtp,
+      totalWagered: totalBet,
+      totalPayout: totalWin,
+      realizedRtp,
+      houseEdgePct,
+      instantKills,
+      jackpots,
+      hitRate: simShots > 0 ? hits / simShots : 0,
+      rtpP5: pct(5),
+      rtpP95: pct(95),
+      minBatchRtp: batchRtps[0] ?? 0,
+      maxBatchRtp: batchRtps[batchRtps.length - 1] ?? 0,
+      byFish,
+      profitableAtTarget: realizedRtp <= targetRtp + 3 && houseEdgePct > 0
+    };
+  }
+
+  /**
+   * Exhaustive payout calibration sweep.
+   *
+   * Runs 100,000 shots at every integer hit ratio from 33% through 100%.
+   * The sweep uses a fixed 90% payout target so hit-ratio effects can be
+   * compared directly. The operator target is then explicitly set to 90%.
+   */
+  public static runHitRatioSweep(
+    simShotsPerRatio: number = 100_000,
+    targetRtp: number = 90
+  ): Array<MonteCarloResult & { hitRatio: number }> {
+    const results: Array<MonteCarloResult & { hitRatio: number }> = [];
+
+    for (let hitRatio = 33; hitRatio <= 100; hitRatio++) {
+      const result = PayoutEngine.runMonteCarlo(
+        simShotsPerRatio,
+        targetRtp,
+        {
+          aimAccuracy: hitRatio / 100,
+          batches: 25,
+          seed: 42_000 + hitRatio
+        }
+      );
+
+      results.push({
+        ...result,
+        hitRatio
+      });
+    }
+
+    return results;
+  }
+
+  ): MonteCarloResult {
     const aimAccuracy = options?.aimAccuracy ?? 0.7;
     const batches = Math.max(5, options?.batches ?? 20);
     const shotsPerBatch = Math.max(1, Math.floor(simShots / batches));

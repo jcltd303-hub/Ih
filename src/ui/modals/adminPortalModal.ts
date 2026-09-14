@@ -178,7 +178,7 @@ const config = PayoutEngine.getConfig();
               ⚡ MONTE CARLO RTP BENCHMARK
             </div>
             <button id="admin-run-sim-btn" style="background: #0284c7; color: #ffffff; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">
-              SIMULATE 10,000 SHOTS
+              RUN 6.8M SHOT CALIBRATION
             </button>
           </div>
           <div id="admin-sim-output" style="font-size: 11px; color: #cbd5e1; background: #1e293b; padding: 8px 12px; border-radius: 6px; min-height: 22px; line-height: 1.4;">
@@ -286,32 +286,75 @@ const config = PayoutEngine.getConfig();
     });
 
     document.getElementById('admin-run-sim-btn')?.addEventListener('click', () => {
-      const currentRtp = parseInt(slider ? slider.value : '90', 10);
-      const simResult = PayoutEngine.runMonteCarlo(50000, currentRtp, { batches: 25 });
       const outputEl = document.getElementById('admin-sim-output');
+
       if (outputEl) {
-        const ok = simResult.profitableAtTarget;
         outputEl.innerHTML = `
-          <div style="color: #38bdf8; font-weight: bold; margin-bottom: 3px;">
-            ✓ 50,000 Shot Monte Carlo (25 batches):
+          <div style="color:#fbbf24;font-weight:bold;">
+            ⏳ Running 6.8M-shot Monte Carlo calibration...
           </div>
-          <div>Handle: <strong>${simResult.totalWagered.toLocaleString()} SC</strong> | Paid: <strong style="color: #34d399;">${simResult.totalPayout.toFixed(2)} SC</strong></div>
-          <div style="margin-top: 2px;">
-            Target <strong>${currentRtp}%</strong> → RTP <strong style="color: ${ok ? '#34d399' : '#f87171'}; font-size: 13px;">${simResult.realizedRtp.toFixed(2)}%</strong>
-            · House edge <strong>${simResult.houseEdgePct.toFixed(2)}%</strong>
-          </div>
-          <div style="color: #94a3b8; margin-top: 2px; font-size: 10px;">
-            RTP band P5–P95: ${simResult.rtpP5.toFixed(1)}% – ${simResult.rtpP95.toFixed(1)}%
-            · hit rate ${(simResult.hitRate * 100).toFixed(1)}%
-            · instant ${simResult.instantKills} · jackpots ${simResult.jackpots}
-          </div>
-          <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">
-            Kills paid — small ${simResult.byFish.small.paid.toFixed(0)} · med ${simResult.byFish.medium.paid.toFixed(0)} · boss ${simResult.byFish.boss.paid.toFixed(0)} SC
-          </div>
-          <div style="margin-top:4px;font-weight:700;color:${ok ? '#86efac' : '#fca5a5'};">
-            ${ok ? '✓ Simulated margin is profitable vs target' : '⚠ Simulated RTP above target — tighten policy'}
+          <div style="color:#94a3b8;font-size:10px;margin-top:3px;">
+            100,000 shots × every hit ratio from 33% through 100%
           </div>
         `;
+      }
+
+      // Run the complete 33%-100% sweep at the requested 90% payout target.
+      const sweep = PayoutEngine.runHitRatioSweep(100_000, 90);
+
+      // Calculate useful calibration statistics.
+      const rtps = sweep.map(r => r.realizedRtp);
+      const minRtp = Math.min(...rtps);
+      const maxRtp = Math.max(...rtps);
+      const avgRtp = rtps.reduce((a, b) => a + b, 0) / rtps.length;
+
+      const at33 = sweep.find(r => r.hitRatio === 33);
+      const at90 = sweep.find(r => r.hitRatio === 90);
+      const at100 = sweep.find(r => r.hitRatio === 100);
+
+      // Make 90% the active payout target after calibration.
+      PayoutEngine.setTargetRtp(90);
+
+      if (typeof updateLooseness === 'function') {
+        updateLooseness(90);
+      }
+
+      if (outputEl) {
+        outputEl.innerHTML = `
+          <div style="color:#34d399;font-weight:bold;margin-bottom:4px;">
+            ✓ 6,800,000-Shot Monte Carlo Calibration Complete
+          </div>
+
+          <div style="font-size:11px;">
+            <strong>68 hit ratios</strong> tested: 33% → 100%
+            · <strong>100,000 shots each</strong>
+          </div>
+
+          <div style="margin-top:6px;padding:7px;background:#1e293b;border-radius:6px;">
+            <div style="color:#94a3b8;font-size:10px;">REALIZED RTP RANGE</div>
+            <strong>${minRtp.toFixed(2)}% – ${maxRtp.toFixed(2)}%</strong>
+            <span style="color:#94a3b8;"> · average ${avgRtp.toFixed(2)}%</span>
+          </div>
+
+          <div style="margin-top:6px;font-size:10px;color:#cbd5e1;">
+            33% hit → ${at33?.realizedRtp.toFixed(2)}% RTP<br>
+            90% hit → ${at90?.realizedRtp.toFixed(2)}% RTP<br>
+            100% hit → ${at100?.realizedRtp.toFixed(2)}% RTP
+          </div>
+
+          <div style="margin-top:6px;color:#fbbf24;font-weight:800;">
+            ✓ PAYOUT TARGET SET TO 90%
+          </div>
+
+          <div style="margin-top:3px;color:#64748b;font-size:9px;">
+            Calibration sweep completed with deterministic seeds.
+          </div>
+        `;
+      }
+
+      if (saveToast) {
+        saveToast.textContent =
+          '✓ Monte Carlo calibration complete — payout target set to 90%.';
       }
     });
 
