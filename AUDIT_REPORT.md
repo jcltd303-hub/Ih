@@ -1,80 +1,40 @@
 # Fish Frenzy — Business Logic Audit
 
-## 🔴 Critical: provably-fair system is disconnected from real outcomes
+## Round 1 (fixed)
 
-- `functions/src/startGameSession.ts` commits `serverSeed` / `serverSeedHash`
-  per session (correct commit-reveal pattern).
-- `src/utils/ProvablyFairAuditor.ts` (and `FairnessSession.verifyRoll`) can
-  deterministically recompute a roll from `serverSeed:clientSeed:nonce`.
-- **But** `functions/src/processPlayerShot.ts` never used the seed — every
-  hit/crit/kill roll was `Math.random()`. The session's `nonce` field was
-  read and incremented but never fed into anything.
+### Critical: provably-fair system was disconnected from real outcomes
+Every roll is now derived from `sha256(serverSeed:clientSeed:nonce)`, matching `ProvablyFairAuditor` on the client. An active session is required.
 
-Net effect: the "provably fair" verification flow was real cryptography
-wired to nothing. A player who revealed the seed and recomputed rolls would
-get numbers with no relationship to what they were actually paid.
+### Critical: HMAC secret was shipped to the browser
+Client-side signing removed. Authorization is Firebase Auth + a per-request idempotency key. `CryptoSigner` kept as a deprecated stub.
 
-**Fix applied:** every roll is now derived from
-`sha256(serverSeed:clientSeed:nonce)` (same construction as
-`ProvablyFairAuditor`), consuming one nonce per roll. An active session is
-now required (previously optional — silently skipped if missing, which
-meant no seed material at all).
+### High: region/compliance check could fail open
+`validateRegion.ts` now fails closed when no verified edge header is present; no longer trusts client-claimed state.
 
-## 🔴 Critical: HMAC secret was shipped to the browser
+### Medium: daily SC loss cap was checked after the loss landed
+Now checked pre-commit, inside the same transaction as the payout.
 
-`src/network/CryptoSigner.ts` (runs in the browser) and
-`functions/src/processPlayerShot.ts` (server) shared the same hardcoded
-fallback secret. Since the client computed the signature itself, the
-"secret" was readable in the shipped JS bundle by anyone. It provided the
-*appearance* of request-integrity protection with none of the substance.
+## Round 2
 
-**Fix applied:** dropped client-side signing entirely. The real security
-boundary is Firebase Auth (the server verifies `request.auth.uid`
-independently via the ID token) plus a per-request idempotency key. A
-shared secret known to the client added nothing. `CryptoSigner` is kept as
-a deprecated stub in case anything else imports it.
+### 🔴 Critical (open, needs a product decision): server never verifies a hit or kill actually happened
+`processPlayerShot` still takes `clientHitConfirmed` / `clientKillConfirmed` / `fishType` / `skinBonus` as given. The fair-RNG fix makes the *roll* trustworthy but not the *claim* that triggers it — someone calling the function directly can assert a hit on every request. Fully solving this means either replicating hit detection server-side (expensive given boid/collision physics) or building statistical anomaly detection on claimed hit/kill rates. Flagged, not solved.
 
-## 🟠 High: region/compliance check could fail open
+**Partial mitigation shipped:** kill-claim dedup. `processPlayerShot` now tracks `sessions/{sessionId}/killedTargets/{targetId}` and only pays out a kill once per targetId per session; a repeated claim for the same target still gets the hit payout (rolled fairly) but not a second kill payout. This closes the "replay the same successful targetId to double the kill payout" vector. It does **not** close the ability to fabricate a fresh `targetId` per request — that's the bigger open item above.
 
-`functions/src/validateRegion.ts` only read `x-vercel-ip-country` /
-`cf-ipcountry`. Firebase Cloud Functions won't have those headers unless
-specifically fronted by that CDN. If absent, country silently defaulted to
-`'US'` and state fell through to **`clientClaimedState`** — fully
-client-controlled input — for what is a legal jurisdiction gate.
+Also shipped: a claimed-win burst limiter (`MAX_CLAIMED_WIN_SC_PER_MINUTE` / `_GC_PER_MINUTE` in `limits.ts`), a rolling 60s cap on total payout claimed per currency, independent of the shot-count rate limit, so a burst of large wins can't slip through right at a rate-limit window boundary. Tunable, not a precise economic model — revisit with real payout telemetry.
 
-**Fix applied:** fail closed when no verified edge header is present
-(don't default to allow, don't trust client-claimed state). You should
-still confirm in production which header your actual deployment target
-injects — this is a compliance/legal verification item, not something
-resolvable from the repo alone.
+### 🟠 High (open): compliance_audit_logs can be polluted by the client
+`src/compliance/AuditLogger.ts` writes client-side into the same Firestore collection that `validateRegion.ts` writes to via Admin SDK. Firestore rules make it create-only, but a client can still self-report fabricated entries under their own uid. Not yet fixed — recommend separating collections or adding a server-only-settable `verifiedByServer` flag enforced by rules.
 
-## 🟡 Medium: daily SC loss cap was checked after the loss landed
+### 🟡 Medium (informational, no fix needed): operator payout panel is per-browser localStorage
+Confirmed `startGameSession.ts` hardcodes `targetRtp: 90` server-side, so a player editing their own localStorage can't change their real odds — this only affects local/offline visual numbers. Just don't present this panel as real aggregate P&L to operators.
 
-`assertDailyScLoss` ran after the payout transaction committed, so the bet
-that crossed the cap was always allowed through; only the next bet got
-blocked.
+### Housekeeping shipped
+- `cleanupProcessedRequests.ts`: scheduled function (`every 24 hours`) deleting idempotency-key docs older than 48h via a batched collection-group query. Needs the collection-group index in `firestore.indexes.json` (added) deployed before the function runs.
+- Player-facing fairness verification: `ShotSettlement` now surfaces `fairNonceStart`/`fairNonceEnd` from each settlement and feeds the running high-water mark into `FairnessSession`. `auditModal.ts` shows the verifiable nonce range for the session and lets the player check any specific nonce's roll on demand once the seed is revealed, instead of a single hardcoded sample.
 
-**Fix applied:** moved the check inside the transaction, evaluated against
-existing loss + this bet's potential loss, before committing.
-
-## Behavior changes to be aware of
-
-- `processPlayerShot` now **requires** an active `sess_*` session. The
-  client already does this via `FairnessSession.begin()` in
-  `GameScene.startPlay()`, so no client change was needed there — but any
-  other caller that skipped session creation will now get
-  `failed-precondition` instead of silently falling back to unseeded
-  randomness.
-- `ShotSettlement` no longer sends a `signature` field; `processPlayerShot`
-  no longer checks for one.
-
-## Suggested follow-ups (not yet implemented)
-
-- Public "verify my last session" tool so players can recompute rolls
-  themselves from a revealed seed.
-- Anomaly detection on `fairNonceStart`/`fairNonceEnd` gaps and win-rate
-  deviation from `targetRtp`.
-- Audit for other hardcoded fallback secrets
-  (`grep -rn "|| '" functions/src src`).
-- End-to-end emulator test asserting `processPlayerShot` results match an
-  independently computed `ProvablyFairAuditor.verifyOutcome`.
+## Suggested follow-ups (still not implemented)
+- Statistical anomaly detection on claimed hit/instant-kill rates vs. expected probabilities, as a lighter-weight step toward the open Critical item above.
+- Separate `compliance_audit_logs` (server-verified) from client telemetry, or add a rules-enforced `verifiedByServer` flag.
+- Audit for other hardcoded fallback secrets (`grep -rn "|| '" functions/src src`).
+- End-to-end emulator test asserting `processPlayerShot` results match an independently computed `ProvablyFairAuditor.verifyOutcome`.
