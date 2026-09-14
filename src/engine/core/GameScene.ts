@@ -16,6 +16,8 @@ import { SoundManager } from '../../audio/SoundManager';
 import { FairnessSession } from '../../network/FairnessSession';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
+import { TableSelectionManager, TableConfig } from '../../network/TableSelectionManager';
+import { BossRaidManager } from '../systems/BossRaidManager';
 
 export class GameScene {
   private app: Application;
@@ -31,6 +33,8 @@ export class GameScene {
   private multiplayerTable: MultiplayerTableManager;
   private presenceLayer: MultiplayerPresenceLayer | null = null;
   private tableUnsub: (() => void) | null = null;
+  private tableSelectionUnsub: (() => void) | null = null;
+  private activeTableId: string = 'table_practice';
   private lastSeenShotTs = 0;
   private aimBroadcastTimer = 0;
 
@@ -118,6 +122,13 @@ export class GameScene {
     this.setupInputListeners();
     this.setupResizeListener();
 
+    // Hook boss events directly to immersive backdrop darkening & audio atmosphere
+    BossRaidManager.getInstance().subscribe((raid) => {
+      const isRaidActive = raid.active && raid.status !== 'victory' && raid.status !== 'failed' && raid.status !== 'idle';
+      const isEnraged = isRaidActive && (raid.enraged || raid.status === 'enraged');
+      this.animatedBackground.setBossActive(isRaidActive, isEnraged);
+    });
+
     // Show start screen; gameplay + multiplayer join after Play
     this.uiManager.showStartScreen();
   }
@@ -131,22 +142,38 @@ export class GameScene {
     });
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
-    // Presence is cosmetic (not authoritative table settlement)
-    this.multiplayerTable.joinSharedTable(GameConfig.defaultTableId, uid, name);
+
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
-    this.tableUnsub = this.multiplayerTable.subscribeToTableState(GameConfig.defaultTableId, (state) => {
-      this.presenceLayer?.syncPlayers(state?.players);
-      const shots = state?.shared_shots;
-      if (shots && typeof shots === 'object') {
-        for (const shot of Object.values(shots) as any[]) {
-          if (!shot || typeof shot.timestamp !== 'number') continue;
-          if (shot.timestamp <= this.lastSeenShotTs) continue;
-          this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
-          this.presenceLayer?.showRemoteShot(shot);
-        }
+
+    const joinTable = (table: TableConfig) => {
+      if (this.tableUnsub) {
+        this.tableUnsub();
+        this.tableUnsub = null;
       }
+      this.activeTableId = table.id;
+      this.multiplayerTable.joinSharedTable(table.id, uid, name);
+      this.tableUnsub = this.multiplayerTable.subscribeToTableState(table.id, (state) => {
+        this.presenceLayer?.syncPlayers(state?.players);
+        const shots = state?.shared_shots;
+        if (shots && typeof shots === 'object') {
+          for (const shot of Object.values(shots) as any[]) {
+            if (!shot || typeof shot.timestamp !== 'number') continue;
+            if (shot.timestamp <= this.lastSeenShotTs) continue;
+            this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
+            this.presenceLayer?.showRemoteShot(shot);
+          }
+        }
+      });
+    };
+
+    const initialTable = TableSelectionManager.getInstance().getActiveTable();
+    joinTable(initialTable);
+
+    this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
+      joinTable(tbl);
     });
+
     // Seed a few more fish for an active trench
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
@@ -239,7 +266,7 @@ export class GameScene {
     );
 
     this.multiplayerTable.broadcastTableShot(
-      GameConfig.defaultTableId,
+      this.activeTableId,
       uid,
       targetX,
       targetY,

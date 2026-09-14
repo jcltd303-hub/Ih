@@ -31,6 +31,8 @@ export class SoundManager {
   private static lastHitTime: number = 0;
   /** light = can-tech bright FX; dark = horror / abyssal */
   private static currentTheme: 'light' | 'dark' = 'light';
+  private static bossMusicActive: boolean = false;
+  private static bossEnraged: boolean = false;
 
   private static initContext(): void {
     if (!this.audioCtx) {
@@ -169,8 +171,38 @@ export class SoundManager {
     }
   }
 
+  public static setBossMusic(active: boolean, enraged: boolean = false): void {
+    this.bossMusicActive = active;
+    this.bossEnraged = enraged;
+
+    this.initContext();
+    if (!this.audioCtx || !this.bgmGain) return;
+    const now = this.audioCtx.currentTime;
+
+    if (active) {
+      this.bgmGain.gain.cancelScheduledValues(now);
+      // Bring up volume for boss battle
+      this.bgmGain.gain.linearRampToValueAtTime(0.35, now + 0.15);
+      if (this.bgmIntervalId === null && this.enabled) {
+        this.bgmNextStepTime = now + 0.05;
+        this.bgmStep = 0;
+        this.bgmIntervalId = window.setInterval(() => this.tickBgmScheduler(), 35);
+      }
+    } else {
+      this.bgmGain.gain.cancelScheduledValues(now);
+      this.bgmGain.gain.linearRampToValueAtTime(
+        this.bgmEnabled && this.enabled ? 0.22 : 0.001,
+        now + 0.4
+      );
+      if (!this.bgmEnabled && this.bgmIntervalId !== null) {
+        clearInterval(this.bgmIntervalId);
+        this.bgmIntervalId = null;
+      }
+    }
+  }
+
   private static tickBgmScheduler(): void {
-    if (!this.audioCtx || !this.bgmGain || !this.bgmEnabled || !this.enabled) return;
+    if (!this.audioCtx || !this.bgmGain || (!this.bgmEnabled && !this.bossMusicActive) || !this.enabled) return;
     const lookahead = 0.35;
     const now = this.audioCtx.currentTime;
 
@@ -181,7 +213,11 @@ export class SoundManager {
     let iterations = 0;
     while (this.bgmNextStepTime < now + lookahead && iterations < 32) {
       iterations++;
-      if (this.currentTheme === 'dark') {
+      if (this.bossMusicActive) {
+        this.scheduleBossRaidStep(this.bgmStep, this.bgmNextStepTime, this.bossEnraged);
+        // Fast intense 142 BPM (0.105s) or 158 BPM (0.095s if enraged)
+        this.bgmNextStepTime += this.bossEnraged ? 0.094 : 0.105;
+      } else if (this.currentTheme === 'dark') {
         this.scheduleHorrorStep(this.bgmStep, this.bgmNextStepTime);
         // Horror: 60 BPM -> 8th notes (0.5s per step)
         this.bgmNextStepTime += 0.50;
@@ -192,6 +228,89 @@ export class SoundManager {
       }
       this.bgmStep = (this.bgmStep + 1) % 32;
     }
+  }
+
+  /**
+   * Cinematic High-Octane Boss Battle BGM
+   * Heavy distorted Reese sub-bass, rapid double kicks, staccato sawtooth tension arp, and alarm pulses
+   */
+  private static scheduleBossRaidStep(step: number, time: number, enraged: boolean): void {
+    if (!this.audioCtx || !this.bgmGain) return;
+    const ctx = this.audioCtx;
+    const bgmOut = this.bgmGain;
+
+    // 1. Driving Chromatic War Riff Bass (D1, Eb1, D1, F1, G1)
+    const bossBass = [
+      36.71, 36.71, 38.89, 36.71,  43.65, 41.20, 36.71, 48.99, // D1, D1, Eb1, D1, F1, E1, D1, G1
+      36.71, 36.71, 55.00, 51.91,  43.65, 41.20, 38.89, 36.71  // D1, D1, A1, Ab1, F1, E1, Eb1, D1
+    ];
+    const bassFreq = bossBass[step % bossBass.length];
+
+    const bassOsc = ctx.createOscillator();
+    const bassFilt = ctx.createBiquadFilter();
+    const bassGain = ctx.createGain();
+
+    bassOsc.type = enraged ? 'sawtooth' : 'triangle';
+    bassOsc.frequency.setValueAtTime(bassFreq, time);
+
+    bassFilt.type = 'lowpass';
+    bassFilt.frequency.setValueAtTime(enraged ? 550 : 380, time);
+    bassFilt.frequency.exponentialRampToValueAtTime(110, time + 0.10);
+    bassFilt.Q.setValueAtTime(enraged ? 6.5 : 4.0, time);
+
+    bassGain.gain.setValueAtTime(enraged ? 0.38 : 0.28, time);
+    bassGain.gain.exponentialRampToValueAtTime(0.001, time + 0.105);
+
+    bassOsc.connect(bassFilt);
+    bassFilt.connect(bassGain);
+    bassGain.connect(bgmOut);
+
+    bassOsc.start(time);
+    bassOsc.stop(time + 0.11);
+
+    // 2. Heavy Industrial Battle Kicks (Four-on-the-floor + double time for enrage)
+    const isKickStep = (step % 4 === 0) || (enraged && (step % 2 === 0));
+    if (isKickStep) {
+      const kickOsc = ctx.createOscillator();
+      const kickGain = ctx.createGain();
+      kickOsc.type = 'sine';
+      kickOsc.frequency.setValueAtTime(enraged ? 180 : 150, time);
+      kickOsc.frequency.exponentialRampToValueAtTime(32, time + 0.08);
+
+      kickGain.gain.setValueAtTime(0.42, time);
+      kickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.085);
+
+      kickOsc.connect(kickGain);
+      kickGain.connect(bgmOut);
+
+      kickOsc.start(time);
+      kickOsc.stop(time + 0.09);
+    }
+
+    // 3. Staccato Tension Saw Arpeggio (D4 / F4 / Ab4 / B4 diminished tension)
+    const arpNotes = [293.66, 349.23, 415.30, 493.88, 587.33, 493.88, 415.30, 349.23];
+    const arpFreq = arpNotes[step % arpNotes.length];
+
+    const arpOsc = ctx.createOscillator();
+    const arpGain = ctx.createGain();
+    const arpFilt = ctx.createBiquadFilter();
+
+    arpOsc.type = 'sawtooth';
+    arpOsc.frequency.setValueAtTime(arpFreq, time);
+
+    arpFilt.type = 'bandpass';
+    arpFilt.frequency.setValueAtTime(enraged ? 1800 : 1200, time);
+    arpFilt.Q.setValueAtTime(3.0, time);
+
+    arpGain.gain.setValueAtTime(enraged ? 0.18 : 0.12, time);
+    arpGain.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
+
+    arpOsc.connect(arpFilt);
+    arpFilt.connect(arpGain);
+    arpGain.connect(bgmOut);
+
+    arpOsc.start(time);
+    arpOsc.stop(time + 0.075);
   }
 
   /** Can-Tech: 124 BPM Cyberpunk / Synthwave groove */
@@ -1454,7 +1573,7 @@ export class SoundManager {
   // ==========================================
   // 7. UI SOUND SUITE
   // ==========================================
-  public static playUiSound(type: 'chip_up' | 'chip_down' | 'autofire_on' | 'autofire_off' | 'currency_toggle' | 'modal_open' | 'modal_close' | 'click'): void {
+  public static playUiSound(type: 'chip_up' | 'chip_down' | 'autofire_on' | 'autofire_off' | 'currency_toggle' | 'modal_open' | 'modal_close' | 'click' | 'powerup' | 'jackpot_fanfare'): void {
     if (!this.enabled) return;
     this.initContext();
     if (!this.audioCtx || !this.masterCompressor) return;
@@ -1463,7 +1582,28 @@ export class SoundManager {
       const ctx = this.audioCtx;
       const now = ctx.currentTime;
 
-      if (type === 'chip_up') {
+      if (type === 'powerup') {
+        // Ascending sci-fi powerup surge
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(260, now);
+        osc.frequency.exponentialRampToValueAtTime(780, now + 0.16);
+        osc.frequency.exponentialRampToValueAtTime(1560, now + 0.32);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+        osc.connect(gain);
+        gain.connect(this.masterCompressor);
+        osc.start(now);
+        osc.stop(now + 0.40);
+
+      } else if (type === 'jackpot_fanfare') {
+        // Triumphant multi-tier level-up chord
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+          this.playChimeNote(now + i * 0.08, freq, 0.28, 0.45);
+        });
+
+      } else if (type === 'chip_up') {
         // Crisp high-tech chip click (ascending pitch)
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();

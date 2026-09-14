@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { SoundManager } from '../../audio/SoundManager';
+import { BossRaidManager } from './BossRaidManager';
 
 /**
  * Procedural Master Artwork Cache for the Apex Leviathan Boss
@@ -911,6 +912,7 @@ export class BossManager extends Container {
     }
 
     this.currentHp = Math.max(0, this.currentHp - incoming);
+    BossRaidManager.getInstance().recordPlayerDamage(incoming);
     this.updateHealthBar();
     this.triggerShieldHit();
     this.evaluatePhaseTransition();
@@ -925,16 +927,17 @@ export class BossManager extends Container {
 
   private evaluatePhaseTransition(): void {
     const pct = this.currentHp / this.maxHp;
-    if (pct <= 0.35 && this.phase < 3) {
+    // Spec requirement: Enrage at 40%
+    if (pct <= 0.40 && this.phase < 3) {
       this.phase = 3;
       this.isEnraged = true;
       this.invulnFrames = 45;
       this.phaseAnnounceTimer = 90;
       this.setTheme(this.theme);
-      this.bossTitleText.text = '⚠️ PHASE 3 — CRITICAL OVERDRIVE ⚠️';
+      this.bossTitleText.text = '⚠️ PHASE 3 — CRITICAL OVERDRIVE (40% ENRAGED) ⚠️';
       this.bossTitleText.style.fill = 0xff0033;
       SoundManager.playBossEnraged();
-    } else if (pct <= 0.6 && this.phase < 2) {
+    } else if (pct <= 0.65 && this.phase < 2) {
       this.phase = 2;
       this.invulnFrames = 20;
       this.phaseAnnounceTimer = 70;

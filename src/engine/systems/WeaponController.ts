@@ -6,7 +6,7 @@ import { OfflineTransactionQueue } from '../../network/OfflineTransactionQueue';
 import { ShotSettlement } from '../../network/ShotSettlement';
 import { HapticManager } from '../../network/HapticManager';
 import { SoundManager } from '../../audio/SoundManager';
-import { LoadoutManager } from '../../network/LoadoutManager';
+import { PlayerProgressionManager } from './PlayerProgressionManager';
 import { ObjectPool } from './ObjectPool';
 import { functions } from '../../network/FirebaseClient';
 import { httpsCallable } from 'firebase/functions';
@@ -58,8 +58,26 @@ export class WeaponController {
   };
 
   private getActiveWeaponStats() {
-    const skin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
-    return WeaponController.WEAPON_STATS[skin] ?? WeaponController.WEAPON_STATS.plasma_neon;
+    const prog = PlayerProgressionManager.getInstance().getState();
+    const skin = prog.effectiveTurretSkin;
+    const base = WeaponController.WEAPON_STATS[skin] ?? WeaponController.WEAPON_STATS.plasma_neon;
+    if (prog.isOvercharged) {
+      return {
+        cooldownMs: 80,
+        projectileSpeed: 34,
+        damageMult: base.damageMult * 1.5,
+        spreadDeg: Math.max(0.5, base.spreadDeg * 0.5)
+      };
+    }
+    if (prog.isBossUpgradeActive) {
+      return {
+        cooldownMs: Math.max(90, Math.round(base.cooldownMs * 0.8)),
+        projectileSpeed: Math.round(base.projectileSpeed * 1.25),
+        damageMult: base.damageMult * 1.4,
+        spreadDeg: base.spreadDeg
+      };
+    }
+    return base;
   }
 
   constructor(
@@ -103,13 +121,18 @@ export class WeaponController {
     // Legacy fallback graphic
     this.cannonGraphic = new Graphics();
 
-    // Animated Sci-Fi Turret Rig from Sprite Sheet
-    const initialSkin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
+    // Animated Sci-Fi Turret Rig from Sprite Sheet driven by Player Progression
+    const initialSkin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin;
     this.turretRig = SpriteSheetManager.getInstance().createTurretRig(initialSkin);
     this.turretRig.container.x = this.cannonX;
     this.turretRig.container.y = this.cannonY;
     this.stage.addChild(this.turretRig.container);
     this.refreshCannonSkin();
+
+    // Dynamically refresh turret chassis when skill level unlocks or lucky overcharge activates
+    PlayerProgressionManager.getInstance().subscribe(() => {
+      this.refreshCannonSkin();
+    });
 
     // Setup offline sync callback
     this.offlineQueue.setSyncHandler(async (queued) => {
@@ -159,7 +182,7 @@ export class WeaponController {
   }
 
   public refreshCannonSkin(): void {
-    const skin = (LoadoutManager.getLoadout().activeCannonSkin || 'default') as TurretSkinId;
+    const skin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin;
     if (this.turretRig) {
       this.turretRig.setSkin(skin);
     }
@@ -189,6 +212,9 @@ export class WeaponController {
 
     this.updateAim(targetX, targetY);
 
+    // Track shot firing XP
+    PlayerProgressionManager.getInstance().addXp(2);
+
     // Trigger dual-barrel animated muzzle flashes, recoil and shell ejection
     if (this.turretRig) {
       this.turretRig.playFire();
@@ -212,7 +238,7 @@ export class WeaponController {
     const graphics = container.children[0] as Graphics;
     graphics.clear();
 
-    const skin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
+    const skin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin;
 
     // Rotate container to match flight trajectory
     container.rotation = angle + Math.PI / 2;
@@ -396,6 +422,19 @@ export class WeaponController {
         // Inflict damage with optional instant gamble kill
         const hitResult = this.fishManager.inflictDamage(hitEntity.id, evalHit.damage, evalHit.isInstantKill);
 
+        // Award XP for hit & grant chance of lucky shot turret upgrade
+        const hitXp = evalHit.isSuperCrit ? 35 : (evalHit.isCrit ? 18 : (evalHit.isLuckyHit ? 22 : 6));
+        PlayerProgressionManager.getInstance().addXp(hitXp);
+
+        // Lucky shot upgrade trigger (instant kill, super crit, or lucky hit triggers temporary turret overcharge)
+        if (evalHit.isInstantKill || evalHit.isSuperCrit) {
+          PlayerProgressionManager.getInstance().triggerLuckyOvercharge(8);
+          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ LUCKY OVERCHARGE (8s)!', 0x00f0ff, true);
+        } else if (evalHit.isLuckyHit || (evalHit.isCrit && Math.random() < 0.25)) {
+          PlayerProgressionManager.getInstance().triggerLuckyOvercharge(5);
+          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ TURRET BOOST (5s)!', 0xffd700, true);
+        }
+
         // Pay-per-hit payout
         const hitPayout = evalHit.hitPayout;
         PayoutEngine.recordPayout(hitPayout);
@@ -448,9 +487,25 @@ export class WeaponController {
 
 
         if (hitResult.killed) {
+          // Award kill XP based on fish tier
+          const killXp = fishType === 'boss' ? 350 : (fishType === 'medium' ? 70 : 25);
+          PlayerProgressionManager.getInstance().addXp(killXp);
+
           // Gamble bonus multiplier on kill (1.5x up to 10x jackpot, scaled by Looseness)
           const killGamble = PayoutEngine.evaluateKillMultiplier(hitResult.multiplier, fishType);
           const winAmount = proj.betAmount * killGamble.finalMultiplier * 0.70;
+
+          // Lucky kill upgrade: ~14% chance on any kill, or guaranteed on jackpot/boss kill
+          if (killGamble.isJackpot || fishType === 'boss' || Math.random() < 0.14) {
+            PlayerProgressionManager.getInstance().triggerLuckyOvercharge(7);
+            this.particleFX.spawnFloatingText(
+              this.cannonX,
+              this.cannonY - 45,
+              '⚡ LUCKY KILL TURRET OVERCHARGE (7s)!',
+              0xffd700,
+              true
+            );
+          }
 
           PayoutEngine.recordPayout(winAmount);
 
