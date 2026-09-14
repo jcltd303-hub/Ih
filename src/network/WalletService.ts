@@ -10,7 +10,7 @@ import {
   httpsCallable,
   type Functions,
 } from 'firebase/functions';
-import { firebaseApp } from '../firebase';
+import { app } from './FirebaseClient';
 import { AuthManager } from './AuthManager';
 
 export type WalletCurrency = 'GC' | 'SC';
@@ -38,8 +38,8 @@ const DEFAULT_BALANCES: WalletBalances = {
 export class WalletService {
   private static instance: WalletService | null = null;
 
-  private readonly db = getFirestore(firebaseApp);
-  private readonly functions: Functions = getFunctions(firebaseApp);
+  private readonly db = getFirestore(app);
+  private readonly functions: Functions = getFunctions(app);
 
   private balances: WalletBalances = { ...DEFAULT_BALANCES };
   private unsubscribeWallet: Unsubscribe | null = null;
