@@ -24,7 +24,7 @@
 
 ## Later
 
-- [ ] Boss fight phases
+- [x] Boss fight phases
 - [ ] Confirm weapon stats applied in `WeaponController` (already wired; re-verify in playtest)
 - [ ] Multiplayer presence sprites + shared shots on canvas
 - [ ] Economy sinks (skin unlocks vs server wallet)

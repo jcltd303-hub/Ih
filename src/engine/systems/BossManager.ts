@@ -595,7 +595,12 @@ export class BossManager extends Container {
   public maxHp: number;
   public currentHp: number;
   public isEnraged: boolean = false;
+  /** 1 armored, 2 cracked core, 3 overdrive */
+  public phase: 1 | 2 | 3 = 1;
   public theme: 'light' | 'dark' = 'light';
+  private phaseAnnounceTimer = 0;
+  private dashCooldown = 0;
+  private invulnFrames = 0;
 
   // Articulated Spine Hierarchy
   private spineContainer: Container;
@@ -805,6 +810,13 @@ export class BossManager extends Container {
    * Serpentine Spine Physics & Kinetic Animation Update
    */
   public update(dtScale: number = 1.0, vx: number = 1.0, vy: number = 0.0): void {
+    if (this.invulnFrames > 0) this.invulnFrames = Math.max(0, this.invulnFrames - dtScale);
+    if (this.phaseAnnounceTimer > 0) this.phaseAnnounceTimer = Math.max(0, this.phaseAnnounceTimer - dtScale);
+    // Phase 3: pulse ambient glow harder
+    if (this.phase === 3 && this.ambientGlow) {
+      this.ambientGlow.alpha = 0.55 + 0.35 * Math.sin(this.swimPhase * 3);
+    }
+
     const speedMult = this.isEnraged ? 1.6 : 1.0;
     this.swimPhase += 0.075 * dtScale * speedMult;
 
@@ -881,28 +893,67 @@ export class BossManager extends Container {
   }
 
   /**
-   * Applies damage with phase transitions, health bar pips, and enrage trigger
+   * Phase 1 (100–60%): armored — reduced damage, shield flashes.
+   * Phase 2 (60–35%): cracked core — full damage, title update.
+   * Phase 3 (<35%): overdrive — enraged textures, faster swim, brief i-frames on transition.
    */
   public takeDamage(amount: number): boolean {
-    this.currentHp = Math.max(0, this.currentHp - amount);
+    if (this.invulnFrames > 0) {
+      this.triggerShieldHit();
+      return false;
+    }
+
+    let incoming = amount;
+    if (this.phase === 1) {
+      incoming *= 0.55; // armored plating
+    } else if (this.phase === 3) {
+      incoming *= 1.15; // exposed reactor, takes more
+    }
+
+    this.currentHp = Math.max(0, this.currentHp - incoming);
     this.updateHealthBar();
     this.triggerShieldHit();
-
-    // Trigger Enraged Overdrive below 40% HP
-    if (this.currentHp < this.maxHp * 0.4 && !this.isEnraged) {
-      this.isEnraged = true;
-      this.setTheme(this.theme); // Refresh textures to enraged variant
-      this.bossTitleText.text = '⚠️ CRITICAL OVERDRIVE: APEX BEHEMOTH ⚠️';
-      this.bossTitleText.style.fill = 0xff0033;
-      SoundManager.playBossEnraged();
-    }
+    this.evaluatePhaseTransition();
 
     if (this.currentHp <= 0) {
       this.visible = false;
       SoundManager.playBossDefeat();
-      return true; // Defeated!
+      return true;
     }
     return false;
+  }
+
+  private evaluatePhaseTransition(): void {
+    const pct = this.currentHp / this.maxHp;
+    if (pct <= 0.35 && this.phase < 3) {
+      this.phase = 3;
+      this.isEnraged = true;
+      this.invulnFrames = 45;
+      this.phaseAnnounceTimer = 90;
+      this.setTheme(this.theme);
+      this.bossTitleText.text = '⚠️ PHASE 3 — CRITICAL OVERDRIVE ⚠️';
+      this.bossTitleText.style.fill = 0xff0033;
+      SoundManager.playBossEnraged();
+    } else if (pct <= 0.6 && this.phase < 2) {
+      this.phase = 2;
+      this.invulnFrames = 20;
+      this.phaseAnnounceTimer = 70;
+      this.bossTitleText.text = '⚡ PHASE 2 — CORE EXPOSED';
+      this.bossTitleText.style.fill = 0xfbbf24;
+      SoundManager.playBossWarning();
+    }
+  }
+
+  public getPhaseDamageTakenMultiplier(): number {
+    if (this.phase === 1) return 0.55;
+    if (this.phase === 3) return 1.15;
+    return 1.0;
+  }
+
+  public getPhaseSpeedMultiplier(): number {
+    if (this.phase === 1) return 0.9;
+    if (this.phase === 2) return 1.15;
+    return 1.45;
   }
 
   private updateHealthBar(): void {
