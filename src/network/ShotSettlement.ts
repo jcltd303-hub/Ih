@@ -3,6 +3,7 @@ import { functions, isFirebaseConfigured } from './FirebaseClient';
 import { AuthManager } from './AuthManager';
 import { WalletService } from './WalletService';
 import { OfflineTransactionQueue } from './OfflineTransactionQueue';
+import { FairnessSession } from './FairnessSession';
 
 export type SettlementRequest = {
   sessionId: string;
@@ -23,6 +24,8 @@ export type SettlementResult = {
   goldCoins?: number;
   sweepstakesCoins?: number;
   serverAuthoritative?: boolean;
+  fairNonceStart?: number;
+  fairNonceEnd?: number;
   error?: string;
 };
 
@@ -86,10 +89,18 @@ export class ShotSettlement {
       const goldCoins = Number(data.goldCoins);
       const sweepstakesCoins = Number(data.sweepstakesCoins);
       const payoutAmount = Number(data.payoutAmount) || 0;
+      const fairNonceEnd = Number(data.fairNonceEnd);
 
       // Push balances into wallet listeners / HUD
       if (Number.isFinite(goldCoins) && Number.isFinite(sweepstakesCoins)) {
         WalletService.getInstance().applyServerBalances(goldCoins, sweepstakesCoins);
+      }
+
+      // Track the highest nonce this session has consumed, so the "verify
+      // this session" screen knows what range of rolls it can recompute
+      // once the seed is revealed.
+      if (Number.isFinite(fairNonceEnd)) {
+        FairnessSession.getInstance().recordFairNonceRange(fairNonceEnd);
       }
 
       return {
@@ -99,7 +110,9 @@ export class ShotSettlement {
         finalBalance: Number(data.finalBalance),
         goldCoins,
         sweepstakesCoins,
-        serverAuthoritative: Boolean(data.serverAuthoritative)
+        serverAuthoritative: Boolean(data.serverAuthoritative),
+        fairNonceStart: Number(data.fairNonceStart),
+        fairNonceEnd
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Settlement failed';

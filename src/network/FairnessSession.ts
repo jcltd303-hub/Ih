@@ -9,6 +9,8 @@ export type FairSessionState = {
   clientSeed: string;
   serverSeed?: string;
   status: 'local' | 'committed' | 'revealed';
+  /** Highest nonce consumed so far this session (exclusive upper bound). */
+  nonceHigh: number;
 };
 
 /**
@@ -33,6 +35,16 @@ export class FairnessSession {
     return this.state?.sessionId || 'local_session';
   }
 
+  /**
+   * Called after each settled shot with the highest nonce the server
+   * consumed for it, so the audit modal can show a verifiable range
+   * ("nonce 0–N") instead of a single fixed sample.
+   */
+  public recordFairNonceRange(end: number): void {
+    if (!this.state || !Number.isFinite(end)) return;
+    this.state.nonceHigh = Math.max(this.state.nonceHigh, end);
+  }
+
   public async begin(clientSeed?: string): Promise<FairSessionState> {
     const auth = AuthManager.getInstance().getState();
     const seed =
@@ -47,7 +59,8 @@ export class FairnessSession {
         serverSeedHash,
         clientSeed: seed,
         serverSeed,
-        status: 'local'
+        status: 'local',
+        nonceHigh: 0
       };
       return { ...this.state };
     }
@@ -60,7 +73,8 @@ export class FairnessSession {
         sessionId: data.sessionId,
         serverSeedHash: data.serverSeedHash,
         clientSeed: data.clientSeed || seed,
-        status: 'committed'
+        status: 'committed',
+        nonceHigh: 0
       };
       return { ...this.state };
     } catch (e) {
@@ -72,7 +86,8 @@ export class FairnessSession {
         serverSeedHash,
         clientSeed: seed,
         serverSeed,
-        status: 'local'
+        status: 'local',
+        nonceHigh: 0
       };
       return { ...this.state };
     }
