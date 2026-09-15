@@ -1,4 +1,5 @@
 import { GameEventBus } from '../core/GameEvents';
+import { GameConfig } from '../../config/GameConfig';
 
 export class ComboSystem {
   private static instance: ComboSystem | null = null;
@@ -6,7 +7,7 @@ export class ComboSystem {
   private maxCombo = 0;
   private remainingMs = 0;
   /** Short fighter-style chain window: keep pressure on instead of passive stacking. */
-  private readonly WINDOW_MS = 1800;
+  private readonly WINDOW_MS = GameConfig.comboWindowMs;
   private isActive = false;
   private emitAccumulatorMs = 0;
 
