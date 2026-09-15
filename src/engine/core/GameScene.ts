@@ -170,7 +170,7 @@ export class GameScene {
     this.bossProgressScore = 0;
     this.bossRaid.startRaid(uid, (result) => {
       console.info('[BossRaid] completed', result);
-      this.bossUnlockAtMs = Date.now() + 60000;
+      this.bossUnlockAtMs = Date.now() + GameConfig.bossPacing.cooldownMs;
     });
   }
 
@@ -258,7 +258,6 @@ export class GameScene {
 
     if (this.hitStopRemainingMs > 0) {
       this.hitStopRemainingMs -= frameMs;
-      // Keep ambience, boss clock and HUD responsive; freeze only combat simulation below.
       this.bossRaid.update(frameMs);
       if (this.bossRaid.isActive()) {
         const bossState = this.bossRaid.getState();
@@ -312,20 +311,21 @@ export class GameScene {
       this.bossProgressScore = 0;
     }
     this.lastBossBashActive = raidActive;
-    this.fishManager.update(frameMs, this.lastTargetX, this.lastTargetY);
+    this.spatialGrid.clear();
+    this.fishManager.update(frameMs);
     this.weaponController.update(frameMs);
     this.particleFX.update(frameMs);
+    this.abyssalPostProcessor.update(frameMs);
+    this.multiplayerTable.tick(frameMs);
   }
 
-  public destroy(): void {
-    this.eventUnsubs.forEach((unsubscribe) => unsubscribe());
+  private async onDestroy(): Promise<void> {
+    this.eventUnsubs.forEach((u) => u());
     this.eventUnsubs = [];
-    if (this.tableUnsub) this.tableUnsub();
-    if (this.tableSelectionUnsub) this.tableSelectionUnsub();
-    this.tableUnsub = null;
-    this.tableSelectionUnsub = null;
-    this.isPlaying = false;
-    this.autoFireActive = false;
-    SoundManager.setBossMusic(false, false);
+    this.tableUnsub?.();
+    this.tableSelectionUnsub?.();
+    this.presenceLayer?.destroy();
   }
+
+  public destroy(): void { void this.onDestroy(); }
 }
