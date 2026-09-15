@@ -418,35 +418,28 @@ export class UIManager {
   private renderHUD(): void {
     const activeTable = TableSelectionManager.getInstance().getActiveTable();
     this.container.innerHTML = `
-      <!-- TOP NAVIGATION BAR -->
-      <div id="hud-topbar" style="display: flex; justify-content: space-between; align-items: center; width: 100%; pointer-events: auto; gap: 6px; flex-wrap: wrap;">
-        <!-- Wallets & Mode & Player Level -->
-        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; background: rgba(15, 23, 42, 0.88); border: 1px solid #3b82f6; padding: 6px 10px; border-radius: 8px; color: #ffffff; align-items: center; gap: 6px;">
-            <span id="hud-gc-balance" style="font-size: 13px; font-weight: 700;">${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub></span>
+      <!-- TOP NAV — flat, no boxed chrome -->
+      <div id="hud-topbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; pointer-events:auto; gap:10px; flex-wrap:wrap; padding:2px 4px;">
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:none; border:none; padding:0;">
+            <span id="hud-gc-balance" style="font-size:16px; font-weight:900; color:#fbbf24; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.gcBalance.toLocaleString()}<sub style="font-size:10px;color:#fcd34d;margin-left:2px;font-weight:800;">GC</sub></span>
           </div>
-          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; background: rgba(15, 23, 42, 0.88); border: 2px solid #00ffcc; padding: 6px 10px; border-radius: 8px; color: #ffffff; align-items: center; gap: 6px;">
-            <span id="hud-sc-balance" style="font-size: 13px; font-weight: 700; color: #00ffcc;">${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub></span>
+          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:none; border:none; padding:0;">
+            <span id="hud-sc-balance" style="font-size:16px; font-weight:900; color:#5eead4; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.scBalance.toFixed(2)}<sub style="font-size:10px;color:#99f6e4;margin-left:2px;font-weight:800;">SC</sub></span>
           </div>
-          ${activeTable.mode === 'tournament' ? `<div id="hud-tourney-shield" title="Tournament" style="background:rgba(15,23,42,0.9);border:1.5px solid #f59e0b;padding:6px 9px;border-radius:8px;font-size:14px;">🛡️</div>` : ''}
-          <button id="hud-level-btn" title="Level" style="background: rgba(15, 23, 42, 0.88); border: 1.5px solid #a855f7; padding: 4px 10px; border-radius: 8px; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <span style="font-size: 10px; font-weight: 800; color: #c084fc;">LVL <span id="hud-level-val">1</span></span>
-            <div style="width: 40px; height: 3px; background: #334155; border-radius: 2px; overflow: hidden;">
-              <div id="hud-level-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
+          ${activeTable.mode === 'tournament' ? `<span id="hud-tourney-shield" title="Tournament" style="font-size:18px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.8)); line-height:1;">🛡️</span>` : ''}
+          <button id="hud-level-btn" title="Level" style="background:none; border:none; padding:0; cursor:pointer; display:flex; align-items:center; gap:6px;">
+            <span style="font-size:12px; font-weight:900; color:#e9d5ff; text-shadow:0 1px 3px rgba(0,0,0,.85);">Lv <span id="hud-level-val">1</span></span>
+            <div style="width:36px; height:4px; background:rgba(0,0,0,.45); border-radius:2px; overflow:hidden;">
+              <div id="hud-level-bar" style="width:0%; height:100%; background:linear-gradient(90deg,#c084fc,#f472b6);"></div>
             </div>
           </button>
           <span id="hud-bet-display" style="display:none;">${this.getCurrentBet()}</span>
           <button id="hud-table-btn" style="display:none;"></button>
         </div>
-
-        <!-- Lobby + essentials only (shop/streak/admin live in Lobby) -->
-        <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
-          <button id="hud-lobby-btn" title="Open Lobby" style="background: linear-gradient(135deg,#0f766e,#155e75); color: #ecfeff; border: 1px solid #22d3ee; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 0 12px rgba(34,211,238,0.25);">
-            ⌂ LOBBY
-          </button>
-          <button id="hud-sound-toggle" title="Audio: cycle On / Mute / SFX / No FX" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 700; min-width: 36px;">
-            🔊
-          </button>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button id="hud-lobby-btn" title="Lobby" style="background:none; border:none; padding:0; cursor:pointer; font-size:22px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));">⌂</button>
+          <button id="hud-sound-toggle" title="Audio: cycle On / Mute / SFX / No FX" style="background:none; border:none; padding:0; cursor:pointer; font-size:20px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8)); min-width:auto;">🔊</button>
         </div>
       </div>
 
@@ -471,9 +464,9 @@ export class UIManager {
 
       <!-- Bet badge near turret (bottom-center, slightly right) -->
       <div id="hud-bet-badge" style="position:absolute; left:58%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
-        padding:6px 12px; border-radius:999px; font-weight:900; letter-spacing:1px;
-        border:2px solid #22d3ee; background:rgba(8,20,36,0.85); color:#67e8f9; font-size:13px;
-        box-shadow:0 0 14px rgba(34,211,238,0.35);">×1.00</div>
+        padding:4px 10px; border-radius:999px; font-weight:900; letter-spacing:1px;
+        border:none; background:rgba(0,0,0,0.45); color:#67e8f9; font-size:13px;
+        text-shadow:0 0 8px rgba(34,211,238,0.8);">×1.00</div>
     `;
 
     // Reference elements
@@ -593,55 +586,85 @@ export class UIManager {
   public showLobby(): void {
     SoundManager.playUiSound('modal_open');
     const tables = TableSelectionManager.getInstance().getTables();
+    const chip = (active: boolean, on: string, off: string) =>
+      active
+        ? `background:linear-gradient(180deg,${on},#0f172a);color:#fff;box-shadow:0 4px 0 #0f172a,0 0 16px ${on}55;transform:translateY(-1px);`
+        : `background:linear-gradient(180deg,#334155,#1e293b);color:#94a3b8;box-shadow:0 3px 0 #0f172a;`;
     this.modalContainer.innerHTML = `
-      <div style="background:#0a1628; border:4px solid #22d3ee; border-radius:6px; padding:18px; max-width:420px; width:100%; max-height:90vh; overflow-y:auto; color:#fff; font-family:ui-monospace,monospace; box-shadow:0 0 0 2px #083344, 0 16px 40px rgba(0,0,0,.7);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <div>
-            <div style="font-size:10px; letter-spacing:2px; color:#22d3ee;">FISH FRENZY</div>
-            <div style="font-size:20px; font-weight:900;">LOBBY</div>
+      <style>
+        .ff-arc-btn {
+          border: none; border-radius: 14px; cursor: pointer; font-weight: 900;
+          letter-spacing: 0.06em; font-family: system-ui, sans-serif;
+          transition: transform 0.08s ease, filter 0.15s ease;
+        }
+        .ff-arc-btn:active { transform: translateY(2px) !important; filter: brightness(0.95); }
+        .ff-arc-chip {
+          border: none; border-radius: 999px; cursor: pointer; font-weight: 900;
+          font-size: 13px; padding: 10px 14px; min-width: 52px;
+          box-shadow: 0 3px 0 rgba(0,0,0,0.35);
+        }
+        .ff-arc-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.35); }
+      </style>
+      <div style="
+        width:min(400px,100%); max-height:90vh; overflow:auto; box-sizing:border-box;
+        padding:18px 16px 16px; border-radius:20px;
+        background: radial-gradient(ellipse at 50% 0%, #1e3a5f 0%, #0b1220 55%, #071018 100%);
+        box-shadow: 0 0 0 4px #fbbf24, 0 0 0 8px #0ea5e9, 0 20px 50px rgba(0,0,0,.75);
+        color:#fff; font-family:system-ui,sans-serif; text-align:center;
+      ">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div style="text-align:left;">
+            <div style="font-size:11px; letter-spacing:.2em; color:#67e8f9; font-weight:800;">FISH FRENZY</div>
+            <div style="font-size:22px; font-weight:900; background:linear-gradient(90deg,#67e8f9,#fbbf24,#f472b6); -webkit-background-clip:text; color:transparent;">LOBBY</div>
           </div>
-          <button id="lobby-close-btn" style="background:#1e293b;border:2px solid #475569;color:#94a3b8;width:36px;height:36px;border-radius:4px;cursor:pointer;font-size:16px;">✕</button>
+          <button id="lobby-close-btn" class="ff-arc-btn" style="width:40px;height:40px;border-radius:50%; background:linear-gradient(180deg,#64748b,#334155); color:#fff; font-size:18px; box-shadow:0 3px 0 #0f172a;">✕</button>
         </div>
 
-        <div style="margin-bottom:14px;padding:12px;background:#0f172a;border:3px solid #334155;border-radius:4px;">
-          <div style="font-size:10px;letter-spacing:2px;color:#64748b;font-weight:700;margin-bottom:8px;">CURRENCY</div>
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <button type="button" id="lobby-cur-sc" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.activeCurrency==='SC'?'#00ffcc':'#334155'};background:${this.activeCurrency==='SC'?'rgba(0,255,204,0.15)':'#1e293b'};color:${this.activeCurrency==='SC'?'#00ffcc':'#94a3b8'};">SC</button>
-            <button type="button" id="lobby-cur-gc" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.activeCurrency==='GC'?'#fbbf24':'#334155'};background:${this.activeCurrency==='GC'?'rgba(251,191,36,0.15)':'#1e293b'};color:${this.activeCurrency==='GC'?'#fbbf24':'#94a3b8'};">GC</button>
-          </div>
-          <div style="font-size:10px;letter-spacing:2px;color:#64748b;font-weight:700;margin-bottom:8px;">BET · JOINS MATCHING ROOM</div>
-          <div id="lobby-bet-chips" style="display:flex;flex-wrap:wrap;gap:6px;">
-            ${this.betTiers.map((b, i) => `
-              <button type="button" class="lobby-bet-chip" data-bet-index="${i}" style="
-                padding:10px 12px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;
-                border:3px solid ${i===this.currentBetIndex?'#00ffcc':'#334155'};
-                background:${i===this.currentBetIndex?'rgba(0,255,204,0.2)':'#1e293b'};
-                color:${i===this.currentBetIndex?'#00ffcc':'#e2e8f0'};
-              ">${b}</button>
-            `).join('')}
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">CURRENCY</div>
+          <div style="display:flex; gap:10px;">
+            <button type="button" id="lobby-cur-sc" class="ff-arc-btn" style="flex:1; padding:12px; ${this.activeCurrency==='SC' ? chip(true,'#2dd4bf','') : chip(false,'','')}">SC</button>
+            <button type="button" id="lobby-cur-gc" class="ff-arc-btn" style="flex:1; padding:12px; ${this.activeCurrency==='GC' ? chip(true,'#fbbf24','') : chip(false,'','')}">GC</button>
           </div>
         </div>
 
-        <div style="margin-bottom:14px;padding:12px;background:#0f172a;border:3px solid #334155;border-radius:4px;">
-          <div style="font-size:10px;letter-spacing:2px;color:#22d3ee;font-weight:700;margin-bottom:8px;">THEME</div>
-          <div style="display:flex;gap:8px;">
-            <button type="button" id="lobby-theme-light" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.currentTheme==='light'?'#22d3ee':'#334155'};background:${this.currentTheme==='light'?'#0e7490':'#1e293b'};color:#ecfeff;">☀ LIGHT</button>
-            <button type="button" id="lobby-theme-dark" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.currentTheme==='dark'?'#f43f5e':'#334155'};background:${this.currentTheme==='dark'?'#3f0a12':'#1e293b'};color:#fecaca;">☾ DARK</button>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">BET · TAP TO PLAY</div>
+          <div id="lobby-bet-chips" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
+            ${this.betTiers.map((b, i) => {
+              const on = i === this.currentBetIndex;
+              return `<button type="button" class="lobby-bet-chip ff-arc-chip" data-bet-index="${i}" style="
+                ${on
+                  ? 'background:linear-gradient(180deg,#fde047,#f59e0b); color:#422006; box-shadow:0 4px 0 #92400e, 0 0 14px rgba(251,191,36,.45);'
+                  : 'background:linear-gradient(180deg,#475569,#1e293b); color:#e2e8f0;'}
+              ">${b}</button>`;
+            }).join('')}
           </div>
         </div>
 
-        <button class="lobby-tile" data-lobby="store" style="width:100%;text-align:left;background:#1e293b;border:3px solid #22d3ee;border-radius:4px;padding:12px;cursor:pointer;color:#fff;margin-bottom:8px;">
-          <div style="font-weight:900;color:#67e8f9;">STORE</div>
-          <div style="font-size:11px;color:#94a3b8;">Buy GC packages</div>
-        </button>
-        <button class="lobby-tile" data-lobby="operator" style="width:100%;text-align:left;background:rgba(245,158,11,0.12);border:3px solid #f59e0b;border-radius:4px;padding:12px;cursor:pointer;color:#fff;margin-bottom:12px;">
-          <div style="font-weight:900;color:#fbbf24;">OPERATOR</div>
-          <div style="font-size:11px;color:#94a3b8;">Packages & P&amp;L</div>
-        </button>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">THEME</div>
+          <div style="display:flex; gap:10px;">
+            <button type="button" id="lobby-theme-light" class="ff-arc-btn" style="flex:1; padding:12px; ${this.currentTheme==='light' ? 'background:linear-gradient(180deg,#38bdf8,#0284c7); color:#fff; box-shadow:0 4px 0 #0c4a6e;' : 'background:linear-gradient(180deg,#334155,#1e293b); color:#94a3b8; box-shadow:0 3px 0 #0f172a;'}">☀ LIGHT</button>
+            <button type="button" id="lobby-theme-dark" class="ff-arc-btn" style="flex:1; padding:12px; ${this.currentTheme==='dark' ? 'background:linear-gradient(180deg,#fb7185,#be123c); color:#fff; box-shadow:0 4px 0 #7f1d1d;' : 'background:linear-gradient(180deg,#334155,#1e293b); color:#94a3b8; box-shadow:0 3px 0 #0f172a;'}">☾ DARK</button>
+          </div>
+        </div>
 
-        <button id="lobby-resume-btn" style="width:100%; background:linear-gradient(180deg,#22d3ee,#0e7490); color:#021018; border:3px solid #00ffcc; padding:14px; border-radius:4px; font-weight:900; letter-spacing:2px; cursor:pointer; font-size:14px;">
-          ▶ RESUME
-        </button>
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+          <button class="lobby-tile ff-arc-btn" data-lobby="store" style="flex:1; padding:14px 10px; background:linear-gradient(180deg,#34d399,#059669); color:#042f2e; box-shadow:0 4px 0 #064e3b;">
+            STORE
+          </button>
+          <button class="lobby-tile ff-arc-btn" data-lobby="operator" style="flex:1; padding:14px 10px; background:linear-gradient(180deg,#fbbf24,#d97706); color:#451a03; box-shadow:0 4px 0 #92400e;">
+            OPS
+          </button>
+        </div>
+
+        <button id="lobby-resume-btn" class="ff-arc-btn" style="
+          width:100%; padding:16px; font-size:18px; letter-spacing:.12em;
+          background:linear-gradient(180deg,#fde047 0%, #facc15 40%, #eab308 100%);
+          color:#422006; box-shadow:0 6px 0 #a16207, 0 0 24px rgba(250,204,21,.4);
+          border-radius:16px;
+        ">▶ PLAY</button>
       </div>
     `;
     this.modalContainer.style.display = 'flex';
@@ -671,7 +694,6 @@ export class UIManager {
       btn.addEventListener('click', () => {
         const idx = parseInt((btn as HTMLElement).getAttribute('data-bet-index') || '0', 10);
         this.setBetIndex(idx);
-        // Auto-pick a table that matches stake currency / min stake
         const bet = this.getCurrentBet();
         const match = tables.find((t) => Math.abs(t.minStake - bet) < 0.001)
           || tables.find((t) => t.minStake <= bet)
@@ -740,7 +762,7 @@ export class UIManager {
       badge.textContent = `×${bet.toFixed(2)}`;
       badge.style.transform = `translateX(-50%) scale(${scale})`;
       badge.style.color = fg;
-      badge.style.borderColor = border;
+      badge.style.color = fg; /* no box border */
       badge.style.boxShadow = `0 0 ${10 + bet * 2}px ${fg}55`;
     }
     const gcW = document.getElementById('hud-gc-wallet');

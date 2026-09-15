@@ -60,12 +60,9 @@ export class FishManager {
   public spawnRandomWave(): void {
     if (this.activeFish.size >= GameConfig.maxActiveFish) return;
 
-    // Guarantee only one active boss at any time
-    const hasBoss = Array.from(this.activeFish.values()).some(f => f.typeId === 'boss' && f.isAlive);
+    // Boss is progress/raid-gated only — never from random waves
     const roll = Math.random();
-    if (roll > 0.90 && !hasBoss) {
-      this.spawnFish('boss');
-    } else if (roll > 0.55) {
+    if (roll > 0.55) {
       this.spawnFish('medium');
     } else {
       // Spawn a small school for visible flocking

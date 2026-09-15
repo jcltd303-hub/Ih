@@ -756,7 +756,7 @@ export class BossManager extends Container {
       }
     });
     this.bossTitleText = new Text({
-      text: this.theme === 'light' ? '⚡ APEX CYBER-LEVIATHAN [MK-VIII] ⚡' : '☠️ ABYSSAL VOID-EATER [TITAN] ☠️',
+      text: '',
       style: titleStyle
     });
     this.bossTitleText.anchor.set(0.5, 1);
@@ -773,6 +773,7 @@ export class BossManager extends Container {
     this.hpPercentText.anchor.set(0.5, 0);
     this.hpPercentText.y = 8;
     this.hudContainer.addChild(this.hpPercentText);
+    this.hudContainer.visible = false; // combat chrome is DOM HUD only
   }
 
   /**
@@ -800,10 +801,7 @@ export class BossManager extends Container {
     this.updateHealthBar();
 
     if (!this.isEnraged) {
-      this.bossTitleText.text = this.theme === 'light'
-        ? '⚡ APEX CYBER-LEVIATHAN [MK-VIII] ⚡'
-        : '☠️ ABYSSAL VOID-EATER [TITAN] ☠️';
-      this.bossTitleText.style.fill = this.theme === 'light' ? 0x00f0ff : 0xff3300;
+      this.bossTitleText.text = '';
     }
   }
 
@@ -934,14 +932,14 @@ export class BossManager extends Container {
       this.invulnFrames = 45;
       this.phaseAnnounceTimer = 90;
       this.setTheme(this.theme);
-      this.bossTitleText.text = '⚠️ PHASE 3 — CRITICAL OVERDRIVE (40% ENRAGED) ⚠️';
+      this.bossTitleText.text = '';
       this.bossTitleText.style.fill = 0xff0033;
       SoundManager.playBossEnraged();
     } else if (pct <= 0.65 && this.phase < 2) {
       this.phase = 2;
       this.invulnFrames = 20;
       this.phaseAnnounceTimer = 70;
-      this.bossTitleText.text = '⚡ PHASE 2 — CORE EXPOSED';
+      this.bossTitleText.text = '';
       this.bossTitleText.style.fill = 0xfbbf24;
       SoundManager.playBossWarning();
     }
