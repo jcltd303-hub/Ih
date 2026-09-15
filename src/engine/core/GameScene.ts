@@ -52,6 +52,7 @@ export class GameScene {
 
   // New systems
   private bossRaid: BossRaidEvent;
+  private lastBossBashActive = false;
   private tableSelection: TableSelection;
   private bossRaidTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -150,7 +151,14 @@ export class GameScene {
           ? `ENRAGED · ${hpPct}% HP · ${Math.ceil(raid.timeRemainingSec)}s`
           : `HP ${hpPct}% · ${Math.ceil(raid.timeRemainingSec)}s LEFT`
       );
-      // Bolt burst is handled by BossRaidEvent / ParticleFX on hits
+      if (isRaidActive && !this.lastBossBashActive) {
+        const cx = this.app.screen.width / 2;
+        const cy = this.app.screen.height * 0.22;
+        this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);
+        this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 18);
+        this.particleFX.spawnExplosion(cx + 40, cy + 20, 0xfbbf24, 18);
+      }
+      this.lastBossBashActive = isRaidActive;
     });
 
     // Show start screen; gameplay + multiplayer join after Play

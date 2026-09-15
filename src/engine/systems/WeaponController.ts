@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { SpatialHashGrid } from './SpatialHashGrid';
 import { FishManager } from './FishManager';
 import { ParticleFXManager } from './ParticleFXManager';
@@ -44,6 +44,8 @@ export class WeaponController {
   public turretRig: TurretAnimationRig;
   public cannonX: number;
   public cannonY: number;
+  private upgradeOverlay: Graphics;
+  private upgradeCountdown: Text;
   private onWinCallback?: (winAmount: number, currencyType: 'GC' | 'SC') => void;
   private onBossDamage?: (userId: string, damage: number, fishId: string) => void;
 
@@ -126,6 +128,28 @@ export class WeaponController {
     this.stage.addChild(this.turretRig.container);
     this.refreshCannonSkin();
 
+    // Colored upgrade ring + countdown (Electric Rage cannon upgrade)
+    this.upgradeOverlay = new Graphics();
+    this.upgradeOverlay.visible = false;
+    this.stage.addChild(this.upgradeOverlay);
+    this.upgradeCountdown = new Text({
+      text: '',
+      style: new TextStyle({
+        fontFamily: 'ui-monospace, monospace',
+        fontSize: 14,
+        fontWeight: '900',
+        fill: 0xfbbf24,
+        stroke: { color: 0x450a0a, width: 3 }
+      })
+    });
+    this.upgradeCountdown.anchor.set(0.5);
+    this.upgradeCountdown.visible = false;
+    this.stage.addChild(this.upgradeCountdown);
+
+    PlayerProgressionManager.getInstance().onOvercharge((active, remainingSec) => {
+      this.syncUpgradeVisual(active, remainingSec);
+    });
+
     // Dynamically refresh turret chassis when skill level unlocks or lucky overcharge activates
     PlayerProgressionManager.getInstance().subscribe(() => {
       this.refreshCannonSkin();
@@ -172,6 +196,8 @@ export class WeaponController {
       this.turretRig.container.x = this.cannonX;
       this.turretRig.container.y = this.cannonY;
     }
+    const prog = PlayerProgressionManager.getInstance().getState();
+    this.syncUpgradeVisual(prog.isOvercharged, prog.overchargeRemainingSec);
   }
 
   public updateAim(targetX: number, targetY: number): void {
@@ -187,6 +213,26 @@ export class WeaponController {
     if (this.turretRig) {
       this.turretRig.setSkin(skin);
     }
+  }
+
+  private syncUpgradeVisual(active: boolean, remainingSec: number): void {
+    if (!this.upgradeOverlay || !this.upgradeCountdown) return;
+    this.upgradeOverlay.clear();
+    if (!active) {
+      this.upgradeOverlay.visible = false;
+      this.upgradeCountdown.visible = false;
+      return;
+    }
+    this.upgradeOverlay.visible = true;
+    this.upgradeCountdown.visible = true;
+    // Neon cyan/gold ring around turret
+    this.upgradeOverlay.circle(this.cannonX, this.cannonY, 42);
+    this.upgradeOverlay.stroke({ width: 4, color: 0x22d3ee, alpha: 0.9 });
+    this.upgradeOverlay.circle(this.cannonX, this.cannonY, 48);
+    this.upgradeOverlay.stroke({ width: 2, color: 0xfbbf24, alpha: 0.7 });
+    this.upgradeCountdown.text = String(remainingSec);
+    this.upgradeCountdown.x = this.cannonX;
+    this.upgradeCountdown.y = this.cannonY - 58;
   }
 
   public canFire(): boolean {
@@ -437,5 +483,9 @@ export class WeaponController {
     }
 
     if (this.turretRig) this.turretRig.update(dtScale);
+    const prog = PlayerProgressionManager.getInstance().getState();
+    if (prog.isOvercharged) {
+      this.syncUpgradeVisual(true, prog.overchargeRemainingSec);
+    }
   }
 }

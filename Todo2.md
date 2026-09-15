@@ -78,49 +78,49 @@ I'll start Phase 1 on your go-ahead.
       trusted from client at purchase time).
 
 ## Phase 2 — Teardown
-- [ ] Delete `armorySkins.ts` + HUD entry point + `skinBonus` mechanic
+- [x] Delete `armorySkins.ts` + HUD entry point + `skinBonus` mechanic
       (`WeaponController.ts` / `processPlayerShot.ts`).
-- [ ] Delete `auditModal.ts` + all "provably fair" UI/copy. Keep the
+- [x] Delete `auditModal.ts` + all "provably fair" UI/copy. Keep the
       underlying seeded-RNG server logic (security fix, not a UI feature).
-- [ ] Remove `App.tsx` bottom-right status overlay (player id/balance
+- [x] Remove `App.tsx` bottom-right status overlay (player id/balance
       banner).
 - [ ] Remove existing boss-mode banner (replaced, not just deleted, in
       Phase 3).
-- [ ] Cut `MultiplayerPresenceLayer` UI down to medal + count (not a full
+- [x] Cut `MultiplayerPresenceLayer` UI down to medal + count (not a full
       delete — narrowed per your answer).
 - [ ] `OnboardingTips.ts`: not deleted — rebuilt in Phase 3.
 - [ ] `leaderboardModal.ts` / `streakModal.ts`: not deleted — regated in
       Phase 3 (tournament-only / login-trigger respectively).
 
 ## Phase 3 — New minimal HUD ("Electric Rage" style)
-- [ ] Shared style module: colors, fonts, chunky bevel button component,
+- [x] Shared style module: colors, fonts, chunky bevel button component,
       neon/electric glow — used by every UI piece below.
-- [ ] Player level: level number + progress bar only.
-- [ ] Balance: bare number + subscript SC/GC, HUD-only.
-- [ ] Cannon upgrade: colored overlay sprite on turret + countdown seconds
+- [x] Player level: level number + progress bar only.
+- [x] Balance: bare number + subscript SC/GC, HUD-only.
+- [x] Cannon upgrade: colored overlay sprite on turret + countdown seconds
       number.
-- [ ] Boss mode: giant red "BOSS BASH" text + electric-bolt particle burst
+- [x] Boss mode: giant red "BOSS BASH" text + electric-bolt particle burst
       (`ParticleFXManager.ts`).
-- [ ] Multiplayer presence: medal icon + live player count, minimal.
-- [ ] Onboarding: rebuilt walkthrough on the new HUD — explicitly covers
+- [x] Multiplayer presence: medal icon + live player count, minimal.
+- [x] Onboarding: rebuilt walkthrough on the new HUD — explicitly covers
       aim/fire, hold-to-auto-fire, cannon upgrades, boss mode, balance/store.
-- [ ] Leaderboard: gate visibility to tournament sessions only.
-- [ ] Streak/bonus modal: retrigger on login instead of current trigger.
+- [x] Leaderboard: gate visibility to tournament sessions only.
+- [x] Streak/bonus modal: retrigger on login instead of current trigger.
 
 ## Phase 4 — Admin page rebuild
-- [ ] Rebuild `adminPortalModal.ts`: remove RTP slider/presets/Monte Carlo
+- [x] Rebuild `adminPortalModal.ts`: remove RTP slider/presets/Monte Carlo
       button entirely.
-- [ ] Data tables: deposits vs payouts (daily), realized RTP, shot/hit
+- [x] Data tables: deposits vs payouts (daily), realized RTP, shot/hit
       counts — sourced from real Firestore data.
-- [ ] Package/GC-amount editor (admin-tunable per tier, per "arbitrary
+- [x] Package/GC-amount editor (admin-tunable per tier, per "arbitrary
       amount" decision above).
-- [ ] Debug-mode toggle (persisted flag): FPS/entity count, session id,
+- [x] Debug-mode toggle (persisted flag): FPS/entity count, session id,
       current RTP, last shot response payload — gated behind the toggle.
 
 ## Phase 5 — Store
-- [ ] `storeModal.ts`: 5 tiers, arcade-styled, provider selector
+- [x] `storeModal.ts`: 5 tiers, arcade-styled, provider selector
       (crypto/Stripe/Capital) feeding the Phase 1 payment module.
-- [ ] Auto-trigger on insufficient-balance (`failed-precondition` from
+- [x] Auto-trigger on insufficient-balance (`failed-precondition` from
       `processPlayerShot`, plus client-side pre-check).
 
 ## Phase 6 — Verification
@@ -129,4 +129,4 @@ I'll start Phase 1 on your go-ahead.
       tournament leaderboard → admin page (tables + debug toggle).
 - [ ] Grep pass: no remaining armory / provably-fair / RTP-slider
       references in bundled output.
-- [ ] Push to a branch, open for review — no direct-to-main.
+- [x] Push to a branch, open for review — no direct-to-main.
