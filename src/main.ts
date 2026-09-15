@@ -36,6 +36,16 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Auth + wallet (non-blocking for offline arcade)
   const authState = await AuthManager.getInstance().ensureSignedIn();
+  // Daily streak on login (once per calendar day)
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('fish_frenzy_streak_day') !== day) {
+      localStorage.setItem('fish_frenzy_streak_day', day);
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('ff-show-streak'));
+      }, 1200);
+    }
+  } catch { /* ignore */ }
   const wallet = await WalletService.getInstance().connect();
   console.log(
     `[Fish Frenzy] auth=${authState.uid.slice(0, 8)}… wallet=${wallet.source} GC=${wallet.goldCoins} SC=${wallet.sweepstakesCoins} perf=${perf.tier}`

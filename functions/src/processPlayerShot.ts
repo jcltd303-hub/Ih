@@ -39,7 +39,7 @@ function evaluateServerHit(
   targetRtp: number,
   rng: () => number
 ) {
-  const looseness = targetRtp / 90;
+  const looseness = targetRtp / 85;
   const baseHitRate = 0.24 * looseness;
   const isLuckyHit = rng() < 0.06 * looseness;
   const hitPayout = isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate;
@@ -63,7 +63,7 @@ function evaluateServerKill(
   targetRtp: number,
   rng: () => number
 ) {
-  const looseness = targetRtp / 90;
+  const looseness = targetRtp / 85;
   const roll = rng();
   if (roll < 0.02 * looseness) {
     return { finalMultiplier: baseMultiplier * 10, bonusLabel: '10X JACKPOT', isJackpot: true };
@@ -168,7 +168,7 @@ export const processPlayerShot = onCall(async (request) => {
     const session = sessionSnap.data()!;
     const serverSeed: string = session.serverSeed;
     const clientSeed: string = session.clientSeed;
-    const targetRtp: number = Number(session.targetRtp) || 90;
+    const targetRtp: number = Number(session.targetRtp) || 85;
     const startNonce: number = Number(session.nonce) || 0;
 
     const walletDoc = await transaction.get(userWalletRef);

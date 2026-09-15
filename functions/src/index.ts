@@ -2,13 +2,17 @@ import { processPlayerShot } from './processPlayerShot';
 import { validatePlayerRegion } from './validateRegion';
 import { ensureUserWallet } from './ensureUserWallet';
 import { startGameSession, revealSessionSeed } from './startGameSession';
+import { requestDeposit, listPackages, confirmDepositStub } from './requestDeposit';
+import { requestWithdrawal } from './requestWithdrawal';
 
 export {
   processPlayerShot,
   validatePlayerRegion,
   ensureUserWallet,
   startGameSession,
-  revealSessionSeed
+  revealSessionSeed,
+  requestDeposit,
+  listPackages,
+  confirmDepositStub,
+  requestWithdrawal
 };
-export { requestDeposit } from './requestDeposit';
-export { requestWithdrawal } from './requestWithdrawal';

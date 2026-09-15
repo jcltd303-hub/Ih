@@ -73,7 +73,7 @@ const LEDGER_KEY = 'fish_frenzy_profit_ledger';
 
 export class PayoutEngine {
   private static config: PayoutConfig = {
-    targetRtp: 85,
+    targetRtp: 85, /* FIXED */
     gambleKillEnabled: true,
     gambleBonusMultiplierEnabled: true,
     volatility: 'medium',
@@ -105,7 +105,27 @@ export class PayoutEngine {
   }
 
   public static getTargetRtp(): number {
-    return this.config.targetRtp;
+    return 85;
+  }
+
+  /** No-op: house RTP is fixed at 85% (server policy). */
+  public static setTargetRtp(_rtp?: number): void {
+    this.config.targetRtp = 85;
+  }
+
+  public static setPayoutPolicy(_rtp?: number, maxLifetimeRtpGuard?: number): void {
+    this.config.targetRtp = 85;
+    if (typeof maxLifetimeRtpGuard === 'number') {
+      this.config.maxLifetimeRtpGuard = maxLifetimeRtpGuard;
+    }
+  }
+
+  public static saveConfig(partial: Partial<PayoutConfig> = {}): void {
+    this.config = {
+      ...this.config,
+      ...partial,
+      targetRtp: 85
+    };
   }
 
   public static getSessionStats(): SessionStats {
@@ -262,7 +282,7 @@ export class PayoutEngine {
     this.stats.totalHits++;
 
     const loosenessFactor =
-      this.config.targetRtp / 90;
+      this.config.targetRtp / 85;
 
     const scale =
       this.profitabilityScale();
@@ -357,7 +377,7 @@ export class PayoutEngine {
     this.stats.totalKills++;
 
     const loosenessFactor =
-      this.config.targetRtp / 90;
+      this.config.targetRtp / 85;
 
     const scale =
       this.profitabilityScale();
@@ -506,7 +526,7 @@ export class PayoutEngine {
       shots % batches;
 
     const loosenessFactor =
-      targetRtp / 90;
+      targetRtp / 85;
 
     let seed =
       options?.seed ?? 42;
@@ -838,7 +858,7 @@ export class PayoutEngine {
     at90?: HitRatioSweepResult;
     at100?: HitRatioSweepResult;
   } {
-    const targetRtp = 90;
+    const targetRtp = 85;
 
     const results =
       this.runHitRatioSweep(

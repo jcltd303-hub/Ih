@@ -9,6 +9,7 @@ import { showLeaderboardModal as openLeaderboardModal } from './modals/leaderboa
 import { showAdminPortalModal as openAdminPortalModal } from './modals/adminPortalModal';
 import { showProgressionModal } from './modals/progressionModal';
 import type { ModalContext } from './modals/ModalContext';
+import { showStoreModal } from './modals/storeModal';
 import { TableSelectionManager, AVAILABLE_TABLES, TableConfig } from '../network/TableSelectionManager';
 import { PlayerProgressionManager, PlayerProgressionState } from '../engine/systems/PlayerProgressionManager';
 
@@ -80,6 +81,9 @@ export class UIManager {
 
     this.renderHUD();
     this.createModalContainer(rootElement);
+    window.addEventListener('ff-show-streak', () => {
+      void this.showStreakModal();
+    });
 
     // Seed lifetime deposit ledger once with starting SC (operator P&L baseline)
     try {
@@ -637,14 +641,12 @@ export class UIManager {
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
           <!-- GC Wallet -->
           <div id="hud-gc-wallet" style="background: rgba(15, 23, 42, 0.88); border: 1px solid #3b82f6; padding: 6px 10px; border-radius: 8px; color: #ffffff; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
-            <span style="color: #60a5fa; font-weight: 800; font-size: 11px;">GC</span>
-            <span id="hud-gc-balance" style="font-size: 13px; font-weight: 700;">${this.gcBalance.toLocaleString()}</span>
+            <span id="hud-gc-balance" style="font-size: 13px; font-weight: 700;">${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub></span>
           </div>
 
           <!-- SC Wallet -->
           <div id="hud-sc-wallet" style="background: rgba(15, 23, 42, 0.88); border: 2px solid #00ffcc; padding: 6px 10px; border-radius: 8px; color: #ffffff; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,255,204,0.15);">
-            <span style="color: #00ffcc; font-weight: 800; font-size: 11px;">SC</span>
-            <span id="hud-sc-balance" style="font-size: 13px; font-weight: 700; color: #00ffcc;">${this.scBalance.toFixed(2)}</span>
+            <span id="hud-sc-balance" style="font-size: 13px; font-weight: 700; color: #00ffcc;">${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub></span>
           </div>
 
           <!-- Read-only stake (change in Lobby) -->
@@ -1022,7 +1024,7 @@ export class UIManager {
     this.modalContainer.querySelectorAll('.lobby-tile').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-lobby');
-        if (id === 'shop') this.showArmoryModal();
+        if (id === 'store') void showStoreModal(this.modalCtx());
         else if (id === 'streak') this.showStreakModal();
         else if (id === 'ranks') this.showLeaderboardModal();
         else if (id === 'audit') this.showAuditModal();
@@ -1122,8 +1124,12 @@ export class UIManager {
   public setBalances(gc: number, sc: number): void {
     this.gcBalance = Math.max(0, gc);
     this.scBalance = Math.max(0, sc);
-    if (this.gcBalanceEl) this.gcBalanceEl.textContent = this.gcBalance.toLocaleString();
-    if (this.scBalanceEl) this.scBalanceEl.textContent = this.scBalance.toFixed(2);
+    if (this.gcBalanceEl) {
+      this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
+    }
+    if (this.scBalanceEl) {
+      this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub>`;
+    }
   }
 
   public getCurrency(): 'GC' | 'SC' {
@@ -1135,11 +1141,11 @@ export class UIManager {
     if (this.activeCurrency === 'SC') {
       if (this.scBalance < bet) return false;
       this.scBalance -= bet;
-      if (this.scBalanceEl) this.scBalanceEl.textContent = this.scBalance.toFixed(2);
+      if (this.scBalanceEl) this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub>`;
     } else {
       if (this.gcBalance < bet * 100) return false;
       this.gcBalance -= bet * 100;
-      this.gcBalanceEl.textContent = this.gcBalance.toLocaleString();
+      this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
     }
     return true;
   }
@@ -1147,7 +1153,7 @@ export class UIManager {
   public addBalance(gc: number, sc: number): void {
     this.gcBalance += gc;
     this.scBalance += sc;
-    this.gcBalanceEl.textContent = this.gcBalance.toLocaleString();
-    this.scBalanceEl.textContent = this.scBalance.toFixed(2);
+    this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
+    this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub>`;
   }
 }
