@@ -71,10 +71,21 @@ export class ThemeManager {
     this.backgroundContainer = new Container();
     this.app.stage.addChildAt(this.backgroundContainer, 0);
 
-    const saved = localStorage.getItem('fish_frenzy_theme');
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem('fish_frenzy_theme');
+    } catch {
+      // ignore
+    }
     if (saved === 'dark' || saved === 'light') {
       this.currentTheme = saved;
     }
+
+    // Apply the persisted theme immediately so DOM HUD/modals and Pixi
+    // background never spend a frame in the wrong visual language.
+    this.applyDomTheme(this.currentTheme);
+    this.applyRendererTheme(this.currentTheme);
+    SoundManager.setTheme(this.currentTheme);
   }
 
   public static getInstance(): ThemeManager | null {
@@ -89,18 +100,28 @@ export class ThemeManager {
       // ignore
     }
 
-    const cfg = THEME_CONFIGS[theme];
+    this.applyDomTheme(theme);
+    this.applyRendererTheme(theme);
 
+    // One authoritative theme transition: audio follows the same state as
+    // the renderer and DOM instead of being driven by individual widgets.
+    SoundManager.setTheme(theme);
+
+    GameEventBus.getInstance().emit('THEME_CHANGED', THEME_CONFIGS[theme]);
+  }
+
+  private applyDomTheme(theme: GameTheme): void {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.ffTheme = theme;
+    document.body?.setAttribute('data-ff-theme', theme);
+  }
+
+  private applyRendererTheme(theme: GameTheme): void {
+    const cfg = THEME_CONFIGS[theme];
     if (this.app.renderer) {
       this.app.renderer.background.color = cfg.waterColor;
     }
     this.app.stage.filters = [];
-
-    // Notify audio manager / sound engine
-    SoundManager.setTheme(theme);
-
-    // Notify event bus for UI and fish shaders
-    GameEventBus.getInstance().emit('THEME_CHANGED', cfg);
   }
 
   public getTheme(): GameTheme {
