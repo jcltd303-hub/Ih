@@ -96,7 +96,7 @@ export class BossRaidEvent {
     const maxHp = 150 + Math.floor(Math.random() * 100);
     this.state = {
       active: true,
-      phase: 'approaching',
+      phase: 'engaged',
       hp: maxHp,
       maxHp,
       timeRemaining: this.RAID_DURATION_MS,
@@ -107,15 +107,8 @@ export class BossRaidEvent {
     const boss = this.fishManager.spawnFish('boss');
     this.bossId = boss.id;
 
-    this.state.phase = 'approaching';
     /* title handled by HUD */
     SoundManager.playBossWarning();
-
-    setTimeout(() => {
-      if (!this.state.active) return;
-      this.state.phase = 'engaged';
-      
-    }, this.ESCAPE_COUNTDOWN_MS);
 
     this.uiContainer.visible = false; // HUD owns boss chrome
   }
