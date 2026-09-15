@@ -1,5 +1,6 @@
 import { TurretSkinId } from '../../audio/SoundManager';
 import { SoundManager } from '../../audio/SoundManager';
+import { GameConfig } from '../../config/GameConfig';
 
 export interface LevelMilestone {
   level: number;
@@ -94,6 +95,7 @@ export class PlayerProgressionManager {
 
   private xp: number = 0;
   private overchargeEndTime: number = 0;
+  private overchargeCooldownUntil: number = 0;
   private overchargeTimerId: number | null = null;
   private bossRaidActive: boolean = false;
 
@@ -224,9 +226,29 @@ export class PlayerProgressionManager {
   /**
    * Lucky shot / kill triggers a temporary supercharged turret upgrade for several seconds.
    */
-  public triggerLuckyOvercharge(durationSec: number = 7): void {
+  /**
+   * Lucky shot / kill triggers a temporary supercharged turret upgrade.
+   *
+   * The active window is centrally configured and cannot be stacked or
+   * extended by repeated triggers. A separate cooldown prevents rapid
+   * reactivation. This affects presentation/gameplay state only and does
+   * not modify payout calculations.
+   */
+  public triggerLuckyOvercharge(): void {
     const now = Date.now();
-    this.overchargeEndTime = Math.max(this.overchargeEndTime, now + durationSec * 1000);
+
+    if (now < this.overchargeCooldownUntil) {
+      return;
+    }
+
+    const durationMs = Math.max(0, GameConfig.overchargeDurationMs);
+
+    this.overchargeEndTime = now + durationMs;
+    this.overchargeCooldownUntil = now + Math.max(
+      durationMs,
+      GameConfig.overchargeCooldownMs
+    );
+
     SoundManager.playUiSound('powerup');
 
     if (this.overchargeTimerId !== null) {
@@ -234,16 +256,23 @@ export class PlayerProgressionManager {
     }
 
     this.overchargeTimerId = window.setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((this.overchargeEndTime - Date.now()) / 1000));
-      this.overchargeListeners.forEach((l) => l(remaining > 0, remaining));
+      const remaining = Math.max(
+        0,
+        Math.ceil((this.overchargeEndTime - Date.now()) / 1000)
+      );
+
+      this.overchargeListeners.forEach((l) =>
+        l(remaining > 0, remaining)
+      );
       this.emit();
+
       if (remaining <= 0) {
         if (this.overchargeTimerId !== null) {
           clearInterval(this.overchargeTimerId);
           this.overchargeTimerId = null;
         }
       }
-    }, 500);
+    }, 250);
 
     this.emit();
   }

@@ -105,16 +105,25 @@ export class PayoutEngine {
   }
 
   public static getTargetRtp(): number {
-    return 85;
+    return this.config.targetRtp;
   }
 
-  /** No-op: house RTP is fixed at 85% (server policy). */
-  public static setTargetRtp(_rtp?: number): void {
-    this.config.targetRtp = 85;
+  /**
+   * Client-side simulation policy only.
+   * Real settlement is server-authoritative.
+   */
+  public static setTargetRtp(rtp?: number): void {
+    if (typeof rtp !== 'number' || !Number.isFinite(rtp)) {
+      return;
+    }
+
+    this.config.targetRtp = Math.min(90, Math.max(85, rtp));
   }
 
-  public static setPayoutPolicy(_rtp?: number, maxLifetimeRtpGuard?: number): void {
-    this.config.targetRtp = 85;
+  public static setPayoutPolicy(rtp?: number, maxLifetimeRtpGuard?: number): void {
+    if (typeof rtp === 'number' && Number.isFinite(rtp)) {
+      this.config.targetRtp = Math.min(90, Math.max(85, rtp));
+    }
     if (typeof maxLifetimeRtpGuard === 'number') {
       this.config.maxLifetimeRtpGuard = maxLifetimeRtpGuard;
     }
@@ -124,7 +133,11 @@ export class PayoutEngine {
     this.config = {
       ...this.config,
       ...partial,
-      targetRtp: 85
+      targetRtp:
+        typeof partial.targetRtp === 'number' &&
+        Number.isFinite(partial.targetRtp)
+          ? Math.min(90, Math.max(85, partial.targetRtp))
+          : this.config.targetRtp
     };
   }
 

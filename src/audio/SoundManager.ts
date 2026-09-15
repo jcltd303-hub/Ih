@@ -4,7 +4,17 @@ export class SoundManager {
   private static audioCtx: AudioContext | null = null;
   private static masterGain: GainNode | null = null;
   private static masterCompressor: DynamicsCompressorNode | null = null;
+
+  // Dedicated buses: MASTER -> compressor -> destination, with
+  // MUSIC / SFX / AMBIENCE feeding the compressor.
+  private static musicGain: GainNode | null = null;
+  private static bossMusicGain: GainNode | null = null;
+  private static sfxGain: GainNode | null = null;
+  private static ambienceGain: GainNode | null = null;
+
+  // Kept as an alias for compatibility with the existing scheduler code.
   private static bgmGain: GainNode | null = null;
+
   private static noiseBuffer: AudioBuffer | null = null;
   private static enabled: boolean = (() => {
     try {
@@ -33,6 +43,8 @@ export class SoundManager {
   private static currentTheme: 'light' | 'dark' = 'light';
   private static bossMusicActive: boolean = false;
   private static bossEnraged: boolean = false;
+  private static audioGestureHookInstalled: boolean = false;
+  private static bossTransitioning: boolean = false;
 
   private static initContext(): void {
     if (!this.audioCtx) {
@@ -52,10 +64,28 @@ export class SoundManager {
         this.masterGain = this.audioCtx.createGain();
         this.masterGain.gain.setValueAtTime(this.enabled ? 1.0 : 0.0, this.audioCtx.currentTime);
 
-        // Dedicated BGM gain node routed into master
-        this.bgmGain = this.audioCtx.createGain();
-        this.bgmGain.gain.setValueAtTime(this.bgmEnabled && this.enabled ? 0.22 : 0.0, this.audioCtx.currentTime);
-        this.bgmGain.connect(this.masterGain);
+        // Dedicated audio buses.
+        // Normal music and boss music have separate gains so the boss can
+        // duck the normal soundtrack instead of simply becoming louder.
+        this.musicGain = this.audioCtx.createGain();
+        this.bossMusicGain = this.audioCtx.createGain();
+        this.sfxGain = this.audioCtx.createGain();
+        this.ambienceGain = this.audioCtx.createGain();
+
+        this.musicGain.gain.setValueAtTime(
+          this.bgmEnabled && this.enabled ? 0.22 : 0.0,
+          this.audioCtx.currentTime
+        );
+        this.bossMusicGain.gain.setValueAtTime(0.0, this.audioCtx.currentTime);
+        this.sfxGain.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+        this.ambienceGain.gain.setValueAtTime(0.92, this.audioCtx.currentTime);
+
+        this.bgmGain = this.musicGain;
+
+        this.musicGain.connect(this.masterCompressor);
+        this.bossMusicGain.connect(this.masterCompressor);
+        this.sfxGain.connect(this.masterCompressor);
+        this.ambienceGain.connect(this.masterCompressor);
 
         this.masterCompressor.connect(this.masterGain);
         this.masterGain.connect(this.audioCtx.destination);
@@ -64,6 +94,22 @@ export class SoundManager {
 
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
       this.audioCtx.resume().catch(() => {});
+    }
+
+    // Browsers may suspend WebAudio until a real user gesture occurs.
+    // Install the recovery hook once; it is intentionally lightweight.
+    if (!this.audioGestureHookInstalled) {
+      this.audioGestureHookInstalled = true;
+
+      const resumeAudio = () => {
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {});
+        }
+      };
+
+      window.addEventListener('pointerdown', resumeAudio, { passive: true });
+      window.addEventListener('keydown', resumeAudio, { passive: true });
+      window.addEventListener('touchstart', resumeAudio, { passive: true });
     }
   }
 
@@ -156,6 +202,8 @@ export class SoundManager {
 
     this.bgmNextStepTime = this.audioCtx.currentTime + 0.08;
     this.bgmStep = 0;
+    // One scheduler for every soundtrack state. Boss/theme changes only
+    // change what gets scheduled; they never create another timer.
     this.bgmIntervalId = window.setInterval(() => this.tickBgmScheduler(), 45);
   }
 
@@ -172,32 +220,82 @@ export class SoundManager {
   }
 
   public static setBossMusic(active: boolean, enraged: boolean = false): void {
+    const wasActive = this.bossMusicActive;
+
     this.bossMusicActive = active;
     this.bossEnraged = enraged;
 
     this.initContext();
-    if (!this.audioCtx || !this.bgmGain) return;
+
+    if (!this.audioCtx || !this.musicGain || !this.bossMusicGain) return;
+
     const now = this.audioCtx.currentTime;
+    const transition = active ? 0.45 : 0.60;
+
+    this.musicGain.gain.cancelScheduledValues(now);
+    this.bossMusicGain.gain.cancelScheduledValues(now);
 
     if (active) {
-      this.bgmGain.gain.cancelScheduledValues(now);
-      // Bring up volume for boss battle
-      this.bgmGain.gain.linearRampToValueAtTime(0.35, now + 0.15);
-      if (this.bgmIntervalId === null && this.enabled) {
-        this.bgmNextStepTime = now + 0.05;
-        this.bgmStep = 0;
-        this.bgmIntervalId = window.setInterval(() => this.tickBgmScheduler(), 35);
-      }
-    } else {
-      this.bgmGain.gain.cancelScheduledValues(now);
-      this.bgmGain.gain.linearRampToValueAtTime(
-        this.bgmEnabled && this.enabled ? 0.22 : 0.001,
-        now + 0.4
+      // Duck the ordinary soundtrack while bringing the boss layer forward.
+      this.musicGain.gain.setValueAtTime(
+        this.bgmEnabled && this.enabled ? 0.22 : 0.0,
+        now
       );
+      this.musicGain.gain.linearRampToValueAtTime(0.055, now + transition);
+
+      this.bossMusicGain.gain.setValueAtTime(
+        wasActive ? 0.35 : 0.0,
+        now
+      );
+      this.bossMusicGain.gain.linearRampToValueAtTime(
+        enraged ? 0.40 : 0.35,
+        now + transition
+      );
+
+      // Restart the musical phrase cleanly at the transition boundary.
+      this.bgmStep = 0;
+      this.bgmNextStepTime = now + 0.05;
+
+      if (this.bgmIntervalId === null && this.enabled) {
+        this.bgmIntervalId = window.setInterval(
+          () => this.tickBgmScheduler(),
+          45
+        );
+      }
+
+      this.bossTransitioning = true;
+      window.setTimeout(() => {
+        this.bossTransitioning = false;
+      }, transition * 1000);
+    } else {
+      // Crossfade boss layer out and restore the normal soundtrack.
+      this.bossMusicGain.gain.setValueAtTime(
+        wasActive ? 0.35 : 0.0,
+        now
+      );
+      this.bossMusicGain.gain.linearRampToValueAtTime(0.0, now + transition);
+
+      this.musicGain.gain.setValueAtTime(
+        this.bgmEnabled && this.enabled ? 0.055 : 0.0,
+        now
+      );
+      this.musicGain.gain.linearRampToValueAtTime(
+        this.bgmEnabled && this.enabled ? 0.22 : 0.0,
+        now + transition
+      );
+
+      this.bgmStep = 0;
+      this.bgmNextStepTime = now + transition;
+
       if (!this.bgmEnabled && this.bgmIntervalId !== null) {
         clearInterval(this.bgmIntervalId);
         this.bgmIntervalId = null;
       }
+
+      this.bossTransitioning = true;
+      window.setTimeout(() => {
+        this.bossTransitioning = false;
+      }, transition * 1000);
     }
   }
 
@@ -237,7 +335,7 @@ export class SoundManager {
   private static scheduleBossRaidStep(step: number, time: number, enraged: boolean): void {
     if (!this.audioCtx || !this.bgmGain) return;
     const ctx = this.audioCtx;
-    const bgmOut = this.bgmGain;
+    const bgmOut = this.bossMusicGain;
 
     // 1. Driving Chromatic War Riff Bass (D1, Eb1, D1, F1, G1)
     const bossBass = [
@@ -621,7 +719,8 @@ export class SoundManager {
         setTimeout(() => this.playHorrorLaughter(0.75, -20), 120);
       }
       if (this.bgmEnabled && this.enabled) {
-        // Crossfade BGM to new theme pattern
+        // Restart the musical phrase without touching the bus gain.
+        // This prevents audible volume jumps during theme changes.
         this.bgmStep = 0;
         if (this.audioCtx) {
           this.bgmNextStepTime = this.audioCtx.currentTime + 0.05;
@@ -652,7 +751,7 @@ export class SoundManager {
   public static playHorrorShriek(intensity: number = 1.0, isBanshee: boolean = false): void {
     if (!this.enabled) return;
     this.initContext();
-    if (!this.audioCtx || !this.masterCompressor) return;
+    if (!this.audioCtx || !this.masterCompressor || !this.sfxGain || !this.ambienceGain) return;
 
     try {
       const ctx = this.audioCtx;
@@ -732,7 +831,7 @@ export class SoundManager {
         nGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
         noiseSrc.connect(nFilter);
         nFilter.connect(nGain);
-        nGain.connect(this.masterCompressor);
+        nGain.connect(this.ambienceGain);
         noiseSrc.start(now);
         noiseSrc.stop(now + duration + 0.05);
       }
@@ -746,9 +845,9 @@ export class SoundManager {
       subGain.gain.setValueAtTime(0.28 * intensity, now);
       subGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.75);
       sub.connect(subGain);
-      subGain.connect(this.masterCompressor);
+      subGain.connect(this.ambienceGain);
 
-      shriekFilter.connect(this.masterCompressor);
+      shriekFilter.connect(this.ambienceGain!);
 
       modOsc.start(now);
       carrierOsc.start(now);
@@ -770,7 +869,7 @@ export class SoundManager {
   public static playHorrorLaughter(intensity: number = 1.0, pitchShift: number = 0): void {
     if (!this.enabled) return;
     this.initContext();
-    if (!this.audioCtx || !this.masterCompressor) return;
+    if (!this.audioCtx || !this.masterCompressor || !this.sfxGain || !this.ambienceGain) return;
 
     try {
       const ctx = this.audioCtx;
@@ -806,8 +905,8 @@ export class SoundManager {
       tremOsc.start(now);
       tremOsc.stop(now + 1.2);
 
-      f1.connect(this.masterCompressor);
-      f2.connect(this.masterCompressor);
+      f1.connect(this.ambienceGain!);
+      f2.connect(this.ambienceGain!);
 
       syllables.forEach((s) => {
         const sTime = now + s.t;
@@ -877,7 +976,7 @@ export class SoundManager {
 
       src.connect(filter);
       filter.connect(gain);
-      gain.connect(this.masterCompressor);
+      gain.connect(this.ambienceGain);
 
       src.start(now);
       src.stop(now + 1.0);
@@ -909,7 +1008,7 @@ export class SoundManager {
       osc.connect(filter);
       osc2.connect(filter);
       filter.connect(gain);
-      gain.connect(this.masterCompressor);
+      gain.connect(this.ambienceGain);
       osc.start(now);
       osc2.start(now);
       osc.stop(now + 0.56);
@@ -945,7 +1044,7 @@ export class SoundManager {
         gain1.gain.setValueAtTime(0.28 * betBassBoost, now);
         gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
         osc1.connect(gain1);
-        gain1.connect(this.masterCompressor);
+        gain1.connect(this.sfxGain);
         osc1.start(now);
         osc1.stop(now + 0.10);
 
@@ -958,7 +1057,7 @@ export class SoundManager {
         gain2.gain.setValueAtTime(0.18, now);
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
         osc2.connect(gain2);
-        gain2.connect(this.masterCompressor);
+        gain2.connect(this.sfxGain);
         osc2.start(now);
         osc2.stop(now + 0.08);
 
@@ -971,7 +1070,7 @@ export class SoundManager {
         subGain.gain.setValueAtTime(0.35 * betBassBoost, now);
         subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
         subOsc.connect(subGain);
-        subGain.connect(this.masterCompressor);
+        subGain.connect(this.sfxGain);
         subOsc.start(now);
         subOsc.stop(now + 0.13);
 
@@ -988,7 +1087,7 @@ export class SoundManager {
         kickGain.gain.setValueAtTime(0.42 * betBassBoost, now);
         kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
         kickOsc.connect(kickGain);
-        kickGain.connect(this.masterCompressor);
+        kickGain.connect(this.sfxGain);
         kickOsc.start(now);
         kickOsc.stop(now + 0.17);
 
@@ -1004,7 +1103,7 @@ export class SoundManager {
         snapGain.gain.setValueAtTime(0.25, now);
         snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
         snapOsc.connect(snapGain);
-        snapGain.connect(this.masterCompressor);
+        snapGain.connect(this.sfxGain);
         snapOsc.start(now);
         snapOsc.stop(now + 0.04);
 
@@ -1020,7 +1119,7 @@ export class SoundManager {
           gain.gain.setValueAtTime((0.15 - idx * 0.03) * betBassBoost, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
           osc.connect(gain);
-          gain.connect(this.masterCompressor!);
+          gain.connect(this.sfxGain!);
           osc.start(now);
           osc.stop(now + 0.15);
         });
@@ -1034,7 +1133,7 @@ export class SoundManager {
         beamGain.gain.setValueAtTime(0.22 * betBassBoost, now);
         beamGain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
         beamOsc.connect(beamGain);
-        beamGain.connect(this.masterCompressor);
+        beamGain.connect(this.sfxGain);
         beamOsc.start(now);
         beamOsc.stop(now + 0.12);
 
@@ -1047,7 +1146,7 @@ export class SoundManager {
         sGain.gain.setValueAtTime(0.26 * betBassBoost, now);
         sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
         sub.connect(sGain);
-        sGain.connect(this.masterCompressor);
+        sGain.connect(this.sfxGain);
         sub.start(now);
         sub.stop(now + 0.14);
 
@@ -1062,7 +1161,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.26 * betBassBoost, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.12);
 
@@ -1074,7 +1173,7 @@ export class SoundManager {
         sGain.gain.setValueAtTime(0.3 * betBassBoost, now);
         sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
         sub.connect(sGain);
-        sGain.connect(this.masterCompressor);
+        sGain.connect(this.sfxGain);
         sub.start(now);
         sub.stop(now + 0.13);
       }
@@ -1118,7 +1217,7 @@ export class SoundManager {
         ringGain.gain.setValueAtTime(0.32, now);
         ringGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
         ringOsc.connect(ringGain);
-        ringGain.connect(this.masterCompressor);
+        ringGain.connect(this.sfxGain);
         ringOsc.start(now);
         ringOsc.stop(now + 0.17);
 
@@ -1130,7 +1229,7 @@ export class SoundManager {
         buzzGain.gain.setValueAtTime(0.24, now);
         buzzGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
         buzzOsc.connect(buzzGain);
-        buzzGain.connect(this.masterCompressor);
+        buzzGain.connect(this.sfxGain);
         buzzOsc.start(now);
         buzzOsc.stop(now + 0.13);
       }
@@ -1146,7 +1245,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.24, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.10);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.11);
 
@@ -1162,7 +1261,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.32, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.14);
 
@@ -1179,7 +1278,7 @@ export class SoundManager {
           gain.gain.setValueAtTime(0.2 - idx * 0.05, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
           osc.connect(gain);
-          gain.connect(this.masterCompressor!);
+          gain.connect(this.sfxGain!);
           osc.start(now);
           osc.stop(now + 0.13);
         });
@@ -1195,7 +1294,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.22, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.12);
       }
@@ -1238,7 +1337,7 @@ export class SoundManager {
 
       source.connect(filter);
       filter.connect(gain);
-      gain.connect(this.masterCompressor);
+      gain.connect(this.sfxGain);
 
       source.start(now);
       source.stop(now + 0.15);
@@ -1273,7 +1372,7 @@ export class SoundManager {
         subGain.gain.setValueAtTime(0.48, now);
         subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
         sub.connect(subGain);
-        subGain.connect(this.masterCompressor);
+        subGain.connect(this.sfxGain);
         sub.start(now);
         sub.stop(now + 0.29);
 
@@ -1286,7 +1385,7 @@ export class SoundManager {
         sweepGain.gain.setValueAtTime(0.32, now);
         sweepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
         sweep.connect(sweepGain);
-        sweepGain.connect(this.masterCompressor);
+        sweepGain.connect(this.sfxGain);
         sweep.start(now);
         sweep.stop(now + 0.25);
 
@@ -1304,7 +1403,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.38, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.19);
 
@@ -1317,7 +1416,7 @@ export class SoundManager {
         subGain.gain.setValueAtTime(0.4, now);
         subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
         sub.connect(subGain);
-        subGain.connect(this.masterCompressor);
+        subGain.connect(this.sfxGain);
         sub.start(now);
         sub.stop(now + 0.19);
 
@@ -1333,7 +1432,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.32, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.15);
 
@@ -1365,7 +1464,7 @@ export class SoundManager {
     gain1.gain.setValueAtTime(volume * 0.44, time);
     gain1.gain.exponentialRampToValueAtTime(0.001, time + 0.13);
     osc1.connect(gain1);
-    gain1.connect(this.masterCompressor);
+    gain1.connect(this.sfxGain);
     osc1.start(time);
     osc1.stop(time + 0.14);
 
@@ -1378,7 +1477,7 @@ export class SoundManager {
     gain2.gain.setValueAtTime(volume * 0.24, time);
     gain2.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
     osc2.connect(gain2);
-    gain2.connect(this.masterCompressor);
+    gain2.connect(this.sfxGain);
     osc2.start(time);
     osc2.stop(time + 0.09);
 
@@ -1391,7 +1490,7 @@ export class SoundManager {
     bounceGain.gain.setValueAtTime(volume * 0.18, bounceTime);
     bounceGain.gain.exponentialRampToValueAtTime(0.001, bounceTime + 0.06);
     bounceOsc.connect(bounceGain);
-    bounceGain.connect(this.masterCompressor);
+    bounceGain.connect(this.sfxGain);
     bounceOsc.start(bounceTime);
     bounceOsc.stop(bounceTime + 0.07);
 
@@ -1478,7 +1577,7 @@ export class SoundManager {
       pingGain.gain.setValueAtTime(0.38, now);
       pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
       pingOsc.connect(pingGain);
-      pingGain.connect(this.masterCompressor);
+      pingGain.connect(this.sfxGain);
       pingOsc.start(now);
       pingOsc.stop(now + 0.96);
 
@@ -1501,7 +1600,7 @@ export class SoundManager {
 
       hornOsc.connect(hornFilter);
       hornFilter.connect(hornGain);
-      hornGain.connect(this.masterCompressor);
+      hornGain.connect(this.sfxGain);
 
       hornOsc.start(now + 0.05);
       hornOsc.stop(now + 0.86);
@@ -1537,7 +1636,7 @@ export class SoundManager {
         sGain.gain.setValueAtTime(0.3, now);
         sGain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
         scream.connect(sGain);
-        sGain.connect(this.masterCompressor);
+        sGain.connect(this.sfxGain);
         scream.start(now);
         scream.stop(now + 1.05);
         return;
@@ -1552,7 +1651,7 @@ export class SoundManager {
       revGain.gain.setValueAtTime(0.32, now);
       revGain.gain.exponentialRampToValueAtTime(0.001, now + 0.40);
       revOsc.connect(revGain);
-      revGain.connect(this.masterCompressor);
+      revGain.connect(this.sfxGain);
       revOsc.start(now);
       revOsc.stop(now + 0.41);
 
@@ -1565,7 +1664,7 @@ export class SoundManager {
         sGain.gain.setValueAtTime(0.28, now + tOffset);
         sGain.gain.exponentialRampToValueAtTime(0.001, now + tOffset + 0.12);
         siren.connect(sGain);
-        sGain.connect(this.masterCompressor!);
+        sGain.connect(this.sfxGain!);
         siren.start(now + tOffset);
         siren.stop(now + tOffset + 0.13);
       });
@@ -1601,7 +1700,7 @@ export class SoundManager {
       subGain.gain.setValueAtTime(0.55, now);
       subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
       sub.connect(subGain);
-      subGain.connect(this.masterCompressor);
+      subGain.connect(this.sfxGain);
       sub.start(now);
       sub.stop(now + 0.46);
 
@@ -1638,7 +1737,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.3, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.40);
 
@@ -1658,7 +1757,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.05);
 
@@ -1672,7 +1771,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.18, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.05);
 
@@ -1686,7 +1785,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.22, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.09);
 
@@ -1700,7 +1799,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.09);
 
@@ -1726,7 +1825,7 @@ export class SoundManager {
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
         osc.connect(gain);
-        gain.connect(this.masterCompressor);
+        gain.connect(this.sfxGain);
         osc.start(now);
         osc.stop(now + 0.045);
       }
@@ -1748,7 +1847,7 @@ export class SoundManager {
       gain.gain.setValueAtTime(volume, time);
       gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
       osc.connect(gain);
-      gain.connect(this.masterCompressor);
+      gain.connect(this.sfxGain);
       osc.start(time);
       osc.stop(time + duration + 0.01);
     } catch {
@@ -1783,7 +1882,7 @@ export class SoundManager {
 
       source.connect(filter);
       filter.connect(gain);
-      gain.connect(this.masterCompressor);
+      gain.connect(this.sfxGain);
 
       source.start(time);
       source.stop(time + duration + 0.01);

@@ -71,10 +71,11 @@ export class BossRaidEvent {
       fontSize: 28,
       fontWeight: 'bold',
       fill: 0xffd700,
-      dropShadow: true,
-      dropShadowColor: '#000000',
-      dropShadowBlur: 4,
-      dropShadowDistance: 2
+      dropShadow: {
+        color: '#000000',
+        blur: 4,
+        distance: 2
+      }
     });
     this.announceText = new Text({ text: '', style: announceStyle });
     this.announceText.anchor.set(0.5);

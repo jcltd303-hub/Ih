@@ -441,11 +441,11 @@ export class WeaponController {
 
         // Lucky shot upgrade trigger (instant kill, super crit, or lucky hit triggers temporary turret overcharge)
         if (evalHit.isInstantKill || evalHit.isSuperCrit) {
-          PlayerProgressionManager.getInstance().triggerLuckyOvercharge(8);
-          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ LUCKY OVERCHARGE (8s)!', 0x00f0ff, true);
+          PlayerProgressionManager.getInstance().triggerLuckyOvercharge();
+          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ LUCKY OVERCHARGE (4.5s)!', 0x00f0ff, true);
         } else if (evalHit.isLuckyHit || (evalHit.isCrit && Math.random() < 0.25)) {
-          PlayerProgressionManager.getInstance().triggerLuckyOvercharge(5);
-          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ TURRET BOOST (5s)!', 0xffd700, true);
+          PlayerProgressionManager.getInstance().triggerLuckyOvercharge();
+          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ TURRET BOOST (4.5s)!', 0xffd700, true);
         }
 
         // Pay-per-hit payout
@@ -492,11 +492,11 @@ export class WeaponController {
 
           // Lucky kill upgrade: ~14% chance on any kill, or guaranteed on jackpot/boss kill
           if (killGamble.isJackpot || fishType === 'boss' || Math.random() < 0.14) {
-            PlayerProgressionManager.getInstance().triggerLuckyOvercharge(7);
+            PlayerProgressionManager.getInstance().triggerLuckyOvercharge();
             this.particleFX.spawnFloatingText(
               this.cannonX,
               this.cannonY - 45,
-              '⚡ LUCKY KILL TURRET OVERCHARGE (7s)!',
+              '⚡ LUCKY KILL TURRET OVERCHARGE (4.5s)!',
               0xffd700,
               true
             );

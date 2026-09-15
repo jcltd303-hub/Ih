@@ -129,7 +129,11 @@ export class AnimatedBackground {
         alpha: Math.random() * 0.6 + 0.2,
         baseAlpha: Math.random() * 0.5 + 0.3,
         phase: Math.random() * Math.PI * 2,
-        color: Math.random() > 0.3 ? 0x00ffcc : 0x38bdf8
+        // Light = clean cyan/teal bioluminescence.
+        // Dark = sparse toxic green/violet abyssal motes.
+        color: this.theme === 'dark'
+          ? (Math.random() > 0.55 ? 0x7c3aed : 0x22c55e)
+          : (Math.random() > 0.3 ? 0x00ffcc : 0x38bdf8)
       });
     }
   }
@@ -241,7 +245,7 @@ export class AnimatedBackground {
     this.causticsGraphic.clear();
 
     const isDark = this.theme === 'dark';
-    const causticColor = isDark ? 0x9333ea : 0x38bdf8;
+    const causticColor = isDark ? 0x5eead4 : 0x38bdf8;
     const baseAlpha = isDark ? 0.08 : 0.14;
 
     const cols = 7;
@@ -282,7 +286,7 @@ export class AnimatedBackground {
     this.godRaysGraphic.clear();
 
     const isDark = this.theme === 'dark';
-    const rayColor = isDark ? 0x7c3aed : 0xbae6fd;
+    const rayColor = isDark ? 0x365c59 : 0xbae6fd;
     const maxRayAlpha = isDark ? 0.07 : 0.13;
 
     for (const shaft of this.lightShafts) {
