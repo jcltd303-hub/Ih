@@ -24,8 +24,6 @@ export const GameConfig = {
   bossGracePeriodMs: 30000,
   /** Combat progress required before another boss raid can start. */
   bossProgressThreshold: 120,
-  bossGracePeriodMs: 30000,
-  bossProgressThreshold: 120,
 
   /** Small-fish school size range when a tetra wave rolls */
   schoolSizeMin: 2,

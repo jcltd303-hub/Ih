@@ -557,7 +557,7 @@ export class UIManager {
     this.soundBtn.addEventListener('click', () => this.cycleAudioMode());
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
     this.tableBadgeBtn?.addEventListener('click', () => this.showLobby());
-    document.getElementById('hud-level-btn')?.addEventListener('click', () => this.showProgressionModal());
+    document.getElementById('hud-level-btn')?.addEventListener('click', () => showProgressionModal(this.modalCtx()));
 
     // Subscribe to player progression updates
     if (!this.progressionUnsub) {

@@ -19,6 +19,7 @@ import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
 import { TableSelection } from '../../network/TableSelection';
+import type { TableInfo } from '../../network/TableSelection';
 import { TableSelectionManager } from '../../network/TableSelectionManager';
 
 export class GameScene {
@@ -164,7 +165,7 @@ export class GameScene {
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
 
-    const joinTable = (table: TableConfig) => {
+    const joinTable = (table: TableInfo) => {
       if (this.tableUnsub) {
         this.tableUnsub();
         this.tableUnsub = null;
@@ -311,7 +312,6 @@ export class GameScene {
     const currentTable = this.tableSelection.getCurrentTable();
     this.multiplayerTable.broadcastTableShot(
       currentTable.id,
-      this.activeTableId,
       uid,
       targetX,
       targetY,
