@@ -76,7 +76,6 @@ export class TableSelectionManager {
   private static instance: TableSelectionManager | null = null;
   private static readonly STORAGE_KEY = 'fish_frenzy_selected_table_id';
 
-  // Default to practice table as specified
   private currentTableId: string = 'table_practice';
   private listeners: TableChangeListener[] = [];
 
@@ -108,8 +107,9 @@ export class TableSelectionManager {
   }
 
   public isBossRaidAllowed(): boolean {
-    const active = this.getActiveTable();
-    return active.bossRaidEnabled && active.mode !== 'practice';
+    // Practice is deliberately boss-enabled so the default boot path can
+    // exercise and showcase the boss system without requiring auth/table setup.
+    return this.getActiveTable().bossRaidEnabled;
   }
 
   public async switchTable(tableId: string): Promise<{ success: boolean; reason?: string }> {
