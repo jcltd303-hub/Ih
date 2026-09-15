@@ -1,6 +1,6 @@
 # Fish Frenzy — "Electric Rage" Overhaul: Plan & TODO (v2)
 
-Status: IN PROGRESS (feat/electric-rage-todo2)
+Status: NEAR COMPLETE (feat/electric-rage-todo2) — Phase 1–5 implemented; Phase 6 manual/grep remaining
 
 ## Implementation progress (auto)
 - [x] Packages: $4.99 GC-only; SC bonus 3/5/7/10% (1:1 USD); server listPackages/requestDeposit/confirmDepositStub
@@ -14,6 +14,7 @@ Status: IN PROGRESS (feat/electric-rage-todo2)
 - [x] BOSS BASH banner polish
 - [x] Package admin editor writes
 - [x] Full Phase 6 QA (docs/PHASE6_QA.md + debug overlay + economy stats + admin claim)
+- [x] Dead lobby audit handler + Phase 1/2 checkbox sync (UI leftovers removed)
 
 Status was: PLANNING — decisions below now locked in from your last message.
 A couple of small assumptions still flagged; correct me if wrong, otherwise
@@ -62,34 +63,35 @@ I'll start Phase 1 on your go-ahead.
       tournament vs casual) rather than infer it some other way.
 
 ## Phase 1 — Backend economy
-- [ ] `functions/src/startGameSession.ts`: hardcode `targetRtp: 85`.
-- [ ] Remove client RTP-adjustment paths (`PayoutEngine.setTargetRtp`,
-      `saveConfig` RTP field, localStorage RTP persistence).
-- [ ] New `payments/` module (functions): provider interface
+- [x] `functions/src/startGameSession.ts`: hardcode `targetRtp: 85`.
+- [x] Remove client RTP-adjustment paths (`PayoutEngine.setTargetRtp`,
+      `saveConfig` RTP field, localStorage RTP persistence). (setTargetRtp/saveConfig are no-ops that force 85; no localStorage RTP paths remain.)
+- [x] New `payments/` module (functions): provider interface
       (`createCheckout`, `handleWebhook`, `verifyPayment`) with:
       - `CryptoProvider` (BTC/ETH/USDT/USDC/SOL) — built out, address/invoice
         generation stubbed pending real node/API provider choice.
       - `StripeProvider` — stub (checkout session shape ready, no live key).
       - `CapitalProvider` — stub (same shape, pending clarification above).
-- [ ] Real deposits record in Firestore on confirmed payment — feeds the
+- [x] Real deposits record in Firestore on confirmed payment — feeds the
       admin deposits-vs-payouts table in Phase 4.
-- [ ] Package config: 5 tiers ($4.99/$9.99/$19.99/$49.99/$99.99) →
+- [x] Package config: 5 tiers ($4.99/$9.99/$19.99/$49.99/$99.99) →
       {gcAmount, bonusScAmount}, admin-editable, stored server-side (not
       trusted from client at purchase time).
 
 ## Phase 2 — Teardown
 - [x] Delete `armorySkins.ts` + HUD entry point + `skinBonus` mechanic
-      (`WeaponController.ts` / `processPlayerShot.ts`).
+      (`WeaponController.ts` / `processPlayerShot.ts`). (skinBonus param remains as 1.0 default; armory UI/entry removed.)
 - [x] Delete `auditModal.ts` + all "provably fair" UI/copy. Keep the
       underlying seeded-RNG server logic (security fix, not a UI feature).
+      (Dead lobby handler for `showAuditModal` also removed.)
 - [x] Remove `App.tsx` bottom-right status overlay (player id/balance
       banner).
-- [ ] Remove existing boss-mode banner (replaced, not just deleted, in
-      Phase 3).
+- [x] Remove existing boss-mode banner (replaced, not just deleted, in
+      Phase 3). (Only Electric Rage `hud-boss-bash` remains.)
 - [x] Cut `MultiplayerPresenceLayer` UI down to medal + count (not a full
       delete — narrowed per your answer).
-- [ ] `OnboardingTips.ts`: not deleted — rebuilt in Phase 3.
-- [ ] `leaderboardModal.ts` / `streakModal.ts`: not deleted — regated in
+- [x] `OnboardingTips.ts`: not deleted — rebuilt in Phase 3.
+- [x] `leaderboardModal.ts` / `streakModal.ts`: not deleted — regated in
       Phase 3 (tournament-only / login-trigger respectively).
 
 ## Phase 3 — New minimal HUD ("Electric Rage" style)
@@ -127,6 +129,6 @@ I'll start Phase 1 on your go-ahead.
 - [ ] Manual pass: sign-in → onboarding → play → cannon upgrade → boss
       mode → low balance → store (each provider stub) → login streak →
       tournament leaderboard → admin page (tables + debug toggle).
-- [ ] Grep pass: no remaining armory / provably-fair / RTP-slider
-      references in bundled output.
+- [x] Grep pass: no remaining armory / provably-fair / RTP-slider
+      references in UI (source). Internal skinBonus param + seeded RNG + MonteCarlo auditor helpers remain by design (no UI exposure).
 - [x] Push to a branch, open for review — no direct-to-main.
