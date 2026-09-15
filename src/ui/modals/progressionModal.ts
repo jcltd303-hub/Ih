@@ -7,10 +7,10 @@ export function showProgressionModal(ctx: ModalContext): void {
   const prog = PlayerProgressionManager.getInstance().getState();
 
   ctx.modalContainer.innerHTML = `
-    <div style="background: linear-gradient(160deg, #0b1224 0%, #0f172a 40%, #081018 100%); border: 2px solid #a855f7; border-radius: 18px; padding: 22px; max-width: 580px; width: 100%; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0,0,0,0.85); max-height: 90vh; overflow-y: auto;">
+    <div style="background: #0b1224; border: 2px solid #a855f7; border-radius: 0; padding: 22px; max-width: 580px; width: 100%; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0,0,0,0.85); max-height: 90vh; overflow-y: auto;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="font-size: 24px; background: rgba(168,85,247,0.2); border: 1.5px solid #a855f7; border-radius: 10px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+          <div style="font-size: 24px; background: rgba(168,85,247,0.2); border: 1.5px solid #a855f7; border-radius: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
             ⭐
           </div>
           <div>
@@ -22,7 +22,7 @@ export function showProgressionModal(ctx: ModalContext): void {
       </div>
 
       <!-- CURRENT LEVEL HERO CARD -->
-      <div style="background: linear-gradient(135deg, rgba(30,27,75,0.85), rgba(15,23,42,0.95)); border: 1.5px solid #a855f7; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 0 20px rgba(168,85,247,0.2);">
+      <div style="background: rgba(30,27,75,0.85); border: 1.5px solid #a855f7; border-radius: 0; padding: 16px; margin-bottom: 16px; box-shadow: 3px 3px 0 #020617;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div>
             <span style="font-size: 11px; font-weight: 900; padding: 3px 8px; border-radius: 6px; background: #a855f7; color: #ffffff; letter-spacing: 0.5px;">
@@ -45,13 +45,13 @@ export function showProgressionModal(ctx: ModalContext): void {
             <span>PROGRESSION TO NEXT TIER</span>
             <span>${prog.currentLevelXp} / ${prog.nextLevelXp} XP (${prog.progressPct}%)</span>
           </div>
-          <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; border: 1px solid #334155;">
-            <div style="width: ${prog.progressPct}%; height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899); border-radius: 4px; transition: width 0.3s ease;"></div>
+          <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 0; overflow: hidden; border: 1px solid #334155;">
+            <div style="width: ${prog.progressPct}%; height: 100%; background: #a855f7; border-radius: 0; transition: width 0.3s ease;"></div>
           </div>
         </div>
 
         <!-- Overcharge / Lucky Shot Feature Info -->
-        <div style="margin-top: 12px; padding: 10px 12px; background: rgba(15,23,42,0.8); border: 1px solid #475569; border-radius: 8px; font-size: 11px; line-height: 1.45;">
+        <div style="margin-top: 12px; padding: 10px 12px; background: rgba(15,23,42,0.8); border: 1px solid #475569; border-radius: 0; font-size: 11px; line-height: 1.45;">
           <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-weight: 800; color: #fbbf24;">
             <span>⚡ LUCKY SHOT OVERCHARGE &amp; BOSS OVERDRIVE</span>
           </div>
@@ -72,7 +72,7 @@ export function showProgressionModal(ctx: ModalContext): void {
           const isCurrent = prog.level === m.level;
           return `
             <div style="
-              display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 10px;
+              display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 0;
               background: ${isCurrent ? 'rgba(168,85,247,0.15)' : isUnlocked ? 'rgba(30,41,59,0.7)' : '#0f172a'};
               border: 1px solid ${isCurrent ? '#a855f7' : isUnlocked ? '#334155' : '#1e293b'};
               opacity: ${isUnlocked ? '1' : '0.6'};
@@ -111,7 +111,7 @@ export function showProgressionModal(ctx: ModalContext): void {
       </div>
 
       <div style="display: flex; justify-content: flex-end;">
-        <button id="prog-done-btn" style="background: #a855f7; border: none; color: #ffffff; padding: 9px 20px; border-radius: 8px; font-weight: 800; font-size: 12px; cursor: pointer; letter-spacing: 0.5px;">
+        <button id="prog-done-btn" style="background: #a855f7; border: none; color: #ffffff; padding: 9px 20px; border-radius: 0; font-weight: 800; font-size: 12px; cursor: pointer; letter-spacing: 0.5px;">
           RESUME COMBAT
         </button>
       </div>

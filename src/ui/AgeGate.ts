@@ -20,7 +20,7 @@ export function showAgeGate(root: HTMLElement): Promise<boolean> {
       background:rgba(2,6,18,0.94);font-family:ui-monospace,monospace;color:#e2e8f0;padding:20px;
     `;
     el.innerHTML = `
-      <div style="max-width:420px;background:#0f172a;border:1px solid #334155;border-radius:14px;padding:22px;">
+      <div style="max-width:420px;background:#0f172a;border:1px solid #334155;border-radius:0;padding:22px;">
         <div style="font-size:11px;color:#fbbf24;letter-spacing:2px;font-weight:800;margin-bottom:8px;">AGE CONFIRMATION</div>
         <p style="font-size:13px;line-height:1.5;color:#cbd5e1;margin:0 0 12px;">
           Fish Frenzy is intended for adults (18+). SC balances are demo/promotional unless your operator has completed legal review.

@@ -40,7 +40,7 @@ export async function showStoreModal(ctx: ModalContext): Promise<void> {
 
   const render = () => {
     ctx.modalContainer.innerHTML = `
-      <div style="background:linear-gradient(160deg,#0b1224,#0f172a);border:2px solid #22d3ee;border-radius:16px;padding:20px;max-width:520px;width:100%;color:#e2e8f0;max-height:90vh;overflow-y:auto;font-family:ui-monospace,monospace;">
+      <div style="background:#0b1224;border:2px solid #22d3ee;border-radius:0;padding:20px;max-width:520px;width:100%;color:#e2e8f0;max-height:90vh;overflow-y:auto;font-family:ui-monospace,monospace;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h2 style="margin:0;font-size:18px;font-weight:900;color:#67e8f9;">STORE</h2>
           <button id="modal-close-btn" style="background:transparent;border:none;color:#94a3b8;font-size:20px;cursor:pointer;">✕</button>
@@ -52,7 +52,7 @@ export async function showStoreModal(ctx: ModalContext): Promise<void> {
           ${['crypto', 'stripe', 'capital']
             .map(
               (p) => `
-            <button type="button" class="store-prov" data-p="${p}" style="padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;
+            <button type="button" class="store-prov" data-p="${p}" style="padding:8px 12px;border-radius:0;cursor:pointer;font-weight:800;font-size:11px;
               border:2px solid ${provider === p ? '#22d3ee' : '#334155'};
               background:${provider === p ? 'rgba(34,211,238,0.15)' : '#1e293b'};
               color:${provider === p ? '#67e8f9' : '#94a3b8'};">${p.toUpperCase()}</button>`
@@ -65,7 +65,7 @@ export async function showStoreModal(ctx: ModalContext): Promise<void> {
             ${['BTC', 'ETH', 'USDT', 'USDC', 'SOL']
               .map(
                 (a) => `
-              <button type="button" class="store-asset" data-a="${a}" style="padding:6px 10px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;
+              <button type="button" class="store-asset" data-a="${a}" style="padding:6px 10px;border-radius:0;cursor:pointer;font-size:10px;font-weight:700;
                 border:1px solid ${cryptoAsset === a ? '#a78bfa' : '#334155'};
                 background:${cryptoAsset === a ? 'rgba(167,139,250,0.2)' : '#0f172a'};
                 color:#e2e8f0;">${a}</button>`
@@ -79,7 +79,7 @@ export async function showStoreModal(ctx: ModalContext): Promise<void> {
             .map((t) => {
               const sc = t.bonusScAmount ?? 0;
               return `
-            <button type="button" class="store-buy" data-id="${t.id}" style="text-align:left;padding:12px 14px;border-radius:12px;border:1px solid #334155;background:#1e293b;cursor:pointer;color:#fff;">
+            <button type="button" class="store-buy" data-id="${t.id}" style="text-align:left;padding:12px 14px;border-radius:0;border:1px solid #334155;background:#1e293b;cursor:pointer;color:#fff;">
               <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div>
                   <div style="font-weight:900;color:#67e8f9;">${t.label || t.id}</div>

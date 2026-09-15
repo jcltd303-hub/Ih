@@ -118,7 +118,7 @@ export class UIManager {
       padding: '20px',
       boxSizing: 'border-box',
       background:
-        'radial-gradient(ellipse at 50% 20%, rgba(0,80,120,.55), rgba(2,6,14,.98) 70%)',
+        '#02060e',
       color: '#fff',
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     });
@@ -143,10 +143,9 @@ export class UIManager {
           overflow: auto;
           box-sizing: border-box;
           padding: 20px 16px 16px;
-          border-radius: 22px;
+          border-radius: 0;
           background:
-            radial-gradient(ellipse at 50% 0%, rgba(56,189,248,.25), transparent 55%),
-            linear-gradient(180deg, #0c4a6e 0%, #082f49 40%, #0a1628 100%);
+            #082f49;
           box-shadow:
             0 0 0 5px #fbbf24,
             0 0 0 10px #0ea5e9,
@@ -156,7 +155,7 @@ export class UIManager {
         }
         #fish-frenzy-start .ff-btn {
           border: none;
-          border-radius: 16px;
+          border-radius: 0;
           cursor: pointer;
           font-weight: 900;
           letter-spacing: 0.04em;
@@ -170,33 +169,33 @@ export class UIManager {
           filter: brightness(.96);
         }
         #fish-frenzy-start .ff-btn-cyan {
-          background: linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 55%, #0284c7 100%);
+          background: #0ea5e9;
           color: #0c4a6e;
           text-shadow: 0 1px 0 rgba(255,255,255,.35);
         }
         #fish-frenzy-start .ff-btn-pink {
-          background: linear-gradient(180deg, #f9a8d4 0%, #ec4899 55%, #db2777 100%);
+          background: #ec4899;
           color: #831843;
           text-shadow: 0 1px 0 rgba(255,255,255,.3);
         }
         #fish-frenzy-start .ff-btn-green {
-          background: linear-gradient(180deg, #6ee7b7 0%, #10b981 55%, #059669 100%);
+          background: #10b981;
           color: #064e3b;
         }
         #fish-frenzy-start .ff-btn-slate {
-          background: linear-gradient(180deg, #94a3b8 0%, #475569 60%, #334155 100%);
+          background: #475569;
           color: #f8fafc;
         }
         #fish-frenzy-start .ff-btn-purple {
-          background: linear-gradient(180deg, #c4b5fd 0%, #8b5cf6 55%, #7c3aed 100%);
+          background: #8b5cf6;
           color: #2e1065;
         }
         #fish-frenzy-start .ff-play {
           width: 100%;
           padding: 18px 14px;
           border: none;
-          border-radius: 18px;
-          background: linear-gradient(180deg, #fef08a 0%, #facc15 40%, #eab308 100%);
+          border-radius: 0;
+          background: #facc15;
           color: #713f12;
           font-size: 20px;
           font-weight: 900;
@@ -217,7 +216,7 @@ export class UIManager {
           font-weight: 900;
           letter-spacing: 0.02em;
           margin-bottom: 4px;
-          background: linear-gradient(180deg, #67e8f9, #22d3ee 30%, #fbbf24 70%, #f472b6);
+          background: #22d3ee;
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
@@ -545,8 +544,8 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
       </div>
       <style>
         @keyframes bossFrenzyPulse {
-          from { transform: scale(1); filter: brightness(1) drop-shadow(0 0 8px #22d3ee); }
-          to { transform: scale(1.08); filter: brightness(1.35) drop-shadow(0 0 22px #ff0033); }
+          from { opacity: .92; }
+          to { opacity: 1; }
         }
       </style>
 
