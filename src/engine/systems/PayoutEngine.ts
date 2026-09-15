@@ -124,8 +124,14 @@ export class PayoutEngine {
     if (typeof rtp === 'number' && Number.isFinite(rtp)) {
       this.config.targetRtp = Math.min(90, Math.max(85, rtp));
     }
-    if (typeof maxLifetimeRtpGuard === 'number') {
-      this.config.maxLifetimeRtpGuard = maxLifetimeRtpGuard;
+    if (
+      typeof maxLifetimeRtpGuard === 'number' &&
+      Number.isFinite(maxLifetimeRtpGuard)
+    ) {
+      this.config.maxLifetimeRtpGuard = Math.min(
+        150,
+        Math.max(90, maxLifetimeRtpGuard)
+      );
     }
   }
 
