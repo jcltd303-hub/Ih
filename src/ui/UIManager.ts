@@ -99,7 +99,7 @@ export class UIManager {
     this.container.style.visibility = 'hidden';
   }
 
-  /** Full-screen cyber title card with Play CTA */
+  /** Full-screen arcade title card with Play CTA */
   public showStartScreen(): void {
     if (this.startScreenEl) return;
 
@@ -115,313 +115,126 @@ export class UIManager {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '24px',
+      padding: '20px',
       boxSizing: 'border-box',
       background:
-        'radial-gradient(circle at 50% 35%, rgba(25,55,75,.72), rgba(3,7,13,.98) 72%)',
+        'radial-gradient(ellipse at 50% 20%, rgba(0,80,120,.55), rgba(2,6,14,.98) 70%)',
       color: '#fff',
-      fontFamily: 'system-ui, sans-serif',
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     });
 
     this.startScreenEl.innerHTML = `
-      <div style="
-        width:min(560px,100%);
-        max-height:calc(100vh - 48px);
-        overflow:auto;
-        box-sizing:border-box;
-        padding:28px;
-        border:1px solid rgba(100,220,255,.35);
-        border-radius:20px;
-        background:rgba(5,12,20,.92);
-        box-shadow:0 0 50px rgba(0,180,255,.16);
-        text-align:center;
-      ">
-        <div style="
-          font-size:11px;
-          letter-spacing:.22em;
-          opacity:.65;
-          margin-bottom:8px;
-        ">CYBER TRENCH ARCADE</div>
-
-        <div style="
-          font-size:clamp(34px,8vw,58px);
-          line-height:.95;
-          font-weight:900;
-          letter-spacing:.04em;
-          margin-bottom:10px;
-        ">FISH FRENZY</div>
-
-        <div style="
-          font-size:13px;
-          opacity:.72;
-          margin-bottom:22px;
-        ">ENTER THE TRENCH · LOAD YOUR WALLET · PLAY</div>
-
-        <div id="ff-auth-status" style="
-          padding:10px 12px;
-          border-radius:10px;
-          background:rgba(255,255,255,.05);
-          font-size:12px;
-          margin-bottom:16px;
-        "></div>
-
-        <div style="
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:10px;
-          margin-bottom:16px;
-        ">
-          <div style="
-            padding:14px;
-            border-radius:12px;
-            background:rgba(255,190,0,.08);
-            border:1px solid rgba(255,190,0,.2);
-          ">
-            <div style="font-size:10px;opacity:.6;letter-spacing:.12em;">GOLD COINS</div>
-            <div id="ff-lobby-gc" style="font-size:24px;font-weight:800;">—</div>
-          </div>
-
-          <div style="
-            padding:14px;
-            border-radius:12px;
-            background:rgba(0,220,255,.08);
-            border:1px solid rgba(0,220,255,.2);
-          ">
-            <div style="font-size:10px;opacity:.6;letter-spacing:.12em;">SWEEPSTAKES COINS</div>
-            <div id="ff-lobby-sc" style="font-size:24px;font-weight:800;">—</div>
-          </div>
-        </div>
-
-        <div style="
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:10px;
-          margin-bottom:12px;
-        ">
-          <button id="ff-deposit" style="
-            padding:13px;
-            border-radius:10px;
-            border:1px solid rgba(0,230,255,.4);
-            background:rgba(0,180,255,.13);
-            color:#fff;
-            font-weight:800;
-            cursor:pointer;
-          ">DEPOSIT</button>
-
-          <button id="ff-withdraw" style="
-            padding:13px;
-            border-radius:10px;
-            border:1px solid rgba(255,120,180,.4);
-            background:rgba(255,80,150,.10);
-            color:#fff;
-            font-weight:800;
-            cursor:pointer;
-          ">WITHDRAW</button>
-        </div>
-
-        <div id="ff-wallet-status" style="
-          min-height:18px;
-          margin:6px 0 14px;
-          font-size:11px;
-          opacity:.72;
-        "></div>
-
-        <!-- LOBBY SETTINGS: AUDIO & THEME -->
-        <style>
-          @keyframes ff-insistent-bounce {
-            0% {
-              transform: translateY(-8px) scale(0.95);
-              filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.6));
-            }
-            50% {
-              transform: translateY(6px) scale(1.22);
-              filter: drop-shadow(0 0 18px rgba(0, 255, 204, 1)) drop-shadow(0 0 28px rgba(255, 215, 0, 0.9));
-            }
-            100% {
-              transform: translateY(-8px) scale(0.95);
-              filter: drop-shadow(0 0 6px rgba(0, 255, 204, 0.6));
-            }
-          }
-          @keyframes ff-pulse-border {
-            0% { box-shadow: 0 0 12px rgba(0, 220, 255, 0.3), inset 0 0 10px rgba(0, 220, 255, 0.1); }
-            100% { box-shadow: 0 0 28px rgba(0, 255, 204, 0.65), inset 0 0 18px rgba(0, 255, 204, 0.25); }
-          }
-          @keyframes ff-hand-beacon {
-            0% { transform: scale(0.85); opacity: 0.85; }
-            100% { transform: scale(1.6); opacity: 0; }
-          }
-        </style>
-
-        <div style="
-          padding: 12px 14px;
-          border-radius: 12px;
-          background: rgba(15, 23, 42, 0.85);
-          border: 1px solid rgba(56, 189, 248, 0.3);
-          margin-bottom: 14px;
-          text-align: left;
-        ">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.15em; color: #38bdf8;">
-              LOBBY SETTINGS · AUDIO &amp; ENVIRONMENT
-            </div>
-            <div style="font-size: 10px; color: #94a3b8;" id="ff-active-theme-label">CAN-TECH THEME</div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-            <button id="ff-lobby-bgm" style="
-              padding: 9px 12px;
-              border-radius: 8px;
-              border: 1.5px solid ${SoundManager.isBgmEnabled() ? '#00ffcc' : '#475569'};
-              background: ${SoundManager.isBgmEnabled() ? 'rgba(0, 255, 204, 0.18)' : 'rgba(30, 41, 59, 0.8)'};
-              color: ${SoundManager.isBgmEnabled() ? '#00ffcc' : '#94a3b8'};
-              font-size: 11px;
-              font-weight: 800;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 6px;
-            ">
-              <span>🎵</span> <span id="ff-lobby-bgm-text">MUSIC: ${SoundManager.isBgmEnabled() ? 'ON' : 'OFF'}</span>
-            </button>
-
-            <button id="ff-lobby-sfx" style="
-              padding: 9px 12px;
-              border-radius: 8px;
-              border: 1.5px solid ${SoundManager.isSoundEnabled() ? '#38bdf8' : '#475569'};
-              background: ${SoundManager.isSoundEnabled() ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.8)'};
-              color: ${SoundManager.isSoundEnabled() ? '#38bdf8' : '#94a3b8'};
-              font-size: 11px;
-              font-weight: 800;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 6px;
-            ">
-              <span>🔊</span> <span id="ff-lobby-sfx-text">SFX: ${SoundManager.isSoundEnabled() ? 'ON' : 'OFF'}</span>
-            </button>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <button data-theme="can-tech" id="ff-theme-can" style="
-              padding: 8px 10px;
-              border-radius: 8px;
-              border: 1.5px solid #00d9ff;
-              background: rgba(0, 217, 255, 0.22);
-              color: #ffffff;
-              font-size: 11px;
-              font-weight: 800;
-              cursor: pointer;
-            ">⚡ CAN-TECH (ARCADE)</button>
-
-            <button data-theme="horror" id="ff-theme-horror" style="
-              padding: 8px 10px;
-              border-radius: 8px;
-              border: 1.5px solid rgba(255, 60, 80, 0.35);
-              background: rgba(255, 60, 80, 0.08);
-              color: #ff99aa;
-              font-size: 11px;
-              font-weight: 800;
-              cursor: pointer;
-            ">🩸 HORROR (DREAD)</button>
-          </div>
-        </div>
-
-        <!-- INTRO TUTORIAL WITH INSISTENT HAND ICON PULSING ABOVE -->
-        <div id="ff-intro-tutorial" style="
-          position: relative;
-          margin: 14px 0 10px;
-          padding: 14px 16px;
-          border-radius: 14px;
-          background: linear-gradient(135deg, rgba(0, 220, 255, 0.14), rgba(16, 185, 129, 0.12));
-          border: 1.5px solid #00ffcc;
-          animation: ff-pulse-border 1.5s infinite alternate ease-in-out;
+      <style>
+        @keyframes ff-hand-bounce {
+          0% { transform: translateY(-6px) scale(0.95); }
+          100% { transform: translateY(4px) scale(1.08); }
+        }
+        @keyframes ff-hand-glow {
+          0% { filter: drop-shadow(0 0 4px #00ffcc); }
+          100% { filter: drop-shadow(0 0 14px #00ffcc) drop-shadow(0 0 22px #22d3ee); }
+        }
+        @keyframes ff-arcade-pulse {
+          0% { box-shadow: 0 0 12px rgba(0,255,204,.35), 0 4px 0 #0e7490, 0 8px 0 #083344; }
+          100% { box-shadow: 0 0 28px rgba(0,255,204,.7), 0 4px 0 #0e7490, 0 8px 0 #083344; }
+        }
+        #fish-frenzy-start .ff-arcade-card {
+          width: min(420px, 100%);
+          max-height: calc(100vh - 40px);
+          overflow: auto;
+          box-sizing: border-box;
+          padding: 22px 20px 18px;
+          border: 4px solid #22d3ee;
+          border-radius: 6px;
+          background: linear-gradient(180deg, #0a1628 0%, #061018 100%);
+          box-shadow: 0 0 0 2px #083344, 0 12px 40px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06);
           text-align: center;
-        ">
-          <div style="
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 10px;
-            font-weight: 900;
-            letter-spacing: 0.16em;
-            color: #00ffcc;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-          ">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#00ffcc;box-shadow:0 0 10px #00ffcc;"></span>
-            TUTORIAL BRIEFING · CADET PROTOCOL
-          </div>
+        }
+        #fish-frenzy-start .ff-bevel {
+          border: 3px solid #334155;
+          border-top-color: #64748b;
+          border-left-color: #475569;
+          border-bottom-color: #0f172a;
+          border-right-color: #0f172a;
+          background: #1e293b;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+        }
+        #fish-frenzy-start .ff-play {
+          width: 100%;
+          padding: 16px 12px;
+          border: 3px solid #00ffcc;
+          border-radius: 4px;
+          background: linear-gradient(180deg, #22d3ee 0%, #0891b2 45%, #0e7490 100%);
+          color: #021018;
+          font-size: 16px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          cursor: pointer;
+          text-transform: uppercase;
+          animation: ff-arcade-pulse 1.4s ease-in-out infinite alternate;
+          position: relative;
+        }
+        #fish-frenzy-start .ff-play:active { transform: translateY(2px); }
+      </style>
 
-          <div id="ff-tutorial-text" style="
-            font-size: 13px;
-            font-weight: 700;
-            color: #f8fafc;
-            line-height: 1.4;
-            margin-bottom: 8px;
-          ">
-            Click the button directly under the insistent pulsing hand below to begin!
-          </div>
+      <div class="ff-arcade-card">
+        <div style="font-size:10px; letter-spacing:.28em; color:#22d3ee; font-weight:800; margin-bottom:6px;">ARCADE · SWEEPSTAKES</div>
+        <div style="font-size:clamp(32px,9vw,48px); line-height:.92; font-weight:900; letter-spacing:.06em; margin-bottom:6px;
+          text-shadow:0 0 20px rgba(34,211,238,.45), 0 3px 0 #0c4a6e;">FISH FRENZY</div>
+        <div style="font-size:11px; color:#94a3b8; margin-bottom:14px; letter-spacing:.08em;">LOAD WALLET · AIM · HOLD TO FIRE</div>
 
-          <!-- The insistent hand icon pulsing above the button -->
-          <div id="ff-insistent-hand-container" style="
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            margin-top: 4px;
-            cursor: pointer;
-          ">
-            <div style="position: relative; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;">
-              <div style="
-                position: absolute;
-                inset: 0;
-                border-radius: 50%;
-                background: rgba(0, 255, 204, 0.3);
-                animation: ff-hand-beacon 1.2s infinite ease-out;
-              "></div>
-              <div id="ff-insistent-hand" style="
-                font-size: 38px;
-                line-height: 1;
-                display: inline-block;
-                animation: ff-insistent-bounce 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-                user-select: none;
-              ">👇</div>
-            </div>
-            <div style="
-              font-size: 10px;
-              font-weight: 900;
-              letter-spacing: 0.2em;
-              color: #00ffcc;
-              text-shadow: 0 0 10px rgba(0, 255, 204, 0.85);
-              margin-top: 2px;
-            ">CLICK BUTTON UNDER HAND</div>
+        <div id="ff-auth-row" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; margin-bottom:12px;">
+          <div id="ff-auth-status" class="ff-bevel" style="padding:8px 12px; border-radius:4px; font-size:11px; font-weight:700; color:#e2e8f0; flex:1; min-width:140px;"></div>
+          <button id="ff-auth-action" type="button" class="ff-bevel" style="padding:8px 12px; border-radius:4px; font-size:11px; font-weight:800; color:#ecfeff; cursor:pointer; border-color:#22d3ee; background:#0e7490;">SIGN IN</button>
+        </div>
+
+        <div style="display:flex; justify-content:center; gap:16px; margin-bottom:12px; font-variant-numeric:tabular-nums;">
+          <div style="text-align:center;">
+            <div style="font-size:9px; letter-spacing:.14em; color:#64748b;">GC</div>
+            <div id="ff-lobby-gc" style="font-size:15px; font-weight:800; color:#fbbf24;">—</div>
+          </div>
+          <div style="width:1px; background:#334155;"></div>
+          <div style="text-align:center;">
+            <div style="font-size:9px; letter-spacing:.14em; color:#64748b;">SC</div>
+            <div id="ff-lobby-sc" style="font-size:15px; font-weight:800; color:#67e8f9;">—</div>
           </div>
         </div>
 
-        <button id="ff-play" style="
-          width:100%;
-          padding:17px;
-          border:2px solid #00ffcc;
-          border-radius:12px;
-          background:linear-gradient(135deg,#00d9ff,#176cff);
-          color:#001018;
-          font-size:18px;
-          font-weight:900;
-          letter-spacing:.08em;
-          cursor:pointer;
-          box-shadow:0 0 35px rgba(0,220,255,.45);
-          transition:transform 0.1s ease, box-shadow 0.2s ease;
-        ">▶ ENTER TRENCH · START HUNT</button>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+          <button id="ff-deposit" type="button" class="ff-bevel" style="padding:10px; border-radius:4px; font-weight:800; font-size:11px; color:#ecfeff; cursor:pointer; border-color:#22d3ee;">DEPOSIT</button>
+          <button id="ff-withdraw" type="button" class="ff-bevel" style="padding:10px; border-radius:4px; font-weight:800; font-size:11px; color:#fce7f3; cursor:pointer; border-color:#f472b6;">WITHDRAW</button>
+        </div>
+        <div id="ff-wallet-status" style="min-height:16px; margin:0 0 10px; font-size:10px; color:#64748b;"></div>
 
-        <div style="
-          margin-top:16px;
-          font-size:10px;
-          line-height:1.5;
-          opacity:.45;
-        ">
-          Hold to fire · Stake in Lobby · Wallet transactions are processed server-side · Terms
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;">
+          <button id="ff-theme-open" type="button" class="ff-bevel" style="padding:10px; border-radius:4px; font-weight:800; font-size:11px; color:#e2e8f0; cursor:pointer;">🎨 THEME</button>
+          <div class="ff-bevel" style="padding:10px; border-radius:4px; font-size:10px; color:#94a3b8; display:flex; align-items:center; justify-content:center;">
+            Audio in-game ↑
+          </div>
+        </div>
+
+        <div style="position:relative; margin-bottom:6px;">
+          <div id="ff-train-hand" style="
+            position:absolute; left:50%; bottom:100%; transform:translateX(-50%);
+            font-size:34px; line-height:1; pointer-events:none; z-index:2;
+            animation: ff-hand-bounce 0.7s ease-in-out infinite alternate, ff-hand-glow 0.7s ease-in-out infinite alternate;
+            margin-bottom:2px;
+          ">👇</div>
+          <button id="ff-play" type="button" class="ff-play">▶ START GAME</button>
+        </div>
+
+        <div style="margin-top:12px; font-size:9px; line-height:1.45; color:#475569;">
+          Hold to fire · Stake in Lobby · Server-side wallet
+        </div>
+      </div>
+
+      <div id="ff-theme-modal" style="display:none; position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,.72); align-items:center; justify-content:center; padding:20px;">
+        <div class="ff-arcade-card" style="width:min(340px,100%); max-height:none;">
+          <div style="font-size:12px; letter-spacing:.2em; color:#22d3ee; font-weight:900; margin-bottom:14px;">SELECT THEME</div>
+          <div style="display:grid; gap:10px;">
+            <button id="ff-theme-light" type="button" class="ff-bevel" style="padding:14px; border-radius:4px; font-weight:900; font-size:13px; color:#ecfeff; cursor:pointer; border-color:#22d3ee; background:#0e7490;">☀ LIGHT</button>
+            <button id="ff-theme-dark" type="button" class="ff-bevel" style="padding:14px; border-radius:4px; font-weight:900; font-size:13px; color:#fecaca; cursor:pointer; border-color:#f43f5e; background:#3f0a12;">☾ DARK</button>
+            <button id="ff-theme-close" type="button" class="ff-bevel" style="padding:10px; border-radius:4px; font-weight:700; font-size:11px; color:#94a3b8; cursor:pointer;">CLOSE</button>
+          </div>
         </div>
       </div>
     `;
@@ -433,27 +246,35 @@ export class UIManager {
     const gcEl = root.querySelector<HTMLElement>('#ff-lobby-gc');
     const scEl = root.querySelector<HTMLElement>('#ff-lobby-sc');
     const authEl = root.querySelector<HTMLElement>('#ff-auth-status');
+    const authBtn = root.querySelector<HTMLButtonElement>('#ff-auth-action');
     const statusEl = root.querySelector<HTMLElement>('#ff-wallet-status');
+    const themeModal = root.querySelector<HTMLElement>('#ff-theme-modal');
 
-    const renderWallet = () => {
-      const b = wallet.getBalances();
-
-      if (gcEl) gcEl.textContent = b.goldCoins.toLocaleString();
-      if (scEl) scEl.textContent = b.sweepstakesCoins.toLocaleString();
-
+    const renderAuth = () => {
+      const state = AuthManager.getInstance().getState();
+      const signedIn = !!(state.user && !state.isAnonymous);
       if (authEl) {
-        const auth = AuthManager.getInstance();
-        const state = auth.getState();
-
-        authEl.textContent = state.displayName
+        authEl.textContent = signedIn
           ? `SIGNED IN · ${state.displayName}`
-          : 'GUEST / LOCAL SESSION';
+          : state.displayName
+            ? `GUEST · ${state.displayName}`
+            : 'GUEST SESSION';
+      }
+      if (authBtn) {
+        authBtn.textContent = signedIn ? 'LOG OUT' : 'SIGN IN / SIGN UP';
+        authBtn.style.background = signedIn ? '#1e293b' : '#0e7490';
+        authBtn.style.borderColor = signedIn ? '#64748b' : '#22d3ee';
       }
     };
 
-    const unsubscribeWallet = wallet.subscribe(renderWallet);
+    const renderWallet = () => {
+      const b = wallet.getBalances();
+      if (gcEl) gcEl.textContent = b.goldCoins.toLocaleString();
+      if (scEl) scEl.textContent = b.sweepstakesCoins.toLocaleString();
+      renderAuth();
+    };
 
-    // Keep the subscription attached to this lobby only.
+    const unsubscribeWallet = wallet.subscribe(renderWallet);
     (root as any).__walletUnsubscribe = unsubscribeWallet;
 
     void wallet.connect().then(renderWallet).catch((error) => {
@@ -461,29 +282,45 @@ export class UIManager {
       if (statusEl) statusEl.textContent = 'Wallet unavailable.';
     });
 
+    AuthManager.getInstance().onChange(() => renderAuth());
+    renderAuth();
+
+    authBtn?.addEventListener('click', async () => {
+      const auth = AuthManager.getInstance();
+      const state = auth.getState();
+      try {
+        if (state.user && !state.isAnonymous) {
+          if (statusEl) statusEl.textContent = 'Signing out…';
+          await auth.signOut();
+          if (statusEl) statusEl.textContent = 'Signed out.';
+        } else {
+          if (statusEl) statusEl.textContent = 'Opening Google sign-in…';
+          await auth.linkGoogle();
+          if (statusEl) statusEl.textContent = 'Signed in.';
+        }
+        renderAuth();
+        renderWallet();
+      } catch (e) {
+        if (statusEl) statusEl.textContent = e instanceof Error ? e.message : 'Auth failed.';
+      }
+    });
+
     root.querySelector<HTMLButtonElement>('#ff-deposit')
       ?.addEventListener('click', async () => {
         const amountText = window.prompt('Deposit amount (SC):', '10');
         if (amountText === null) return;
-
         const amount = Number(amountText);
-
         if (!Number.isFinite(amount) || amount <= 0) {
           if (statusEl) statusEl.textContent = 'Enter a valid amount.';
           return;
         }
-
         if (statusEl) statusEl.textContent = 'Creating deposit request…';
-
         try {
           const result = await wallet.requestDeposit(amount, 'SC');
-
           if (statusEl) {
-            statusEl.textContent =
-              `Deposit request ${result.requestId.slice(0, 8)}… pending confirmation.`;
+            statusEl.textContent = `Deposit request ${result.requestId.slice(0, 8)}… pending.`;
           }
         } catch (error) {
-          console.error('[Lobby] deposit failed', error);
           if (statusEl) {
             statusEl.textContent =
               error instanceof Error ? error.message : 'Deposit request failed.';
@@ -498,34 +335,24 @@ export class UIManager {
           `Withdraw SC amount (available: ${balance.toLocaleString()}):`,
           ''
         );
-
         if (amountText === null) return;
-
         const amount = Number(amountText);
-
         if (!Number.isFinite(amount) || amount <= 0) {
           if (statusEl) statusEl.textContent = 'Enter a valid amount.';
           return;
         }
-
         if (amount > balance) {
           if (statusEl) statusEl.textContent = 'Insufficient SC balance.';
           return;
         }
-
         if (statusEl) statusEl.textContent = 'Creating withdrawal request…';
-
         try {
           const result = await wallet.requestWithdrawal(amount, 'SC');
-
           if (statusEl) {
-            statusEl.textContent =
-              `Withdrawal ${result.requestId.slice(0, 8)}… pending processing.`;
+            statusEl.textContent = `Withdrawal ${result.requestId.slice(0, 8)}… pending.`;
           }
-
           renderWallet();
         } catch (error) {
-          console.error('[Lobby] withdrawal failed', error);
           if (statusEl) {
             statusEl.textContent =
               error instanceof Error ? error.message : 'Withdrawal request failed.';
@@ -533,22 +360,32 @@ export class UIManager {
         }
       });
 
-    const playBtn = root.querySelector<HTMLButtonElement>('#ff-play');
-    const tutorialText = root.querySelector<HTMLElement>('#ff-tutorial-text');
-    const handContainer = root.querySelector<HTMLElement>('#ff-insistent-hand-container');
-    const bgmBtn = root.querySelector<HTMLButtonElement>('#ff-lobby-bgm');
-    const bgmText = root.querySelector<HTMLElement>('#ff-lobby-bgm-text');
-    const sfxBtn = root.querySelector<HTMLButtonElement>('#ff-lobby-sfx');
-    const sfxText = root.querySelector<HTMLElement>('#ff-lobby-sfx-text');
-    const themeCanBtn = root.querySelector<HTMLButtonElement>('#ff-theme-can');
-    const themeHorrorBtn = root.querySelector<HTMLButtonElement>('#ff-theme-horror');
-    const activeThemeLabel = root.querySelector<HTMLElement>('#ff-active-theme-label');
+    const openTheme = () => {
+      if (themeModal) themeModal.style.display = 'flex';
+    };
+    const closeTheme = () => {
+      if (themeModal) themeModal.style.display = 'none';
+    };
+    root.querySelector('#ff-theme-open')?.addEventListener('click', openTheme);
+    root.querySelector('#ff-theme-close')?.addEventListener('click', closeTheme);
+    themeModal?.addEventListener('click', (e) => {
+      if (e.target === themeModal) closeTheme();
+    });
+    root.querySelector('#ff-theme-light')?.addEventListener('click', () => {
+      this.currentTheme = 'light';
+      this.onThemeChangeCallback?.('light');
+      SoundManager.setTheme('light');
+      closeTheme();
+    });
+    root.querySelector('#ff-theme-dark')?.addEventListener('click', () => {
+      this.currentTheme = 'dark';
+      this.onThemeChangeCallback?.('dark');
+      SoundManager.setTheme('dark');
+      closeTheme();
+    });
 
-    const executeTutorialPlay = () => {
-      if (!this.startScreenEl) return;
-      if (tutorialText) {
-        tutorialText.innerHTML = '<span style="color:#00ffcc;font-weight:900;">✓ TUTORIAL PASSED · TURRET ARMED · COMMENCING COMBAT!</span>';
-      }
+    const playBtn = root.querySelector<HTMLButtonElement>('#ff-play');
+    playBtn?.addEventListener('click', () => {
       SoundManager.playUiSound('click');
       if (this.currentTheme === 'dark') {
         SoundManager.playHorrorWhisper(0.8);
@@ -556,64 +393,7 @@ export class UIManager {
       SoundManager.startBgm();
       setTimeout(() => {
         this.onPlayCallback?.();
-      }, 200);
-    };
-
-    playBtn?.addEventListener('click', executeTutorialPlay);
-    handContainer?.addEventListener('click', executeTutorialPlay);
-
-    bgmBtn?.addEventListener('click', () => {
-      const enabled = SoundManager.toggleBgm();
-      if (bgmText) bgmText.textContent = `MUSIC: ${enabled ? 'ON' : 'OFF'}`;
-      if (bgmBtn) {
-        bgmBtn.style.border = `1.5px solid ${enabled ? '#00ffcc' : '#475569'}`;
-        bgmBtn.style.background = enabled ? 'rgba(0, 255, 204, 0.18)' : 'rgba(30, 41, 59, 0.8)';
-        bgmBtn.style.color = enabled ? '#00ffcc' : '#94a3b8';
-      }
-    });
-
-    sfxBtn?.addEventListener('click', () => {
-      const enabled = SoundManager.toggleSound();
-      if (sfxText) sfxText.textContent = `SFX: ${enabled ? 'ON' : 'OFF'}`;
-      if (sfxBtn) {
-        sfxBtn.style.border = `1.5px solid ${enabled ? '#38bdf8' : '#475569'}`;
-        sfxBtn.style.background = enabled ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.8)';
-        sfxBtn.style.color = enabled ? '#38bdf8' : '#94a3b8';
-      }
-    });
-
-    themeCanBtn?.addEventListener('click', () => {
-      this.currentTheme = 'light';
-      this.onThemeChangeCallback?.('light');
-      SoundManager.setTheme('light');
-      if (activeThemeLabel) activeThemeLabel.textContent = 'CAN-TECH THEME (ACTIVE)';
-      if (themeCanBtn) {
-        themeCanBtn.style.border = '1.5px solid #00d9ff';
-        themeCanBtn.style.background = 'rgba(0, 217, 255, 0.25)';
-        themeCanBtn.style.color = '#ffffff';
-      }
-      if (themeHorrorBtn) {
-        themeHorrorBtn.style.border = '1px solid rgba(255, 60, 80, 0.35)';
-        themeHorrorBtn.style.background = 'rgba(255, 60, 80, 0.08)';
-        themeHorrorBtn.style.color = '#ff99aa';
-      }
-    });
-
-    themeHorrorBtn?.addEventListener('click', () => {
-      this.currentTheme = 'dark';
-      this.onThemeChangeCallback?.('dark');
-      SoundManager.setTheme('dark');
-      if (activeThemeLabel) activeThemeLabel.textContent = 'ABYSSAL HORROR THEME (ACTIVE)';
-      if (themeHorrorBtn) {
-        themeHorrorBtn.style.border = '1.5px solid #ff4d6d';
-        themeHorrorBtn.style.background = 'rgba(255, 77, 109, 0.25)';
-        themeHorrorBtn.style.color = '#ffffff';
-      }
-      if (themeCanBtn) {
-        themeCanBtn.style.border = '1px solid rgba(0, 220, 255, 0.3)';
-        themeCanBtn.style.background = 'rgba(0, 180, 255, 0.08)';
-        themeCanBtn.style.color = '#94a3b8';
-      }
+      }, 150);
     });
   }
 
@@ -683,11 +463,8 @@ export class UIManager {
           <button id="hud-lobby-btn" title="Open Lobby" style="background: linear-gradient(135deg,#0f766e,#155e75); color: #ecfeff; border: 1px solid #22d3ee; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 0 12px rgba(34,211,238,0.25);">
             ⌂ LOBBY
           </button>
-          <button id="hud-bgm-toggle" title="Toggle Music" style="background: #1e293b; color: ${SoundManager.isBgmEnabled() ? '#00ffcc' : '#94a3b8'}; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            ${SoundManager.isBgmEnabled() ? '🎵' : '🔇🎵'}
-          </button>
-          <button id="hud-sound-toggle" title="Toggle Audio Effects" style="background: #1e293b; color: ${SoundManager.isSoundEnabled() ? '#e2e8f0' : '#ef4444'}; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700;">
-            ${SoundManager.isSoundEnabled() ? '🔊' : '🔇'}
+          <button id="hud-sound-toggle" title="Audio: cycle On / Mute / SFX / No FX" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 6px 9px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 700; min-width: 36px;">
+            🔊
           </button>
         </div>
       </div>
@@ -725,8 +502,8 @@ export class UIManager {
     this.tableBadgeBtn = document.getElementById('hud-table-btn');
 
     // Event listeners
-    this.soundBtn.addEventListener('click', () => this.toggleSound());
-    document.getElementById('hud-bgm-toggle')?.addEventListener('click', () => this.toggleBgm());
+    this.applyAudioModeIcon();
+    this.soundBtn.addEventListener('click', () => this.cycleAudioMode());
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
     this.tableBadgeBtn?.addEventListener('click', () => this.showLobby());
     document.getElementById('hud-level-btn')?.addEventListener('click', () => this.showProgressionModal());
@@ -915,28 +692,17 @@ export class UIManager {
           </div>
         </div>
 
-        <!-- LOBBY SETTINGS: AUDIO & THEME CONTROLS -->
-        <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:1px solid #334155;border-radius:12px;">
+        <!-- THEME (audio cycles in HUD only) -->
+        <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:3px solid #334155;border-radius:6px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-size:10px;letter-spacing:2px;color:#22d3ee;font-weight:700;">LOBBY SETTINGS · AUDIO &amp; THEME</div>
-            <div style="font-size:10px;color:#94a3b8;">${this.currentTheme === 'dark' ? 'ABYSSAL HORROR' : 'CAN-TECH ARCADE'}</div>
-          </div>
-          <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <button type="button" id="lobby-bgm-toggle" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${SoundManager.isBgmEnabled()?'#00ffcc':'#475569'};background:${SoundManager.isBgmEnabled()?'rgba(0,255,204,0.16)':'#1e293b'};color:${SoundManager.isBgmEnabled()?'#00ffcc':'#94a3b8'};">
-              🎵 MUSIC: ${SoundManager.isBgmEnabled() ? 'ON' : 'OFF'}
-            </button>
-            <button type="button" id="lobby-sfx-toggle" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${SoundManager.isSoundEnabled()?'#38bdf8':'#475569'};background:${SoundManager.isSoundEnabled()?'rgba(56,189,248,0.16)':'#1e293b'};color:${SoundManager.isSoundEnabled()?'#38bdf8':'#94a3b8'};">
-              🔊 SFX: ${SoundManager.isSoundEnabled() ? 'ON' : 'OFF'}
-            </button>
+            <div style="font-size:10px;letter-spacing:2px;color:#22d3ee;font-weight:700;">THEME</div>
+            <div style="font-size:10px;color:#94a3b8;">${this.currentTheme === 'dark' ? 'DARK' : 'LIGHT'}</div>
           </div>
           <div style="display:flex;gap:8px;">
-            <button type="button" id="lobby-theme-can" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${this.currentTheme==='light'?'#00d9ff':'#334155'};background:${this.currentTheme==='light'?'rgba(0,217,255,0.22)':'#1e293b'};color:${this.currentTheme==='light'?'#ffffff':'#94a3b8'};">
-              ⚡ CAN-TECH (ARCADE)
-            </button>
-            <button type="button" id="lobby-theme-horror" style="flex:1;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:11px;border:1.5px solid ${this.currentTheme==='dark'?'#ff4d6d':'#334155'};background:${this.currentTheme==='dark'?'rgba(255,77,109,0.22)':'#1e293b'};color:${this.currentTheme==='dark'?'#ffffff':'#ff99aa'};">
-              🩸 HORROR (DREAD)
-            </button>
+            <button type="button" id="lobby-theme-light" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.currentTheme==='light'?'#22d3ee':'#334155'};background:${this.currentTheme==='light'?'#0e7490':'#1e293b'};color:#ecfeff;">☀ LIGHT</button>
+            <button type="button" id="lobby-theme-dark" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.currentTheme==='dark'?'#f43f5e':'#334155'};background:${this.currentTheme==='dark'?'#3f0a12':'#1e293b'};color:#fecaca;">☾ DARK</button>
           </div>
+          <div style="margin-top:8px;font-size:10px;color:#64748b;">Audio: use HUD speaker icon (On / Mute / SFX / No FX)</div>
         </div>
 
         <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:1px solid #334155;border-radius:12px;">
@@ -981,7 +747,7 @@ export class UIManager {
           </button>
         </div>
         <button id="lobby-resume-btn" style="margin-top:16px; width:100%; background:linear-gradient(135deg,#00ffcc,#0891b2); color:#0a0f1d; border:none; padding:12px; border-radius:10px; font-weight:900; letter-spacing:1px; cursor:pointer;">
-          ▶ RESUME TRENCH
+          ▶ RESUME
         </button>
       </div>
     `;
@@ -996,21 +762,13 @@ export class UIManager {
       this.setCurrency('GC');
       this.showLobby();
     });
-    document.getElementById('lobby-bgm-toggle')?.addEventListener('click', () => {
-      SoundManager.toggleBgm();
-      this.showLobby();
-    });
-    document.getElementById('lobby-sfx-toggle')?.addEventListener('click', () => {
-      SoundManager.toggleSound();
-      this.showLobby();
-    });
-    document.getElementById('lobby-theme-can')?.addEventListener('click', () => {
+    document.getElementById('lobby-theme-light')?.addEventListener('click', () => {
       this.currentTheme = 'light';
       this.onThemeChangeCallback?.('light');
       SoundManager.setTheme('light');
       this.showLobby();
     });
-    document.getElementById('lobby-theme-horror')?.addEventListener('click', () => {
+    document.getElementById('lobby-theme-dark')?.addEventListener('click', () => {
       this.currentTheme = 'dark';
       this.onThemeChangeCallback?.('dark');
       SoundManager.setTheme('dark');
@@ -1122,25 +880,65 @@ export class UIManager {
     this.onThemeChangeCallback?.(this.currentTheme);
   }
 
-  private toggleSound(): void {
-    const enabled = SoundManager.toggleSound();
-    if (enabled) {
+  /** 0=all on 🔊 · 1=mute 🔇 · 2=sfx only 📢 · 3=no fx (bgm only) 🎵 */
+  private audioMode: number = (() => {
+    try {
+      const v = parseInt(localStorage.getItem('fish_frenzy_audio_mode') || '0', 10);
+      return Number.isFinite(v) ? ((v % 4) + 4) % 4 : 0;
+    } catch {
+      return 0;
+    }
+  })();
+
+  private loadAudioMode(): number {
+    try {
+      const v = parseInt(localStorage.getItem('fish_frenzy_audio_mode') || '0', 10);
+      return Number.isFinite(v) ? ((v % 4) + 4) % 4 : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private applyAudioMode(mode: number): void {
+    this.audioMode = ((mode % 4) + 4) % 4;
+    try {
+      localStorage.setItem('fish_frenzy_audio_mode', String(this.audioMode));
+    } catch { /* ignore */ }
+    // Force underlying flags without relying on toggle side-effects
+    const wantSfx = this.audioMode === 0 || this.audioMode === 2;
+    const wantBgm = this.audioMode === 0 || this.audioMode === 3;
+    if (SoundManager.isSoundEnabled() !== wantSfx) SoundManager.toggleSound();
+    if (SoundManager.isBgmEnabled() !== wantBgm) SoundManager.toggleBgm(wantBgm);
+    if (wantBgm && wantSfx) SoundManager.startBgm();
+    this.applyAudioModeIcon();
+  }
+
+  private applyAudioModeIcon(): void {
+    if (!this.soundBtn) return;
+    const icons = ['🔊', '🔇', '📢', '🎵'];
+    const labels = ['All on', 'Muted', 'SFX only', 'No FX (music)'];
+    this.soundBtn.textContent = icons[this.audioMode] || '🔊';
+    this.soundBtn.title = `Audio: ${labels[this.audioMode]} — tap to cycle`;
+    this.soundBtn.style.color =
+      this.audioMode === 1 ? '#ef4444' : this.audioMode === 2 ? '#38bdf8' : this.audioMode === 3 ? '#00ffcc' : '#e2e8f0';
+  }
+
+  private cycleAudioMode(): void {
+    if (this.audioMode === undefined || this.audioMode === null) {
+      this.audioMode = this.loadAudioMode();
+    }
+    this.applyAudioMode(this.audioMode + 1);
+    if (this.audioMode !== 1) {
       SoundManager.playUiSound('click');
     }
-    this.soundBtn.textContent = enabled ? '🔊' : '🔇';
-    this.soundBtn.style.color = enabled ? '#e2e8f0' : '#ef4444';
+  }
+
+  private toggleSound(): void {
+    this.cycleAudioMode();
   }
 
   private toggleBgm(): void {
-    const enabled = SoundManager.toggleBgm();
-    if (enabled) {
-      SoundManager.playUiSound('click');
-    }
-    const bgmBtn = document.getElementById('hud-bgm-toggle');
-    if (bgmBtn) {
-      bgmBtn.textContent = enabled ? '🎵' : '🔇🎵';
-      bgmBtn.style.color = enabled ? '#00ffcc' : '#94a3b8';
-    }
+    this.cycleAudioMode();
   }
 
   /** Giant BOSS BASH title during raid (Electric Rage). */

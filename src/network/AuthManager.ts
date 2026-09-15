@@ -5,7 +5,8 @@ import {
   updateProfile,
   GoogleAuthProvider,
   linkWithPopup,
-  signInWithPopup
+  signInWithPopup,
+  signOut as firebaseSignOut
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './FirebaseClient';
@@ -163,6 +164,31 @@ export class AuthManager {
       return this.getState();
     } catch (e) {
       console.error('[AuthManager] Google link failed:', e);
+      throw e;
+    }
+  }
+
+  /** Sign out of Google / Firebase; fall back to anonymous guest session. */
+  public async signOut(): Promise<AuthState> {
+    if (!isFirebaseConfigured || !auth) {
+      this.state = {
+        user: null,
+        uid: GameConfig.localPlayerId,
+        displayName: GameConfig.localDisplayName,
+        isAnonymous: true,
+        ready: true,
+        configured: false
+      };
+      this.emit();
+      return this.getState();
+    }
+    try {
+      await firebaseSignOut(auth);
+      // Re-bootstrap anonymous so gameplay still works offline-friendly
+      this.initPromise = null;
+      return await this.ensureSignedIn();
+    } catch (e) {
+      console.error('[AuthManager] signOut failed:', e);
       throw e;
     }
   }
