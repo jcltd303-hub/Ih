@@ -515,6 +515,9 @@ export class UIManager {
         padding:4px 10px; border-radius:999px; font-weight:900; letter-spacing:1px;
         border:none; background:rgba(0,0,0,0.45); color:#67e8f9; font-size:13px;
         text-shadow:0 0 8px rgba(34,211,238,0.8);">×1.00</div>
+      <div id="hud-barrel-badge" style="position:absolute; left:42%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
+        padding:4px 8px; border-radius:999px; font-weight:900; font-size:12px; color:#fbbf24;
+        text-shadow:0 0 8px rgba(251,191,36,.7); background:rgba(0,0,0,.4);">1×</div>
     `;
 
     // Reference elements
@@ -743,12 +746,20 @@ export class UIManager {
         const idx = parseInt((btn as HTMLElement).getAttribute('data-bet-index') || '0', 10);
         this.setBetIndex(idx);
         const bet = this.getCurrentBet();
-        const match = tables.find((t) => Math.abs(t.minStake - bet) < 0.001)
-          || tables.find((t) => t.minStake <= bet)
-          || tables[0];
+        const cur = this.activeCurrency;
+        // Prefer rooms that allow the selected currency, then match stake
+        const match =
+          tables.find((t) => t.allowedCurrencies.includes(cur) && Math.abs(t.minStake - bet) < 0.001) ||
+          tables.find((t) => t.allowedCurrencies.includes(cur) && t.minStake <= bet) ||
+          tables.find((t) => t.allowedCurrencies.includes(cur)) ||
+          tables[0];
         if (match) {
           void TableSelectionManager.getInstance().switchTable(match.id);
+          if (!match.allowedCurrencies.includes(this.activeCurrency)) {
+            this.activeCurrency = match.allowedCurrencies[0];
+          }
         }
+        this.refreshStakeHud();
         this.renderHUD();
         this.closeModal();
         if (match?.mode === 'tournament') {
@@ -813,6 +824,12 @@ export class UIManager {
       badge.style.color = fg;
       badge.style.boxShadow = `0 0 ${10 + bet * 2}px ${fg}55`;
     }
+    const barrelEl = document.getElementById('hud-barrel-badge');
+    if (barrelEl) {
+      const n = this.getBarrelCount();
+      barrelEl.textContent = n > 1 ? `${n} BAR` : '1×';
+      barrelEl.style.opacity = n > 1 ? '1' : '0.55';
+    }
     this.paintBalances();
   }
 
@@ -837,7 +854,7 @@ export class UIManager {
     this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
 
-  /** Lobby-only currency switch — resets bet to 1.00; balance display follows wallet. */
+  /** Lobby currency switch — picks a room that allows it, refreshes HUD. */
   private setCurrency(currency: 'GC' | 'SC'): void {
     const changed = this.activeCurrency !== currency;
     this.activeCurrency = currency;
@@ -846,8 +863,22 @@ export class UIManager {
       this.currentBetIndex = defaultIdx >= 0 ? defaultIdx : 4;
       SoundManager.playUiSound('currency_toggle');
     }
-    // Pull wallet + flip which balance is visible
+
+    // Practice is GC-only; SC must land on public/tournament
+    const tables = TableSelectionManager.getInstance().getTables();
+    const active = TableSelectionManager.getInstance().getActiveTable();
+    if (!active.allowedCurrencies.includes(currency)) {
+      const match =
+        tables.find((t) => t.allowedCurrencies.includes(currency) && Math.abs(t.minStake - this.getCurrentBet()) < 0.001) ||
+        tables.find((t) => t.allowedCurrencies.includes(currency) && t.minStake <= this.getCurrentBet()) ||
+        tables.find((t) => t.allowedCurrencies.includes(currency));
+      if (match) {
+        void TableSelectionManager.getInstance().switchTable(match.id);
+      }
+    }
+
     this.refreshStakeHud();
+    this.renderHUD();
     this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
 
@@ -1012,13 +1043,14 @@ export class UIManager {
 
   /**
    * Stake cost in wallet units for the active currency.
-   * SC: bet × barrels (fractional OK)
-   * GC: bet × barrels × 100 (stake unit → coins)
+   * SC: bet amount (2dp). GC: bet amount as whole coins (1.00 → 1 GC).
+   * Barrel count multiplies damage/payout, not the stake charge.
    */
   public getStakeCost(): number {
-    const barrels = this.getBarrelCount();
-    const units = this.getCurrentBet() * barrels;
-    return this.activeCurrency === 'SC' ? units : Math.round(units * 100);
+    const units = this.getCurrentBet();
+    return this.activeCurrency === 'SC'
+      ? WalletService.roundSc(units)
+      : Math.max(1, Math.round(units));
   }
 
   public deductBet(): boolean {

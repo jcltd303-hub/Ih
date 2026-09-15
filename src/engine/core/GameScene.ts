@@ -336,9 +336,10 @@ export class GameScene {
       uid,
       FairnessSession.getInstance().getSessionId(),
       currency,
-      betAmount * barrels,
+      betAmount,
       targetX,
-      targetY
+      targetY,
+      barrels
     );
 
     const currentTable = this.tableSelection.getCurrentTable();
@@ -348,7 +349,7 @@ export class GameScene {
       uid,
       targetX,
       targetY,
-      betAmount * barrels
+      betAmount
     );
   }
 
