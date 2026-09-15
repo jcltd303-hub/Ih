@@ -1,5 +1,6 @@
 import { GameEventBus, BossStateEvent, BossResultEvent } from '../core/GameEvents';
 import { SoundManager } from '../../audio/SoundManager';
+import { GameConfig } from '../../config/GameConfig';
 
 export type BossStateMachinePhase =
   | 'NORMAL'
@@ -10,28 +11,10 @@ export type BossStateMachinePhase =
   | 'BOSS_DEFEATED'
   | 'REWARD';
 
-export interface BossSystemConfig {
-  minKills: number;
-  maxKills: number;
-  chancePerKill: number;
-  warningDurationMs: number;
-  introDurationMs: number;
-  battleDurationMs: number;
-  cooldownMs: number;
-}
-
 export class BossSystem {
   private static instance: BossSystem | null = null;
 
-  private config: BossSystemConfig = {
-    minKills: 25,
-    maxKills: 60, // Guaranteed safety net
-    chancePerKill: 0.08,
-    warningDurationMs: 2500,
-    introDurationMs: 1500,
-    battleDurationMs: 35000,
-    cooldownMs: 20000
-  };
+  private config = GameConfig.bossPacing;
 
   private phase: BossStateMachinePhase = 'NORMAL';
   private totalKillsSinceBoss = 0;
@@ -66,6 +49,8 @@ export class BossSystem {
 
   public onFishKilled(): boolean {
     this.totalKillsSinceBoss++;
+    
+    console.log(`[AUDIT] BossSystem: Kill registered. TotalSinceBoss=${this.totalKillsSinceBoss}, Phase=${this.phase}, Cooldown=${this.cooldownRemainingMs}ms`);
 
     if (this.phase !== 'NORMAL') return false;
     if (this.cooldownRemainingMs > 0) return false;

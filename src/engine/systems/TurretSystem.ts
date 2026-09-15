@@ -1,33 +1,18 @@
 import { GameEventBus } from '../core/GameEvents';
 import { SoundManager } from '../../audio/SoundManager';
-
-export interface TurretSystemConfig {
-  minKillsBetweenTriggers: number;
-  baseChance: number;
-  durationMs: number;
-  maxDurationMs: number;
-  multiplier: number;
-  cooldownMs: number;
-}
+import { GameConfig } from '../../config/GameConfig';
 
 export type TurretBonusState = 'NORMAL' | 'BONUS' | 'COOLDOWN';
 
 export class TurretSystem {
   private static instance: TurretSystem | null = null;
 
-  private config: TurretSystemConfig = {
-    minKillsBetweenTriggers: 12,
-    baseChance: 0.04,
-    durationMs: 3500,
-    maxDurationMs: 5000,
-    multiplier: 2,
-    cooldownMs: 8000
-  };
+  private config = GameConfig.turretPacing;
 
   private state: TurretBonusState = 'NORMAL';
   private killsSinceLastBonus = 0;
   private remainingDurationMs = 0;
-  private totalDurationMs = 3500;
+  private totalDurationMs = 3000;
   private remainingCooldownMs = 0;
 
   public static getInstance(): TurretSystem {

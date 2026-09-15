@@ -38,6 +38,27 @@ export const GameConfig = {
   /** Default bet tier index (1.00 SC) */
   defaultBetIndex: 4,
 
+  /** Boss pacing */
+  bossPacing: {
+    minKills: 25,
+    maxKills: 60,
+    chancePerKill: 0.12, // Increased slightly for reliability
+    warningDurationMs: 2500,
+    introDurationMs: 1500,
+    battleDurationMs: 35000,
+    cooldownMs: 20000
+  },
+
+  /** Turret pacing */
+  turretPacing: {
+    minKillsBetweenTriggers: 20,
+    baseChance: 0.02,
+    durationMs: 3000,
+    maxDurationMs: 4000,
+    multiplier: 2,
+    cooldownMs: 12000
+  },
+
   /** Starting balances */
   startingGc: 10000,
   startingSc: 50,
