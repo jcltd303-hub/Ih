@@ -171,9 +171,12 @@ export const processPlayerShot = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Request timestamp expired.');
   }
 
-  const fishType: FishType =
-    rawFishType === 'boss' || rawFishType === 'medium' || rawFishType === 'small'
-      ? rawFishType
+  // Fish tier is server-authoritative. The client may report its visual tier,
+// but it cannot promote an arbitrary target to boss economics. Boss targets
+// will be enabled later through a server-issued target authorization path.
+const fishType: FishType =
+    rawFishType === 'medium'
+      ? 'medium'
       : 'small';
   const skinBonus = typeof rawSkinBonus === 'number' && rawSkinBonus > 0 ? Math.min(rawSkinBonus, 3) : 1;
 
