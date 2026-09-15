@@ -85,6 +85,15 @@ export async function calibrateNextPayoutTable(
     recommendNextRtp(calibratedRtp, recommendedRtp)
   );
 
+  // Never activate a table whose modeled RTP is outside the allowed
+  // 85–90% operating band.
+  if (calibratedRtp < 85 || calibratedRtp > 90) {
+    console.warn(
+      `Rejected payout candidate: modeled RTP ${calibratedRtp.toFixed(3)}%`
+    );
+    return null;
+  }
+
   const configRef = db.collection('config').doc('payoutActive');
   const snap = await configRef.get();
 
@@ -99,6 +108,8 @@ export async function calibrateNextPayoutTable(
 
   const nextTable = buildProspectiveTable(finalTarget);
 
+  const activationTime = Date.now();
+
   await configRef.set({
     table: nextTable,
     version: nextTable.version,
@@ -108,8 +119,24 @@ export async function calibrateNextPayoutTable(
     sampleWager: telemetry.wagered,
     sampleShots: telemetry.shots,
     sampleKills: telemetry.kills,
-    activatedAtMs: Date.now(),
+    activatedAtMs: activationTime,
     activatedAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  // Server-only audit record. Existing session snapshots are never changed.
+  await db.collection('payoutTableAudit').add({
+    action: 'activate',
+    version: nextTable.version,
+    targetRtp: nextTable.targetRtp,
+    previousVersion: activeTable.version,
+    previousTargetRtp: activeTable.targetRtp,
+    realizedRtp: actualRtp,
+    monteCarloRtp: calibratedRtp,
+    sampleWager: telemetry.wagered,
+    sampleShots: telemetry.shots,
+    sampleKills: telemetry.kills,
+    createdAtMs: activationTime,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
   });
 
   return nextTable;
