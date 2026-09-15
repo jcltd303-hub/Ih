@@ -1,13 +1,19 @@
 import { PaymentProvider } from './PaymentProvider';
 
+/** Stub — no live Stripe keys. */
 export class StripeProvider implements PaymentProvider {
-  async createCheckout(userId: string, packageId: string): Promise<{ checkoutUrl: string; transactionId: string }> {
-    return { checkoutUrl: 'https://stripe-stub.com/checkout/123', transactionId: 'tx_stripe_123' };
+  async createCheckout(
+    userId: string,
+    packageId: string
+  ): Promise<{ checkoutUrl: string; transactionId: string }> {
+    const txId = `stripe_stub_${Date.now()}_${userId.slice(0, 6)}`;
+    return {
+      checkoutUrl: `https://checkout.stripe.com/stub/${packageId}?tx=${txId}`,
+      transactionId: txId
+    };
   }
-  async handleWebhook(data: any): Promise<void> {
-    console.log('Stripe webhook', data);
-  }
-  async verifyPayment(transactionId: string): Promise<boolean> {
+  async handleWebhook(_data: unknown): Promise<void> {}
+  async verifyPayment(_transactionId: string): Promise<boolean> {
     return true;
   }
 }

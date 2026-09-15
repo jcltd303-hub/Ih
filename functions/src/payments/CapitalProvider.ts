@@ -1,13 +1,19 @@
 import { PaymentProvider } from './PaymentProvider';
 
+/** Stub card/bank rail — pending real Capital/processor API. */
 export class CapitalProvider implements PaymentProvider {
-  async createCheckout(userId: string, packageId: string): Promise<{ checkoutUrl: string; transactionId: string }> {
-    return { checkoutUrl: 'https://capital-stub.com/pay/123', transactionId: 'tx_capital_123' };
+  async createCheckout(
+    userId: string,
+    packageId: string
+  ): Promise<{ checkoutUrl: string; transactionId: string }> {
+    const txId = `capital_stub_${Date.now()}_${userId.slice(0, 6)}`;
+    return {
+      checkoutUrl: `https://capital.stub.local/checkout?pkg=${packageId}&tx=${txId}`,
+      transactionId: txId
+    };
   }
-  async handleWebhook(data: any): Promise<void> {
-    console.log('Capital webhook', data);
-  }
-  async verifyPayment(transactionId: string): Promise<boolean> {
+  async handleWebhook(_data: unknown): Promise<void> {}
+  async verifyPayment(_transactionId: string): Promise<boolean> {
     return true;
   }
 }

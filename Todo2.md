@@ -1,6 +1,21 @@
 # Fish Frenzy — "Electric Rage" Overhaul: Plan & TODO (v2)
 
-Status: PLANNING — decisions below now locked in from your last message.
+Status: IN PROGRESS (feat/electric-rage-todo2)
+
+## Implementation progress (auto)
+- [x] Packages: $4.99 GC-only; SC bonus 3/5/7/10% (1:1 USD); server listPackages/requestDeposit/confirmDepositStub
+- [x] RTP fixed 85% server + client freeze
+- [x] Payment provider stubs (crypto 5 assets, Stripe, Capital)
+- [x] Store modal + Lobby STORE (armory HUD entry removed)
+- [x] Admin: no RTP slider / Monte Carlo; package read + P&L
+- [x] Presence: medal + count only
+- [x] Onboarding v2 + login streak event
+- [ ] Tournament-only leaderboard flag
+- [ ] BOSS BASH banner polish
+- [ ] Package admin editor writes
+- [ ] Full Phase 6 QA
+
+Status was: PLANNING — decisions below now locked in from your last message.
 A couple of small assumptions still flagged; correct me if wrong, otherwise
 I'll start Phase 1 on your go-ahead.
 
