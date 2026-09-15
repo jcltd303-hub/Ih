@@ -27,39 +27,5 @@ export default function App() {
 
   if (!auth?.ready) return null;
 
-  return (
-    <div
-      id="ff-react-status"
-      style={{
-        position: 'fixed',
-        bottom: 8,
-        right: 8,
-        zIndex: 30,
-        pointerEvents: 'none',
-        fontFamily: 'ui-monospace, monospace',
-        fontSize: 10,
-        color: '#94a3b8',
-        background: 'rgba(15,23,42,0.75)',
-        border: '1px solid #334155',
-        borderRadius: 8,
-        padding: '6px 10px',
-        lineHeight: 1.4
-      }}
-    >
-      <div>
-        {auth.isAnonymous ? 'guest' : 'user'} ·{' '}
-        <span style={{ color: '#00ffcc' }}>{auth.displayName}</span>
-      </div>
-      {wallet && (
-        <div>
-          wallet:{' '}
-          <span style={{ color: wallet.source === 'server' ? '#34d399' : '#fbbf24' }}>
-            {wallet.source}
-          </span>
-          {' · '}
-          GC {wallet.goldCoins.toLocaleString()} · SC {wallet.sweepstakesCoins.toFixed(2)}
-        </div>
-      )}
-    </div>
-  );
+  return null;
 }

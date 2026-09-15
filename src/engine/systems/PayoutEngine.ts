@@ -72,7 +72,13 @@ const CONFIG_KEY = 'fish_frenzy_admin_payout_config';
 const LEDGER_KEY = 'fish_frenzy_profit_ledger';
 
 export class PayoutEngine {
-  private static config: PayoutConfig = PayoutEngine.loadConfig();
+  private static config: PayoutConfig = {
+    targetRtp: 85,
+    gambleKillEnabled: true,
+    gambleBonusMultiplierEnabled: true,
+    volatility: 'medium',
+    maxLifetimeRtpGuard: 105
+  };
 
   private static stats: SessionStats = {
     totalWagered: 0,
@@ -86,155 +92,13 @@ export class PayoutEngine {
     realizedRtp: 0
   };
 
-  private static ledger: ProfitLedger = PayoutEngine.loadLedger();
-
-  private static listeners: Array<(config: PayoutConfig) => void> = [];
-
-  private static loadConfig(): PayoutConfig {
-    try {
-      const saved = localStorage.getItem(CONFIG_KEY);
-
-      if (saved) {
-        const parsed = JSON.parse(saved);
-
-        let rtp =
-          typeof parsed.targetRtp === 'number'
-            ? parsed.targetRtp
-            : 90;
-
-        try {
-          if (
-            !localStorage.getItem('fish_frenzy_rtp90_migrated') &&
-            rtp === 92
-          ) {
-            rtp = 90;
-            localStorage.setItem(
-              'fish_frenzy_rtp90_migrated',
-              '1'
-            );
-          }
-        } catch {
-          /* ignore migration failure */
-        }
-
-        return {
-          targetRtp: rtp,
-          gambleKillEnabled:
-            parsed.gambleKillEnabled !== false,
-          gambleBonusMultiplierEnabled:
-            parsed.gambleBonusMultiplierEnabled !== false,
-          volatility: parsed.volatility || 'medium',
-          maxLifetimeRtpGuard:
-            typeof parsed.maxLifetimeRtpGuard === 'number'
-              ? parsed.maxLifetimeRtpGuard
-              : 105
-        };
-      }
-    } catch {
-      /* use defaults */
-    }
-
-    return {
-      targetRtp: 90,
-      gambleKillEnabled: true,
-      gambleBonusMultiplierEnabled: true,
-      volatility: 'medium',
-      maxLifetimeRtpGuard: 105
-    };
-  }
-
-  private static loadLedger(): ProfitLedger {
-    try {
-      const raw = localStorage.getItem(LEDGER_KEY);
-
-      if (raw) {
-        const parsed = JSON.parse(raw);
-
-        return {
-          totalDeposits: Number(parsed.totalDeposits) || 0,
-          totalHandle: Number(parsed.totalHandle) || 0,
-          totalPayouts: Number(parsed.totalPayouts) || 0,
-          sessionCount: Number(parsed.sessionCount) || 0,
-          updatedAt:
-            Number(parsed.updatedAt) || Date.now()
-        };
-      }
-    } catch {
-      /* use defaults */
-    }
-
-    return {
-      totalDeposits: 0,
-      totalHandle: 0,
-      totalPayouts: 0,
-      sessionCount: 0,
-      updatedAt: Date.now()
-    };
-  }
-
-  private static persistLedger(): void {
-    this.ledger.updatedAt = Date.now();
-
-    try {
-      localStorage.setItem(
-        LEDGER_KEY,
-        JSON.stringify(this.ledger)
-      );
-    } catch (e) {
-      console.warn(
-        '[PayoutEngine] ledger persist failed',
-        e
-      );
-    }
-  }
-
-  public static saveConfig(
-    newConfig: Partial<PayoutConfig>
-  ): void {
-    this.config = {
-      ...this.config,
-      ...newConfig
-    };
-
-    this.config.targetRtp = Math.max(
-      50,
-      Math.min(120, this.config.targetRtp)
-    );
-
-    this.config.maxLifetimeRtpGuard = Math.max(
-      80,
-      Math.min(
-        150,
-        this.config.maxLifetimeRtpGuard ?? 105
-      )
-    );
-
-    try {
-      localStorage.setItem(
-        CONFIG_KEY,
-        JSON.stringify(this.config)
-      );
-    } catch (e) {
-      console.warn(
-        'Failed to save PayoutConfig',
-        e
-      );
-    }
-
-    this.listeners.forEach((fn) => fn(this.config));
-  }
-
-  public static onConfigChange(
-    callback: (config: PayoutConfig) => void
-  ): () => void {
-    this.listeners.push(callback);
-
-    return () => {
-      this.listeners = this.listeners.filter(
-        (listener) => listener !== callback
-      );
-    };
-  }
+  private static ledger: ProfitLedger = {
+    totalDeposits: 0,
+    totalHandle: 0,
+    totalPayouts: 0,
+    sessionCount: 0,
+    updatedAt: Date.now()
+  };
 
   public static getConfig(): PayoutConfig {
     return { ...this.config };
@@ -242,24 +106,6 @@ export class PayoutEngine {
 
   public static getTargetRtp(): number {
     return this.config.targetRtp;
-  }
-
-  public static setTargetRtp(rtp: number): void {
-    this.saveConfig({
-      targetRtp: rtp
-    });
-  }
-
-  public static setPayoutPolicy(
-    targetRtp: number,
-    maxLifetimeRtpGuard?: number
-  ): void {
-    this.saveConfig({
-      targetRtp,
-      ...(maxLifetimeRtpGuard !== undefined
-        ? { maxLifetimeRtpGuard }
-        : {})
-    });
   }
 
   public static getSessionStats(): SessionStats {
@@ -349,7 +195,6 @@ export class PayoutEngine {
     if (!(amount > 0)) return;
 
     this.ledger.totalDeposits += amount;
-    this.persistLedger();
   }
 
   public static recordWager(
@@ -359,7 +204,6 @@ export class PayoutEngine {
     this.stats.totalWagered += betAmount;
 
     this.ledger.totalHandle += betAmount;
-    this.persistLedger();
   }
 
   public static recordPayout(
@@ -369,8 +213,6 @@ export class PayoutEngine {
 
     this.stats.totalPaidOut += payoutAmount;
     this.ledger.totalPayouts += payoutAmount;
-
-    this.persistLedger();
   }
 
   public static resetLedger(): void {
@@ -382,8 +224,6 @@ export class PayoutEngine {
         this.ledger.sessionCount + 1,
       updatedAt: Date.now()
     };
-
-    this.persistLedger();
   }
 
   private static profitabilityScale(): number {

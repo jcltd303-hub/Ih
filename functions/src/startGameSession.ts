@@ -33,7 +33,7 @@ export const startGameSession = onCall(async (request) => {
     clientSeed,
     nonce: 0,
     status: 'active',
-    targetRtp: 90,
+    targetRtp: 85,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     revealedAt: null
   });
@@ -42,7 +42,7 @@ export const startGameSession = onCall(async (request) => {
     sessionId,
     serverSeedHash,
     clientSeed,
-    targetRtp: 90,
+    targetRtp: 85,
     message: 'Server seed committed. Verify hash after reveal.'
   };
 });

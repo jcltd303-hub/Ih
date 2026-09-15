@@ -5,7 +5,6 @@ import { SoundManager } from '../audio/SoundManager';
 import { GameTheme } from '../engine/systems/ThemeManager';
 import { PayoutEngine } from '../engine/systems/PayoutEngine';
 import { showStreakModal as openStreakModal } from './modals/streakModal';
-import { showAuditModal as openAuditModal } from './modals/auditModal';
 import { showLeaderboardModal as openLeaderboardModal } from './modals/leaderboardModal';
 import { showAdminPortalModal as openAdminPortalModal } from './modals/adminPortalModal';
 import { showProgressionModal } from './modals/progressionModal';
@@ -940,11 +939,6 @@ export class UIManager {
           </div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-          <button class="lobby-tile" data-lobby="shop" style="text-align:left; background:#1e293b; border:1px solid #e11d48; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
-            <div style="font-size:18px; margin-bottom:4px;">🎯</div>
-            <div style="font-weight:800; color:#fb7185;">SHOP / ARMORY</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Unlock & equip turret chassis</div>
-          </button>
           <button class="lobby-tile" data-lobby="streak" style="text-align:left; background:#1e293b; border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
             <div style="font-size:18px; margin-bottom:4px;">⚡</div>
             <div style="font-weight:800; color:#fbbf24;">STREAK</div>
@@ -954,11 +948,6 @@ export class UIManager {
             <div style="font-size:18px; margin-bottom:4px;">🏆</div>
             <div style="font-weight:800; color:#c4b5fd;">RANKS</div>
             <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Tournament leaderboard</div>
-          </button>
-          <button class="lobby-tile" data-lobby="audit" style="text-align:left; background:#1e293b; border:1px solid #0284c7; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
-            <div style="font-size:18px; margin-bottom:4px;">🛡️</div>
-            <div style="font-weight:800; color:#38bdf8;">AUDIT</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Provably fair seed check</div>
           </button>
           <button class="lobby-tile" data-lobby="operator" style="grid-column:1 / -1; text-align:left; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
             <div style="font-size:18px; margin-bottom:4px;">⚙️</div>
@@ -1044,92 +1033,6 @@ export class UIManager {
 
   private async showStreakModal(): Promise<void> {
     await openStreakModal(this.modalCtx());
-  }
-
-
-  private showArmoryModal(): void {
-    const currentLoadout = LoadoutManager.getLoadout();
-    const availableSkins = ARMORY_SKINS;
-
-    this.modalContainer.innerHTML = `
-      <div style="background: #0f172a; border: 2px solid #e11d48; border-radius: 16px; padding: 24px; max-width: 520px; width: 100%; color: #ffffff; box-shadow: 0 12px 36px rgba(0,0,0,0.85);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h2 style="font-size: 18px; font-weight: 800; color: #f43f5e; margin: 0; display: flex; align-items: center; gap: 8px;">
-            <span>🎯</span> CANNON ARMORY & SPRITE SKINS
-          </h2>
-          <button id="modal-close-btn" style="background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">✕</button>
-        </div>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px; line-height: 1.4;">
-          Equip specialized animated weapon chassis. Each skin features custom animated idle breathing, charge buildup, muzzle blast bursts, spent shell ejections, and matching ballistic projectiles.
-        </p>
-        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-          ${availableSkins.map(skin => {
-            const isEquipped = currentLoadout.activeCannonSkin === skin.id;
-            const isUnlocked = currentLoadout.unlockedSkins.includes(skin.id);
-            const price = SKIN_PRICES[skin.id] ?? 0;
-            return `
-              <div style="background: ${isEquipped ? 'rgba(225, 29, 72, 0.18)' : '#1e293b'}; border: 1.5px solid ${isEquipped ? '#f43f5e' : skin.border}; border-radius: 12px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 14px; flex: 1;">
-                  <div style="width: 46px; height: 46px; border-radius: 8px; background: rgba(0,0,0,0.55); border: 1px solid ${skin.color}; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
-                    <img src="skins/${skin.id}/idle_0.png" alt="${skin.name}" style="width: 42px; height: 42px; object-fit: contain;" />
-                  </div>
-                  <div style="flex: 1;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
-                      <span style="font-size: 14px; font-weight: 800; color: ${skin.color};">${skin.name}</span>
-                      <span style="font-size: 10px; font-weight: 700; background: rgba(0,0,0,0.4); border: 1px solid ${skin.color}; color: ${skin.color}; padding: 1px 6px; border-radius: 4px;">${skin.badge}</span>
-                    </div>
-                    <div style="font-size: 11px; color: #94a3b8; line-height: 1.3;">${skin.desc}</div>
-                  </div>
-                </div>
-                <button class="armory-equip-btn" data-skin="${skin.id}" style="background: ${isEquipped ? '#f43f5e' : '#334155'}; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; transition: background 0.15s;">
-                  ${skinUnlockLabel(skin.id, isUnlocked, isEquipped)}
-                </button>
-              </div>
-            `;
-          }).join('')}
-        </div>
-        <button id="modal-close-btn-bottom" style="width: 100%; background: #334155; color: #ffffff; font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px;">
-          CLOSE ARMORY
-        </button>
-      </div>
-    `;
-
-    SoundManager.playUiSound('modal_open');
-    this.modalContainer.style.display = 'flex';
-    document.getElementById('modal-close-btn')?.addEventListener('click', () => this.closeModal());
-    document.getElementById('modal-close-btn-bottom')?.addEventListener('click', () => this.closeModal());
-
-    const equipButtons = this.modalContainer.querySelectorAll('.armory-equip-btn');
-    equipButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        SoundManager.playUiSound('autofire_on');
-        const targetSkin = (e.currentTarget as HTMLElement).getAttribute('data-skin')!;
-        let loadout = LoadoutManager.getLoadout();
-        if (!loadout.unlockedSkins.includes(targetSkin)) {
-          const price = SKIN_PRICES[targetSkin] ?? 0;
-          const result = LoadoutManager.unlockSkin(targetSkin, this.scBalance);
-          if (!result.ok) {
-            const status = document.getElementById('modal-armory-status');
-            if (status) status.textContent = `Need ${price} SC to unlock (you have ${this.scBalance.toFixed(2)}).`;
-            return;
-          }
-          this.setBalances(this.gcBalance, result.newSc);
-          loadout = LoadoutManager.getLoadout();
-        }
-        LoadoutManager.saveLoadout({
-          ...loadout,
-          activeCannonSkin: targetSkin
-        });
-        if (this.onLoadoutChangeCallback) {
-          this.onLoadoutChangeCallback();
-        }
-        this.showArmoryModal(); // re-render armory state
-      });
-    });
-  }
-
-  private async showAuditModal(): Promise<void> {
-    await openAuditModal(this.modalCtx());
   }
 
 
