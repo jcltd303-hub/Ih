@@ -116,9 +116,52 @@ export class WalletService {
 
     this.setBalances({
       goldCoins: Math.max(0, Math.floor(gc)),
-      sweepstakesCoins: Math.max(0, Math.floor(sweep)),
+      sweepstakesCoins: Math.max(0, WalletService.roundSc(sweep)),
       source: 'server',
     });
+  }
+
+  /** SC keeps 2 decimal places; GC is whole coins. */
+  public static roundSc(n: number): number {
+    return Math.round(Math.max(0, n) * 100) / 100;
+  }
+
+  /**
+   * Optimistic local spend for a shot. Returns false if insufficient funds.
+   * Amount is in the given currency (SC fractional OK; GC integer).
+   */
+  public trySpend(currency: WalletCurrency, amount: number): boolean {
+    if (!Number.isFinite(amount) || amount <= 0) return false;
+    if (currency === 'SC') {
+      const cost = WalletService.roundSc(amount);
+      if (this.balances.sweepstakesCoins + 1e-9 < cost) return false;
+      this.setBalances({
+        goldCoins: this.balances.goldCoins,
+        sweepstakesCoins: WalletService.roundSc(this.balances.sweepstakesCoins - cost),
+        source: this.balances.source ?? 'local',
+      });
+      return true;
+    }
+    const cost = Math.max(0, Math.round(amount));
+    if (this.balances.goldCoins < cost) return false;
+    this.setBalances({
+      goldCoins: this.balances.goldCoins - cost,
+      sweepstakesCoins: this.balances.sweepstakesCoins,
+      source: this.balances.source ?? 'local',
+    });
+    return true;
+  }
+
+  /** Credit GC and/or SC (e.g. payouts). */
+  public credit(rewardGc: number, rewardSc: number): WalletBalances {
+    const nextGc = Math.max(0, this.balances.goldCoins + Math.max(0, Math.floor(rewardGc)));
+    const nextSc = WalletService.roundSc(this.balances.sweepstakesCoins + Math.max(0, rewardSc));
+    this.setBalances({
+      goldCoins: nextGc,
+      sweepstakesCoins: nextSc,
+      source: this.balances.source ?? 'local',
+    });
+    return this.getBalances();
   }
 
   /**
@@ -130,11 +173,7 @@ export class WalletService {
   }
 
   public creditRaidReward(rewardGc: number, rewardSc: number): WalletBalances {
-    const current = this.getBalances();
-    const nextGc = Math.max(0, current.goldCoins + Math.max(0, Math.floor(rewardGc)));
-    const nextSc = Math.max(0, current.sweepstakesCoins + Math.max(0, Math.floor(rewardSc)));
-    this.applyServerBalances(nextGc, nextSc);
-    return this.getBalances();
+    return this.credit(rewardGc, rewardSc);
   }
 
   public async connect(): Promise<WalletBalances> {
@@ -243,7 +282,8 @@ export class WalletService {
   private setBalances(next: WalletBalances): void {
     this.balances = {
       goldCoins: Math.max(0, Math.floor(next.goldCoins)),
-      sweepstakesCoins: Math.max(0, Math.floor(next.sweepstakesCoins)),
+      sweepstakesCoins: WalletService.roundSc(next.sweepstakesCoins),
+      source: next.source ?? this.balances.source ?? 'local',
     };
 
     for (const listener of this.listeners) {
