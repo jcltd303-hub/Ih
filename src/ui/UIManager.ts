@@ -738,37 +738,34 @@ export class UIManager {
 
 
   private refreshStakeHud(): void {
+    // Always mirror wallet → HUD so currency/bet switches never show stale amounts
+    const live = WalletService.getInstance().getBalances();
+    this.gcBalance = live.goldCoins;
+    this.scBalance = live.sweepstakesCoins;
+
     const el = document.getElementById('hud-bet-display');
     const bet = this.getCurrentBet();
     if (el) el.textContent = `${bet} ${this.activeCurrency}`;
     const badge = document.getElementById('hud-bet-badge');
     if (badge) {
       const scale = 0.85 + Math.min(0.55, Math.log10(bet * 20 + 1) * 0.35);
-      const colors: Array<[number, string, string]> = [
-        [0.25, '#67e8f9', '#0e7490'],
-        [1, '#22d3ee', '#155e75'],
-        [2.5, '#fbbf24', '#92400e'],
-        [5, '#f97316', '#7c2d12'],
-        [10, '#f43f5e', '#881337'],
+      const colors: Array<[number, string]> = [
+        [0.25, '#67e8f9'],
+        [1, '#22d3ee'],
+        [2.5, '#fbbf24'],
+        [5, '#f97316'],
+        [10, '#f43f5e'],
       ];
       let fg = '#67e8f9';
-      let border = '#0e7490';
-      for (const [t, f, b] of colors) {
-        if (bet >= t) {
-          fg = f;
-          border = b;
-        }
+      for (const [t, f] of colors) {
+        if (bet >= t) fg = f;
       }
-      badge.textContent = `×${bet.toFixed(2)}`;
+      badge.textContent = `×${bet.toFixed(2)} ${this.activeCurrency}`;
       badge.style.transform = `translateX(-50%) scale(${scale})`;
       badge.style.color = fg;
-      badge.style.color = fg; /* no box border */
       badge.style.boxShadow = `0 0 ${10 + bet * 2}px ${fg}55`;
     }
-    const gcW = document.getElementById('hud-gc-wallet');
-    const scW = document.getElementById('hud-sc-wallet');
-    if (gcW) gcW.style.display = this.activeCurrency === 'GC' ? 'flex' : 'none';
-    if (scW) scW.style.display = this.activeCurrency === 'SC' ? 'flex' : 'none';
+    this.paintBalances();
   }
 
   private adjustBet(direction: number): void {
@@ -792,7 +789,7 @@ export class UIManager {
     this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
 
-  /** Lobby-only currency switch — resets bet to 1.00 */
+  /** Lobby-only currency switch — resets bet to 1.00; balance display follows wallet. */
   private setCurrency(currency: 'GC' | 'SC'): void {
     const changed = this.activeCurrency !== currency;
     this.activeCurrency = currency;
@@ -801,6 +798,7 @@ export class UIManager {
       this.currentBetIndex = defaultIdx >= 0 ? defaultIdx : 4;
       SoundManager.playUiSound('currency_toggle');
     }
+    // Pull wallet + flip which balance is visible
     this.refreshStakeHud();
     this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
@@ -932,47 +930,75 @@ export class UIManager {
   }
 
   public setBalances(gc: number, sc: number): void {
-    this.gcBalance = Math.max(0, gc);
-    this.scBalance = Math.max(0, sc);
+    this.gcBalance = Math.max(0, Math.floor(gc));
+    this.scBalance = WalletService.roundSc(sc);
+    this.paintBalances();
+  }
+
+  /** Single paint path so GC/SC switch and spends stay consistent. */
+  private paintBalances(): void {
+    // Re-query in case HUD was rebuilt
+    this.gcBalanceEl = document.getElementById('hud-gc-balance') as HTMLElement;
+    this.scBalanceEl = document.getElementById('hud-sc-balance') as HTMLElement;
     if (this.gcBalanceEl) {
-      this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
+      this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:10px;color:#fcd34d;margin-left:2px;font-weight:800;">GC</sub>`;
     }
     if (this.scBalanceEl) {
-      this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub>`;
+      this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:10px;color:#99f6e4;margin-left:2px;font-weight:800;">SC</sub>`;
     }
+    const gcW = document.getElementById('hud-gc-wallet');
+    const scW = document.getElementById('hud-sc-wallet');
+    if (gcW) gcW.style.display = this.activeCurrency === 'GC' ? 'flex' : 'none';
+    if (scW) scW.style.display = this.activeCurrency === 'SC' ? 'flex' : 'none';
+
+    // Start-screen mirrors (if open)
+    const lobbyGc = document.getElementById('ff-lobby-gc');
+    const lobbySc = document.getElementById('ff-lobby-sc');
+    if (lobbyGc) lobbyGc.textContent = this.gcBalance.toLocaleString();
+    if (lobbySc) lobbySc.textContent = this.scBalance.toFixed(2);
   }
 
   public getCurrency(): 'GC' | 'SC' {
     return this.activeCurrency;
   }
 
-  public deductBet(): boolean {
+  /**
+   * Stake cost in wallet units for the active currency.
+   * SC: bet × barrels (fractional OK)
+   * GC: bet × barrels × 100 (stake unit → coins)
+   */
+  public getStakeCost(): number {
     const barrels = this.getBarrelCount();
-    const bet = this.getCurrentBet() * barrels;
-    if (this.activeCurrency === 'SC') {
-      if (this.scBalance < bet) {
-        this.openStore();
-        return false;
-      }
-      this.scBalance -= bet;
-      if (this.scBalanceEl) this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub>`;
-    } else {
-      if (this.gcBalance < bet * 100) {
-        this.openStore();
-        return false;
-      }
-      this.gcBalance -= bet * 100;
-      if (this.gcBalanceEl) {
-        this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
-      }
+    const units = this.getCurrentBet() * barrels;
+    return this.activeCurrency === 'SC' ? units : Math.round(units * 100);
+  }
+
+  public deductBet(): boolean {
+    const wallet = WalletService.getInstance();
+    // Prefer live wallet balances so we never fight a second copy
+    const live = wallet.getBalances();
+    this.gcBalance = live.goldCoins;
+    this.scBalance = live.sweepstakesCoins;
+
+    const cost = this.getStakeCost();
+    const ok = wallet.trySpend(this.activeCurrency, cost);
+    if (!ok) {
+      this.openStore();
+      this.paintBalances();
+      return false;
     }
+    const after = wallet.getBalances();
+    this.gcBalance = after.goldCoins;
+    this.scBalance = after.sweepstakesCoins;
+    this.paintBalances();
     return true;
   }
 
   public addBalance(gc: number, sc: number): void {
-    this.gcBalance += gc;
-    this.scBalance += sc;
-    this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
-    this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub>`;
+    WalletService.getInstance().credit(gc, sc);
+    const b = WalletService.getInstance().getBalances();
+    this.gcBalance = b.goldCoins;
+    this.scBalance = b.sweepstakesCoins;
+    this.paintBalances();
   }
 }
