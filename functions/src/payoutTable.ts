@@ -184,37 +184,39 @@ export function runPayoutMonteCarlo(
   shotsPerRatio = 100_000
 ): MonteCarloResult[] {
   const results: MonteCarloResult[] = [];
+  const shots = Math.max(1, Math.floor(shotsPerRatio));
+
+  // Production normal-wave fish exposure:
+  // 55% of waves produce 2–4 small fish (mean 3).
+  // 45% produce one medium fish.
+  // Bosses are a separate Boss Raid economy event.
+  const smallExposure = 0.55 * 3;
+  const mediumExposure = 0.45;
+  const smallWeight = smallExposure / (smallExposure + mediumExposure);
 
   for (let hitRatio = 33; hitRatio <= 100; hitRatio += 1) {
     const rng = seededRandom(42_000 + hitRatio);
     let wagered = 0;
     let paidOut = 0;
 
-    for (let shot = 0; shot < shotsPerRatio; shot += 1) {
+    for (let shot = 0; shot < shots; shot += 1) {
       const bet = 1;
       wagered += bet;
 
-      // Match the observed player hit/aim ratio.
       if (rng() >= hitRatio / 100) {
         continue;
       }
 
-      // Match the settlement fish distribution.
-      const fishRoll = rng();
-      const fishType =
-        fishRoll < 0.55 ? 'small' :
-        fishRoll < 0.90 ? 'medium' :
-        'boss';
+      const fishType = rng() < smallWeight ? 'small' : 'medium';
 
       const isLuckyHit = rng() < table.hit.luckyHitChance;
-
       paidOut += isLuckyHit
         ? bet
         : bet * table.hit.baseHitRate;
 
-      // Consume the same crit/jitter randomness as settlement.
-      rng(); // crit roll
-      rng(); // jitter
+      // Consume the authoritative crit/jitter RNG sequence.
+      rng();
+      rng();
 
       const isInstantKill =
         rng() < table.hit.instantKillChance[fishType];
@@ -224,9 +226,7 @@ export function runPayoutMonteCarlo(
       }
 
       const baseMultiplier =
-        fishType === 'small' ? 1.2 :
-        fishType === 'medium' ? 4.0 :
-        25.0;
+        fishType === 'medium' ? 4 : 1.2;
 
       const bonusRoll = rng();
       let multiplier = baseMultiplier;
@@ -234,13 +234,9 @@ export function runPayoutMonteCarlo(
       if (bonusRoll < table.kill.jackpotChance) {
         multiplier *= table.kill.jackpotMultiplier;
       } else if (bonusRoll < table.kill.tripleChance) {
-        multiplier *= fishType === 'boss'
-          ? table.kill.tripleMultiplier
-          : 5;
+        multiplier *= table.kill.tripleMultiplier;
       } else if (bonusRoll < table.kill.bonusChance) {
         multiplier *= table.kill.bonusMultiplier;
-      } else if (fishType === 'boss') {
-        multiplier *= table.kill.bossTypeBoost;
       }
 
       paidOut += bet * multiplier * 0.7;
@@ -248,12 +244,13 @@ export function runPayoutMonteCarlo(
 
     results.push({
       hitRatio,
-      shots: shotsPerRatio,
+      shots,
       wagered,
       paidOut,
-      realizedRtp: wagered > 0
-        ? (paidOut / wagered) * 100
-        : 0
+      realizedRtp:
+        wagered > 0
+          ? (paidOut / wagered) * 100
+          : 0
     });
   }
 

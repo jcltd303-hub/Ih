@@ -46,6 +46,13 @@ export const startGameSession = onCall(async (request) => {
     clientSeed,
     nonce: 0,
     status: 'active',
+
+    // Server-authoritative boss progression. The client may render its
+    // own boss event, but cannot grant itself boss economics.
+    bossProgress: 0,
+    bossActiveUntil: 0,
+    bossCooldownUntil: 0,
+
     targetRtp: payoutTable.targetRtp,
     payoutTableVersion: payoutTable.version,
     payoutTable,
