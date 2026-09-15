@@ -434,40 +434,47 @@ export class SoundManager {
     }
   }
 
-  /** Horror Theme: 60 BPM Atmospheric Dread / Abyssal Void Soundscape */
+  /** Horror Theme: Lovecraftian abyssal soundscape — drones, pulse, distant voices */
   private static scheduleHorrorStep(step: number, time: number): void {
     if (!this.audioCtx || !this.bgmGain) return;
     const ctx = this.audioCtx;
     const bgmOut = this.bgmGain;
 
-    // 1. Unsettling Sub-Bass Dissonant Drone (41.2 Hz vs 43.6 Hz microtonal clash)
+    // 1. Deep abyssal drone cluster (microtonal clash + sub pressure)
     if (step % 4 === 0) {
       const droneOsc1 = ctx.createOscillator();
       const droneOsc2 = ctx.createOscillator();
+      const droneOsc3 = ctx.createOscillator();
       const droneFilt = ctx.createBiquadFilter();
       const droneG = ctx.createGain();
 
       droneOsc1.type = 'sawtooth';
-      droneOsc1.frequency.setValueAtTime(41.2, time); // Low E1
+      droneOsc1.frequency.setValueAtTime(36.7, time); // near D1
       droneOsc2.type = 'triangle';
-      droneOsc2.frequency.setValueAtTime(43.8, time); // Microtonal beating discordance
+      droneOsc2.frequency.setValueAtTime(41.2, time); // E1 — beating
+      droneOsc3.type = 'sine';
+      droneOsc3.frequency.setValueAtTime(55.0, time); // A1 — uneasy fifth
 
       droneFilt.type = 'lowpass';
-      droneFilt.frequency.setValueAtTime(110, time);
+      droneFilt.frequency.setValueAtTime(95, time);
+      droneFilt.Q.setValueAtTime(2.2, time);
 
       droneG.gain.setValueAtTime(0.001, time);
-      droneG.gain.linearRampToValueAtTime(0.14, time + 0.4);
-      droneG.gain.exponentialRampToValueAtTime(0.001, time + 1.95);
+      droneG.gain.linearRampToValueAtTime(0.18, time + 0.55);
+      droneG.gain.exponentialRampToValueAtTime(0.001, time + 2.1);
 
       droneOsc1.connect(droneFilt);
       droneOsc2.connect(droneFilt);
+      droneOsc3.connect(droneFilt);
       droneFilt.connect(droneG);
       droneG.connect(bgmOut);
 
       droneOsc1.start(time);
       droneOsc2.start(time);
-      droneOsc1.stop(time + 1.98);
-      droneOsc2.stop(time + 1.98);
+      droneOsc3.start(time);
+      droneOsc1.stop(time + 2.15);
+      droneOsc2.stop(time + 2.15);
+      droneOsc3.stop(time + 2.15);
     }
 
     // 2. Rhythmic Dread Heartbeat (two muted low-frequency thuds: "thump... thump...")
@@ -562,6 +569,44 @@ export class SoundManager {
         windSrc.start(time);
         windSrc.stop(time + 1.5);
       }
+    }
+
+    // 5. Distant eldritch whisper (formant-ish noise burst, irregular)
+    if (step % 16 === 11 || step % 16 === 5) {
+      const noise = this.getNoiseBuffer();
+      if (noise) {
+        const wSrc = ctx.createBufferSource();
+        wSrc.buffer = noise;
+        const formant = ctx.createBiquadFilter();
+        formant.type = 'bandpass';
+        formant.Q.setValueAtTime(9, time);
+        formant.frequency.setValueAtTime(700 + (step % 5) * 90, time);
+        formant.frequency.linearRampToValueAtTime(420, time + 0.7);
+        const wG = ctx.createGain();
+        wG.gain.setValueAtTime(0.001, time);
+        wG.gain.linearRampToValueAtTime(0.045, time + 0.08);
+        wG.gain.exponentialRampToValueAtTime(0.001, time + 0.85);
+        wSrc.connect(formant);
+        formant.connect(wG);
+        wG.connect(bgmOut);
+        wSrc.start(time);
+        wSrc.stop(time + 0.9);
+      }
+    }
+
+    // 6. Occasional sub drop / pressure wave
+    if (step % 32 === 24) {
+      const drop = ctx.createOscillator();
+      const dG = ctx.createGain();
+      drop.type = 'sine';
+      drop.frequency.setValueAtTime(90, time);
+      drop.frequency.exponentialRampToValueAtTime(28, time + 0.9);
+      dG.gain.setValueAtTime(0.16, time);
+      dG.gain.exponentialRampToValueAtTime(0.001, time + 1.1);
+      drop.connect(dG);
+      dG.connect(bgmOut);
+      drop.start(time);
+      drop.stop(time + 1.15);
     }
   }
 
