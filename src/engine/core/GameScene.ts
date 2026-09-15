@@ -122,16 +122,18 @@ export class GameScene {
       events.on('BOSS_HIT', () => { this.hitStopRemainingMs = 90; }),
       events.on('SCREEN_DIM', (e: { intensity: number }) => this.abyssalPostProcessor.setDim(e.intensity))
     );
-    this.uiManager.showStartScreen();
+    // The arcade cabinet is live immediately. There is intentionally no
+    // blocking PLAY/start screen; browsers will unlock WebAudio on the first
+    // real pointer/keyboard gesture while gameplay is already running.
+    this.startPlay();
   }
 
   private startPlay(): void {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
-    // PLAY is a real user gesture on web/mobile, so explicitly kick the
-    // scheduler here instead of waiting for a later audio event. This also
-    // makes BGM recover reliably after a suspended AudioContext.
+    // If the browser permits autoplay, start immediately. Otherwise the
+    // first real gameplay gesture in setupInputListeners() starts the scheduler.
     if (SoundManager.isBgmEnabled() && SoundManager.isSoundEnabled()) SoundManager.startBgm();
     void FairnessSession.getInstance().begin().then((sess) => console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…'));
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
@@ -198,6 +200,9 @@ export class GameScene {
     });
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.isPlaying) return;
+      // Pointerdown is a genuine user gesture. Use it to unlock/recover audio
+      // without making the player press a separate PLAY button.
+      if (SoundManager.isBgmEnabled() && SoundManager.isSoundEnabled()) SoundManager.startBgm();
       canvas.setPointerCapture?.(e.pointerId);
       syncAim(e.clientX, e.clientY);
       this.autoFireActive = true;
