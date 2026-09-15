@@ -42,21 +42,21 @@ export const GameConfig = {
   bossPacing: {
     minKills: 5,
     maxKills: 30,
-    chancePerKill: 0.25, // Increased significantly for testing
+    chancePerKill: 0.25,
     warningDurationMs: 2500,
     introDurationMs: 1500,
     battleDurationMs: 90000,
     cooldownMs: 5000
   },
 
-  /** Turret pacing */
+  /** Turret pacing — intentionally scarce, short arcade power window */
   turretPacing: {
-    minKillsBetweenTriggers: 20,
-    baseChance: 0.02,
-    durationMs: 3000,
-    maxDurationMs: 4000,
+    minKillsBetweenTriggers: 28,
+    baseChance: 0.012,
+    durationMs: 2200,
+    maxDurationMs: 2500,
     multiplier: 2,
-    cooldownMs: 12000
+    cooldownMs: 18000
   },
 
   /** Starting balances */
