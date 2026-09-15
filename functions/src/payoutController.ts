@@ -28,12 +28,17 @@ export async function loadAggregateTelemetry(
   db: admin.firestore.Firestore,
   tableVersion: string
 ): Promise<PayoutTelemetry> {
-  const hour = new Date().toISOString().slice(0, 13).replace('T', '');
+  const now = new Date();
+  const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const startBucket = start.toISOString().slice(0, 13).replace('T', '');
+  const endBucket = now.toISOString().slice(0, 13).replace('T', '');
 
   const snapshot = await db
     .collection('economyTelemetry')
-    .where('bucket', '==', hour)
     .where('tableVersion', '==', tableVersion)
+    .where('bucket', '>=', startBucket)
+    .where('bucket', '<=', endBucket)
     .get();
 
   const totals: PayoutTelemetry = {
