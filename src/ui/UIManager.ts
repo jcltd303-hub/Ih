@@ -694,6 +694,20 @@ export class UIManager {
         <span id="hud-overcharge-text">⚡ OVERCHARGE ACTIVE</span>
       </div>
 
+      <!-- ELECTRIC RAGE: BOSS BASH -->
+      <div id="hud-boss-bash" style="display:none; position:absolute; left:50%; top:18%; transform:translateX(-50%); z-index:25; pointer-events:none; text-align:center;">
+        <div style="font-size:clamp(28px,7vw,52px); font-weight:900; letter-spacing:4px; color:#ff0033;
+          text-shadow:0 0 20px #ff0033, 0 0 40px #ff0055, 0 4px 0 #450a0a;
+          animation: bossBashPulse 0.6s ease-in-out infinite alternate;">BOSS BASH</div>
+        <div id="hud-boss-bash-sub" style="margin-top:6px; font-size:12px; color:#fecaca; font-weight:700;">DEFEAT THE LEVIATHAN</div>
+      </div>
+      <style>
+        @keyframes bossBashPulse {
+          from { transform: scale(1); filter: brightness(1); }
+          to { transform: scale(1.06); filter: brightness(1.25); }
+        }
+      </style>
+
       <!-- BOTTOM TACTICAL WEAPON HUD -->
       <div id="hud-bottombar" style="display: flex; justify-content: center; align-items: center; width: 100%; pointer-events: none; padding-bottom: 8px;">
         <div style="font-size: 10px; color: #64748b; letter-spacing: 0.5px;">HOLD TO FIRE · stake set in LOBBY</div>
@@ -946,11 +960,17 @@ export class UIManager {
             <div style="font-weight:800; color:#fbbf24;">STREAK</div>
             <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Daily login rewards</div>
           </button>
+          ${this.isTournamentSession() ? `
           <button class="lobby-tile" data-lobby="ranks" style="text-align:left; background:#1e293b; border:1px solid #7c3aed; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
             <div style="font-size:18px; margin-bottom:4px;">🏆</div>
             <div style="font-weight:800; color:#c4b5fd;">RANKS</div>
             <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Tournament leaderboard</div>
-          </button>
+          </button>` : `
+          <div style="text-align:left; background:#0f172a; border:1px dashed #334155; border-radius:12px; padding:14px; color:#64748b;">
+            <div style="font-size:18px; margin-bottom:4px;">🏆</div>
+            <div style="font-weight:800;">RANKS</div>
+            <div style="font-size:11px; margin-top:4px;">Join a tournament table to unlock</div>
+          </div>`}
           <button class="lobby-tile" data-lobby="operator" style="grid-column:1 / -1; text-align:left; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
             <div style="font-size:18px; margin-bottom:4px;">⚙️</div>
             <div style="font-weight:800; color:#fbbf24;">OPERATOR · PAYOUTS & MONTE CARLO</div>
@@ -1039,6 +1059,10 @@ export class UIManager {
 
 
   private showLeaderboardModal(): void {
+    if (!this.isTournamentSession()) {
+      SoundManager.playUiSound('modal_close');
+      return;
+    }
     openLeaderboardModal(this.modalCtx());
   }
 
@@ -1117,6 +1141,26 @@ export class UIManager {
     }
   }
 
+  /** Giant BOSS BASH title during raid (Electric Rage). */
+  public setBossBashActive(active: boolean, sub?: string): void {
+    const el = document.getElementById('hud-boss-bash');
+    const subEl = document.getElementById('hud-boss-bash-sub');
+    if (el) el.style.display = active ? 'block' : 'none';
+    if (subEl && sub) subEl.textContent = sub;
+  }
+
+  public openStore(): void {
+    void showStoreModal(this.modalCtx());
+  }
+
+  public isTournamentSession(): boolean {
+    try {
+      return TableSelectionManager.getInstance().getActiveTable().mode === 'tournament';
+    } catch {
+      return false;
+    }
+  }
+
   public getCurrentBet(): number {
     return this.betTiers[this.currentBetIndex];
   }
@@ -1139,11 +1183,17 @@ export class UIManager {
   public deductBet(): boolean {
     const bet = this.getCurrentBet();
     if (this.activeCurrency === 'SC') {
-      if (this.scBalance < bet) return false;
+      if (this.scBalance < bet) {
+        this.openStore();
+        return false;
+      }
       this.scBalance -= bet;
       if (this.scBalanceEl) this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub>`;
     } else {
-      if (this.gcBalance < bet * 100) return false;
+      if (this.gcBalance < bet * 100) {
+        this.openStore();
+        return false;
+      }
       this.gcBalance -= bet * 100;
       this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
     }

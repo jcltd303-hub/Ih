@@ -140,6 +140,16 @@ export class GameScene {
       const isRaidActive = raid.active && raid.status !== 'victory' && raid.status !== 'failed' && raid.status !== 'idle';
       const isEnraged = isRaidActive && (raid.enraged || raid.status === 'enraged');
       this.animatedBackground.setBossActive(isRaidActive, isEnraged);
+      const hpPct = raid.sharedBossMaxHp > 0
+        ? Math.round((raid.sharedBossHp / raid.sharedBossMaxHp) * 100)
+        : 0;
+      this.uiManager.setBossBashActive(
+        isRaidActive,
+        isEnraged
+          ? `ENRAGED · ${hpPct}% HP · ${Math.ceil(raid.timeRemainingSec)}s`
+          : `HP ${hpPct}% · ${Math.ceil(raid.timeRemainingSec)}s LEFT`
+      );
+      // Bolt burst is handled by BossRaidEvent / ParticleFX on hits
     });
 
     // Show start screen; gameplay + multiplayer join after Play
@@ -163,8 +173,6 @@ export class GameScene {
     this.multiplayerTable.joinSharedTable(currentTable.id, uid, name);
     this.tableSelection.joinPresence(uid, name);
 
-    this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
-    this.presenceLayer.setLocalUserId(uid);
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
 

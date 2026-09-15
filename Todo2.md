@@ -10,9 +10,9 @@ Status: IN PROGRESS (feat/electric-rage-todo2)
 - [x] Admin: no RTP slider / Monte Carlo; package read + P&L
 - [x] Presence: medal + count only
 - [x] Onboarding v2 + login streak event
-- [ ] Tournament-only leaderboard flag
-- [ ] BOSS BASH banner polish
-- [ ] Package admin editor writes
+- [x] Tournament-only leaderboard flag
+- [x] BOSS BASH banner polish
+- [x] Package admin editor writes
 - [ ] Full Phase 6 QA
 
 Status was: PLANNING — decisions below now locked in from your last message.

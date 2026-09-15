@@ -4,6 +4,7 @@ import { ensureUserWallet } from './ensureUserWallet';
 import { startGameSession, revealSessionSeed } from './startGameSession';
 import { requestDeposit, listPackages, confirmDepositStub } from './requestDeposit';
 import { requestWithdrawal } from './requestWithdrawal';
+import { updatePackages, seedDefaultPackages } from './updatePackages';
 
 export {
   processPlayerShot,
@@ -14,5 +15,7 @@ export {
   requestDeposit,
   listPackages,
   confirmDepositStub,
-  requestWithdrawal
+  requestWithdrawal,
+  updatePackages,
+  seedDefaultPackages
 };
