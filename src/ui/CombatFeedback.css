@@ -1,0 +1,7 @@
+#ff-fighter-feedback [data-kind="super-critical"], #ff-fighter-feedback[data-state="critical"] { color: #fef08a; text-shadow: 2px 2px 0 #7f1d1d, 0 0 16px rgba(250,204,21,.85); }
+#ff-fighter-feedback [data-kind="super-critical"] { letter-spacing: .12em; transform: skewX(-8deg) scale(1.04); }
+#ff-fighter-feedback[data-state="critical"] .ff-fighter-strip { border-color: #ef4444; box-shadow: 0 0 14px rgba(239,68,68,.45); }
+#ff-fighter-feedback[data-state="boss"] .ff-fighter-strip { border-color: var(--ff-theme-accent, #22d3ee); }
+#ff-fighter-feedback[data-state="ko"] .ff-fighter-strip { border-color: #facc15; box-shadow: 0 0 18px rgba(250,204,21,.45); }
+:root[data-ff-theme='dark'] #ff-fighter-feedback[data-state="critical"] .ff-fighter-strip { border-color: #e879f9; box-shadow: 0 0 18px rgba(217,70,239,.55); }
+@media (prefers-reduced-motion: reduce) { #ff-fighter-feedback [data-kind="super-critical"] { transform: none; } }
