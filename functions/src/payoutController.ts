@@ -36,7 +36,6 @@ export async function loadAggregateTelemetry(
 
   const snapshot = await db
     .collection('economyTelemetry')
-    .where('tableVersion', '==', tableVersion)
     .where('bucket', '>=', startBucket)
     .where('bucket', '<=', endBucket)
     .get();
@@ -50,6 +49,10 @@ export async function loadAggregateTelemetry(
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
+
+    if (data.tableVersion !== tableVersion) {
+      return;
+    }
 
     totals.wagered += Number(data.wagered) || 0;
     totals.paidOut += Number(data.paidOut) || 0;
