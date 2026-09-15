@@ -155,18 +155,16 @@ export class WeaponController {
       this.refreshCannonSkin();
     });
 
-    // Setup offline sync callback
+    // Setup offline sync callback. Uses the same requestId+timestamp
+    // idempotency scheme as the live path (see ShotSettlement.ts) — no
+    // signature/nonce is needed or checked server-side.
     this.offlineQueue.setSyncHandler(async (queued) => {
       try {
         const processShot = httpsCallable(functions, 'processPlayerShot');
-        const timestamp = queued.timestamp;
-        const nonce = Math.random().toString(36).substring(2);
-        const signature = await CryptoSigner.generateSignature(
-          queued.userId, queued.sessionId, queued.betAmount, queued.targetId, timestamp, nonce
-        );
-        const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const requestId =
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
         await processShot({
           sessionId: queued.sessionId,
@@ -174,7 +172,7 @@ export class WeaponController {
           betAmount: queued.betAmount,
           targetId: queued.targetId,
           clientHitConfirmed: queued.clientHitConfirmed,
-          timestamp, nonce, signature,
+          timestamp: Date.now(),
           requestId
         });
         return true;
@@ -323,37 +321,7 @@ export class WeaponController {
     PayoutEngine.recordWager(betAmount);
     SoundManager.playTurretFire(skin, betAmount, currencyType);
     HapticManager.triggerShotImpact(betAmount).catch(()=>{});
-    this.dispatchServerShot(projectile);
     return true;
-  }
-
-  private async dispatchServerShot(projectile: Projectile): Promise<void> {
-    const timestamp = Date.now();
-    try {
-      const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
-      // Invoke server-authoritative verification if online
-      const processShot = httpsCallable(functions, 'processPlayerShot');
-      await processShot({
-        sessionId: projectile.sessionId,
-        currencyType: projectile.currencyType,
-        betAmount: projectile.betAmount,
-        targetId: 'pending_collision',
-        clientHitConfirmed: false,
-        timestamp,
-        nonce,
-        signature,
-        requestId
-      });
-    } catch {
-      await this.offlineQueue.enqueueShot({
-        userId: projectile.userId, sessionId: projectile.sessionId,
-        currencyType: projectile.currencyType, betAmount: projectile.betAmount,
-        targetId: 'pending_collision', clientHitConfirmed: false
-      });
-    }
   }
 
   public update(deltaTime: number): void {
@@ -370,6 +338,17 @@ export class WeaponController {
         this.projectilePool.release(proj.container);
         this.activeProjectiles.delete(id);
         SoundManager.playTurretMiss(proj.turretSkin);
+        // A shot that never hit anything still spent its wager — settle it
+        // as a miss (clientHitConfirmed: false) so the bet is deducted
+        // exactly once, same as a hit, instead of never reaching the
+        // server at all.
+        ShotSettlement.settle({
+          sessionId: proj.sessionId,
+          currencyType: proj.currencyType,
+          betAmount: proj.betAmount,
+          targetId: 'miss',
+          clientHitConfirmed: false
+        }).then(() => {}).catch(() => {});
         continue;
       }
 

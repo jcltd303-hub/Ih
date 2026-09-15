@@ -37,6 +37,35 @@ function providerFor(
 }
 
 /**
+ * Blocks confirmDepositStub for everyone except admins, unless the
+ * operator has explicitly opted into stub payments for internal QA.
+ *
+ * SECURITY: confirmDepositStub credits a wallet with zero real payment
+ * verification — it exists only so the purchase flow can be tested before
+ * real provider webhooks are wired up. ALLOW_STUB_PAYMENTS must NEVER be
+ * set to '1' in an environment reachable by real users; doing so lets any
+ * signed-in account mint unlimited free GC/SC by calling requestDeposit
+ * followed by confirmDepositStub.
+ */
+function assertStubPaymentsAllowed(request: {
+  auth?: { uid: string; token?: Record<string, unknown> };
+}): void {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  const isAdmin = request.auth.token?.admin === true;
+  const allowStub = process.env.ALLOW_STUB_PAYMENTS === '1';
+  if (!isAdmin && !allowStub) {
+    throw new HttpsError(
+      'permission-denied',
+      'Stub payment confirmation is disabled. Real payment verification is not wired up yet — ' +
+        'this only works for admin accounts or when ALLOW_STUB_PAYMENTS=1 is explicitly set for ' +
+        'internal QA. Never set that in an environment real users can reach.'
+    );
+  }
+}
+
+/**
  * Start a package purchase. Client sends packageId + provider only — amounts from server config.
  */
 export const requestDeposit = onCall(async (request) => {
@@ -106,13 +135,12 @@ export const listPackages = onCall(async () => {
 
 /**
  * Demo/stub: confirm a pending deposit and credit wallet (Admin SDK).
+ * Gated to admins / explicit staging opt-in — see assertStubPaymentsAllowed.
  * Replace with real webhook verification before production money.
  */
 export const confirmDepositStub = onCall(async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError('unauthenticated', 'Sign in required.');
-  }
-  const uid = request.auth.uid;
+  assertStubPaymentsAllowed(request);
+  const uid = request.auth!.uid;
   const depositId = String(request.data?.depositId || '');
   if (!depositId) {
     throw new HttpsError('invalid-argument', 'depositId required.');

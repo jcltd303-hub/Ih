@@ -1,7 +1,14 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
-import { assertRateLimit, assertBetAmount, MAX_SHOTS_PER_MINUTE, MAX_DAILY_SC_LOSS } from './limits';
+import {
+  assertRateLimit,
+  assertBetAmount,
+  MAX_SHOTS_PER_MINUTE,
+  MAX_DAILY_SC_LOSS,
+  MAX_CLAIMED_WIN_SC_PER_MINUTE,
+  MAX_CLAIMED_WIN_GC_PER_MINUTE
+} from './limits';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -194,6 +201,35 @@ export const processPlayerShot = onCall(async (request) => {
       }
     }
 
+    const isCollision =
+      Boolean(clientHitConfirmed) && typeof targetId === 'string' && targetId !== 'pending_collision';
+
+    // Dedupe kill claims per session per target. This does NOT verify a hit
+    // actually happened — that still relies on the client-reported
+    // clientHitConfirmed flag. What this closes is a narrower gap: the
+    // same targetId being submitted more than once within a session to
+    // collect the kill payout repeatedly. All reads must happen before any
+    // writes in this transaction, so this read happens up front regardless
+    // of the eventual roll outcome.
+    let killedTargetRef: FirebaseFirestore.DocumentReference | null = null;
+    let targetAlreadyKilled = false;
+    if (isCollision) {
+      killedTargetRef = sessionRef.collection('killedTargets').doc(targetId);
+      const killedSnap = await transaction.get(killedTargetRef);
+      targetAlreadyKilled = killedSnap.exists;
+    }
+
+    // Claimed-win burst limiter, tracked per user+currency in a rolling
+    // 60s window. This is a coarse circuit breaker against a flood of
+    // large claimed wins slipping through between shot-count rate-limit
+    // resets — not a precise economic model, just a tunable backstop.
+    const winRateRef = db
+      .collection('users')
+      .doc(userId)
+      .collection('rateLimits')
+      .doc(`winAmount_${currencyType}`);
+    const winRateSnap = await transaction.get(winRateRef);
+
     const rng = makeSessionRng(serverSeed, clientSeed, startNonce);
 
     let payoutAmount = 0;
@@ -201,14 +237,12 @@ export const processPlayerShot = onCall(async (request) => {
     let killResult: ReturnType<typeof evaluateServerKill> | null = null;
     let killed = false;
 
-    const isCollision =
-      Boolean(clientHitConfirmed) && typeof targetId === 'string' && targetId !== 'pending_collision';
-
     if (isCollision) {
       hitResult = evaluateServerHit(betAmount, fishType, skinBonus, targetRtp, rng.next);
       payoutAmount += hitResult.hitPayout;
 
-      if (hitResult.isInstantKill || data.clientKillConfirmed === true) {
+      const killClaimed = hitResult.isInstantKill || data.clientKillConfirmed === true;
+      if (killClaimed && !targetAlreadyKilled) {
         killed = true;
         killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, targetRtp, rng.next);
         payoutAmount += betAmount * killResult.finalMultiplier * 0.7;
@@ -218,6 +252,25 @@ export const processPlayerShot = onCall(async (request) => {
     const netLoss = betAmount - payoutAmount;
     if (currencyType === 'SC' && netLoss > 0 && existingNetLoss + netLoss > MAX_DAILY_SC_LOSS) {
       throw new HttpsError('failed-precondition', `Daily SC loss cap (${MAX_DAILY_SC_LOSS}) reached.`);
+    }
+
+    const winWindowMs = 60_000;
+    const winData = winRateSnap.exists ? winRateSnap.data()! : {};
+    let winWindowStart = Number(winData.windowStart) || Date.now();
+    let claimedInWindow = Number(winData.claimed) || 0;
+    if (Date.now() - winWindowStart > winWindowMs) {
+      winWindowStart = Date.now();
+      claimedInWindow = 0;
+    }
+    if (payoutAmount > 0) {
+      claimedInWindow += payoutAmount;
+      const winCap = currencyType === 'SC' ? MAX_CLAIMED_WIN_SC_PER_MINUTE : MAX_CLAIMED_WIN_GC_PER_MINUTE;
+      if (claimedInWindow > winCap) {
+        throw new HttpsError(
+          'resource-exhausted',
+          `Claimed win burst limit reached for ${currencyType}. Please slow down and try again shortly.`
+        );
+      }
     }
 
     const finalBalance = currentBalance - betAmount + payoutAmount;
@@ -241,6 +294,19 @@ export const processPlayerShot = onCall(async (request) => {
         { merge: true }
       );
     }
+    if (killed && killedTargetRef) {
+      transaction.set(killedTargetRef, {
+        fishType,
+        killedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    if (payoutAmount > 0) {
+      transaction.set(winRateRef, {
+        windowStart: winWindowStart,
+        claimed: claimedInWindow,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
 
     return {
       success: true,
@@ -254,6 +320,7 @@ export const processPlayerShot = onCall(async (request) => {
       hit: hitResult,
       kill: killResult,
       killed,
+      duplicateKillClaim: isCollision && targetAlreadyKilled,
       serverAuthoritative: true,
       fairNonceStart: startNonce,
       fairNonceEnd: startNonce + rng.consumed()
