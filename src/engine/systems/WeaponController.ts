@@ -46,7 +46,6 @@ export class WeaponController {
   public cannonY: number;
   private onWinCallback?: (winAmount: number, currencyType: 'GC' | 'SC') => void;
   private onBossDamage?: (userId: string, damage: number, fishId: string) => void;
-  private onKillClip?: (killText: string) => void;
 
   private static readonly WEAPON_STATS: Record<
     TurretSkinId,
@@ -89,8 +88,7 @@ export class WeaponController {
     screenWidth: number,
     screenHeight: number,
     onWin?: (winAmount: number, currencyType: 'GC' | 'SC') => void,
-    onBossDamage?: (userId: string, damage: number, fishId: string) => void,
-    onKillClip?: (killText: string) => void
+    onBossDamage?: (userId: string, damage: number, fishId: string) => void
   ) {
     this.stage = stage;
     this.spatialGrid = spatialGrid;
@@ -101,7 +99,6 @@ export class WeaponController {
     this.screenHeight = screenHeight;
     this.onWinCallback = onWin;
     this.onBossDamage = onBossDamage;
-    this.onKillClip = onKillClip;
 
     this.cannonX = screenWidth / 2;
     this.cannonY = screenHeight - 40;
@@ -431,11 +428,6 @@ export class WeaponController {
           }
 
           if (this.onWinCallback) this.onWinCallback(winAmount, proj.currencyType);
-
-          // Trigger share clip on notable kills (jackpot or boss)
-          if ((killGamble.isJackpot || fishType === 'boss') && this.onKillClip) {
-            this.onKillClip(killText);
-          }
         }
 
         this.stage.removeChild(proj.container);

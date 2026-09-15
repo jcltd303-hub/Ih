@@ -17,10 +17,9 @@ import { FairnessSession } from '../../network/FairnessSession';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
-import { ShareClipManager } from '../systems/ShareClipManager';
-import { TableSelection } from '../../network/TableSelection';
-import { TableSelectionManager, TableConfig } from '../../network/TableSelectionManager';
 import { BossRaidManager } from '../systems/BossRaidManager';
+import { TableSelection } from '../../network/TableSelection';
+import { TableSelectionManager } from '../../network/TableSelectionManager';
 
 export class GameScene {
   private app: Application;
@@ -52,9 +51,7 @@ export class GameScene {
 
   // New systems
   private bossRaid: BossRaidEvent;
-  private shareClip: ShareClipManager;
   private tableSelection: TableSelection;
-  private clipRecording = false;
   private bossRaidTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -84,7 +81,6 @@ export class GameScene {
     // Initialize new systems
     this.bossRaid = new BossRaidEvent(this.worldContainer, this.fishManager, this.particleFX);
     this.bossRaid.resize(width, height);
-    this.shareClip = new ShareClipManager(this.app, this.particleFX);
     this.tableSelection = TableSelection.getInstance();
 
     this.uiManager = new UIManager(uiRoot, {
@@ -122,11 +118,6 @@ export class GameScene {
       (userId, damage, fishId) => {
         if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) {
           this.bossRaid.recordDamage(userId, damage);
-        }
-      },
-      (killText) => {
-        if (this.clipRecording) {
-          void this.shareClip.shareClip(killText);
         }
       }
     );
@@ -204,10 +195,6 @@ export class GameScene {
     this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
       joinTable(tbl as any);
     });
-
-    // Start clip recording
-    this.shareClip.startRecording();
-    this.clipRecording = true;
 
     // Boss raid every ~3 minutes (only on public/tournament tables)
     if (!currentTable.isPractice) {
@@ -360,25 +347,6 @@ export class GameScene {
 
     // Update boss raid
     this.bossRaid.update(deltaTime);
-
-    // Record clip frames
-    if (this.clipRecording) {
-      const projArr: Array<{x:number;y:number;color:number}> = [];
-      const wc = this.weaponController as any;
-      if (wc.activeProjectiles) {
-        for (const p of wc.activeProjectiles.values()) {
-          projArr.push({ x: p.x, y: p.y, color: p.currencyType === 'SC' ? 0x00ffcc : 0xffb703 });
-        }
-      }
-      const fishArr: Array<{x:number;y:number;type:string;hpPct:number}> = [];
-      const fm = this.fishManager as any;
-      if (fm.activeFish) {
-        for (const f of fm.activeFish.values()) {
-          fishArr.push({ x: f.x, y: f.y, type: f.typeId, hpPct: f.hp / (f.maxHp || 1) });
-        }
-      }
-      this.shareClip.captureFrame(projArr, fishArr);
-    }
 
     this.fishManager.update(deltaTime, this.lastTargetX, this.lastTargetY);
     this.weaponController.update(deltaTime);
