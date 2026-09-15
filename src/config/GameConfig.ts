@@ -59,6 +59,9 @@ export const GameConfig = {
     cooldownMs: 22000
   },
 
+  /** Combo pacing — tighter than a passive dashboard-style streak. */
+  comboWindowMs: 1800,
+
   /** Starting balances */
   startingGc: 10000,
   startingSc: 50,
