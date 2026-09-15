@@ -44,6 +44,8 @@ export class WeaponController {
   public turretRig: TurretAnimationRig;
   public cannonX: number;
   public cannonY: number;
+  private lastTargetX = 0;
+  private lastTargetY = 0;
   private upgradeOverlay: Graphics;
   private upgradeCountdown: Text;
   private onWinCallback?: (winAmount: number, currencyType: 'GC' | 'SC') => void;
@@ -199,10 +201,23 @@ export class WeaponController {
   }
 
   public updateAim(targetX: number, targetY: number): void {
+    this.lastTargetX = targetX;
+    this.lastTargetY = targetY;
     const angle = Math.atan2(targetY - this.cannonY, targetX - this.cannonX);
     this.cannonGraphic.rotation = angle + Math.PI / 2;
     if (this.turretRig) {
       this.turretRig.headContainer.rotation = angle + Math.PI / 2;
+    }
+    // Keep multi-barrel muzzles aligned with aim
+    try {
+      const barrels = PlayerProgressionManager.getInstance().getState();
+      let n = 1;
+      if (barrels.isBossUpgradeActive || barrels.isOvercharged) n = 3;
+      else if (barrels.level >= 10) n = 3;
+      else if (barrels.level >= 5) n = 2;
+      this.drawBarrelIndicator(n);
+    } catch {
+      /* ignore */
     }
   }
 
@@ -240,7 +255,8 @@ export class WeaponController {
 
   public async fireCannon(
     userId: string, sessionId: string, currencyType: 'GC' | 'SC',
-    betAmount: number, targetX: number, targetY: number
+    betAmount: number, targetX: number, targetY: number,
+    barrelCount: number = 1
   ): Promise<boolean> {
     const stats = this.getActiveWeaponStats();
     const now = Date.now();
@@ -248,37 +264,75 @@ export class WeaponController {
     this.lastFiredTime = now;
     this.fireCooldownMs = stats.cooldownMs;
 
+    const barrels = Math.max(1, Math.min(3, Math.floor(barrelCount) || 1));
     this.updateAim(targetX, targetY);
     if (this.turretRig) this.turretRig.playFire();
+    this.drawBarrelIndicator(barrels);
 
-    // Track shot firing XP
-    PlayerProgressionManager.getInstance().addXp(2);
+    PlayerProgressionManager.getInstance().addXp(2 * barrels);
 
-    // Trigger dual-barrel animated muzzle flashes, recoil and shell ejection
-    if (this.turretRig) {
-      this.turretRig.playFire();
-    }
-
-    this.projectileIdCounter++;
-    const projectileId = `proj_${this.projectileIdCounter}`;
-
-    let angle = Math.atan2(targetY - this.cannonY, targetX - this.cannonX);
-    if (stats.spreadDeg > 0) {
-      angle += ((Math.random() - 0.5) * 2 * stats.spreadDeg * Math.PI) / 180;
-    }
-    const speed = stats.projectileSpeed;
-    const vx = Math.cos(angle) * speed;
-    const vy = Math.sin(angle) * speed;
-
-    const container = this.projectilePool.acquire();
-    const graphics = container.children[0] as Graphics;
-    graphics.clear();
-
+    const baseAngle = Math.atan2(targetY - this.cannonY, targetX - this.cannonX);
     const skin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin as TurretSkinId;
+    const speed = stats.projectileSpeed;
+    const barrelLength = 48;
+    // Lateral spacing between muzzles (perpendicular to aim)
+    const lateralStep = 10;
 
-    // Rotate container to match flight trajectory
-    container.rotation = angle + Math.PI / 2;
+    for (let i = 0; i < barrels; i++) {
+      const offsetIndex = i - (barrels - 1) / 2; // -1,0,1 for triple etc.
+      let angle = baseAngle;
+      if (stats.spreadDeg > 0) {
+        angle += ((Math.random() - 0.5) * 2 * stats.spreadDeg * Math.PI) / 180;
+      }
+      // Slight fan so multi-barrel is readable in flight
+      if (barrels > 1) {
+        angle += offsetIndex * 0.035;
+      }
 
+      const perpX = -Math.sin(baseAngle);
+      const perpY = Math.cos(baseAngle);
+      const lat = offsetIndex * lateralStep;
+
+      const muzzleX = this.cannonX + Math.cos(baseAngle) * barrelLength + perpX * lat;
+      const muzzleY = this.cannonY + Math.sin(baseAngle) * barrelLength + perpY * lat;
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed;
+
+      this.projectileIdCounter++;
+      const projectileId = `proj_${this.projectileIdCounter}`;
+      const container = this.projectilePool.acquire();
+      const graphics = container.children[0] as Graphics;
+      graphics.clear();
+      container.rotation = angle + Math.PI / 2;
+      this.drawProjectileGfx(graphics, skin, currencyType, betAmount);
+
+      container.x = muzzleX;
+      container.y = muzzleY;
+      this.stage.addChild(container);
+
+      const projectile: Projectile = {
+        id: projectileId, userId, sessionId, currencyType, betAmount, turretSkin: skin,
+        x: muzzleX, y: muzzleY, vx, vy, container
+      };
+      this.activeProjectiles.set(projectileId, projectile);
+    }
+
+    PayoutEngine.recordWager(betAmount);
+    SoundManager.playTurretFire(skin, betAmount, currencyType);
+    if (barrels > 1) {
+      // Extra bark so multi-barrel reads in audio
+      setTimeout(() => SoundManager.playTurretFire(skin, betAmount, currencyType), 30);
+    }
+    HapticManager.triggerShotImpact(betAmount).catch(()=>{});
+    return true;
+  }
+
+  private drawProjectileGfx(
+    graphics: Graphics,
+    skin: TurretSkinId,
+    currencyType: 'GC' | 'SC',
+    betAmount: number
+  ): void {
     if (skin === 'plasma_neon') {
       graphics.poly([{x:0,y:-16},{x:5,y:-4},{x:4,y:12},{x:-4,y:12},{x:-5,y:-4}]);
       graphics.fill({color:0x00f0ff,alpha:0.95});
@@ -297,31 +351,44 @@ export class WeaponController {
       graphics.fill({color:0xfbbf24,alpha:0.95});
       graphics.stroke({width:2,color:0xfffbeb,alpha:0.95});
       graphics.circle(0,0,3.5); graphics.fill({color:0xffffff,alpha:1});
-      graphics.poly([{x:0,y:-14},{x:3,y:0},{x:14,y:0},{x:3,y:0},{x:0,y:14},{x:-3,y:0},{x:-14,y:0},{x:-3,y:0}]);
-      graphics.fill({color:0xfef08a,alpha:0.75});
     } else {
       const bulletColor = currencyType==='SC'?(betAmount>=50?0xff0066:0x00ffcc):0xffb703;
       graphics.circle(-4,0,4); graphics.circle(4,0,4); graphics.fill({color:bulletColor,alpha:1});
       graphics.stroke({width:1.5,color:0xffffff,alpha:0.95});
     }
+  }
 
-    const barrelLength = 48;
-    const muzzleX = this.cannonX + Math.cos(angle) * barrelLength;
-    const muzzleY = this.cannonY + Math.sin(angle) * barrelLength;
+  /** Visible muzzle count on the turret so multi-barrel is obvious at rest. */
+  private barrelGfx: Graphics | null = null;
+  private lastDrawnBarrels = 0;
 
-    container.x = muzzleX; container.y = muzzleY;
-    this.stage.addChild(container);
+  private drawBarrelIndicator(barrels: number): void {
+    if (!this.barrelGfx) {
+      this.barrelGfx = new Graphics();
+      this.stage.addChild(this.barrelGfx);
+    }
+    if (barrels === this.lastDrawnBarrels && this.barrelGfx.visible) {
+      // still refresh position with aim
+    }
+    this.lastDrawnBarrels = barrels;
+    this.barrelGfx.clear();
+    this.barrelGfx.visible = barrels > 1;
+    if (barrels <= 1) return;
 
-    const projectile: Projectile = {
-      id: projectileId, userId, sessionId, currencyType, betAmount, turretSkin: skin,
-      x: muzzleX, y: muzzleY, vx, vy, container
-    };
-
-    this.activeProjectiles.set(projectileId, projectile);
-    PayoutEngine.recordWager(betAmount);
-    SoundManager.playTurretFire(skin, betAmount, currencyType);
-    HapticManager.triggerShotImpact(betAmount).catch(()=>{});
-    return true;
+    const angle = Math.atan2(this.lastTargetY - this.cannonY, this.lastTargetX - this.cannonX);
+    const perpX = -Math.sin(angle);
+    const perpY = Math.cos(angle);
+    const alongX = Math.cos(angle);
+    const alongY = Math.sin(angle);
+    for (let i = 0; i < barrels; i++) {
+      const offsetIndex = i - (barrels - 1) / 2;
+      const lat = offsetIndex * 9;
+      const bx = this.cannonX + alongX * 36 + perpX * lat;
+      const by = this.cannonY + alongY * 36 + perpY * lat;
+      this.barrelGfx.circle(bx, by, 4);
+      this.barrelGfx.fill({ color: 0xfbbf24, alpha: 0.95 });
+      this.barrelGfx.stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
+    }
   }
 
   public update(deltaTime: number): void {

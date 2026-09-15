@@ -515,6 +515,9 @@ export class UIManager {
         padding:4px 10px; border-radius:999px; font-weight:900; letter-spacing:1px;
         border:none; background:rgba(0,0,0,0.45); color:#67e8f9; font-size:13px;
         text-shadow:0 0 8px rgba(34,211,238,0.8);">×1.00</div>
+      <div id="hud-barrel-badge" style="position:absolute; left:42%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
+        padding:4px 8px; border-radius:999px; font-weight:900; font-size:12px; color:#fbbf24;
+        text-shadow:0 0 8px rgba(251,191,36,.7); background:rgba(0,0,0,.4);">1×</div>
     `;
 
     // Reference elements
@@ -820,6 +823,12 @@ export class UIManager {
       badge.style.transform = `translateX(-50%) scale(${scale})`;
       badge.style.color = fg;
       badge.style.boxShadow = `0 0 ${10 + bet * 2}px ${fg}55`;
+    }
+    const barrelEl = document.getElementById('hud-barrel-badge');
+    if (barrelEl) {
+      const n = this.getBarrelCount();
+      barrelEl.textContent = n > 1 ? `${n} BAR` : '1×';
+      barrelEl.style.opacity = n > 1 ? '1' : '0.55';
     }
     this.paintBalances();
   }
