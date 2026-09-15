@@ -1,3 +1,5 @@
+import './style.css';
+import './ui/finalArcadePolish.css';
 import { Application } from 'pixi.js';
 import { GameScene } from './engine/core/GameScene';
 import { AssetLoader } from './engine/systems/AssetLoader';
@@ -30,14 +32,11 @@ async function bootstrap() {
 
   const root = document.getElementById('app') || document.body;
 
-  // Performance tier (mobile/desktop / user override)
   const preferred = loadPreferredTier();
   const perf = resolvePerformanceSettings(preferred ?? undefined);
   setMaxActiveFish(perf.maxFish);
 
-  // Auth + wallet (non-blocking for offline arcade)
   const authState = await AuthManager.getInstance().ensureSignedIn();
-  // Daily streak on login (once per calendar day)
   try {
     const day = new Date().toISOString().slice(0, 10);
     if (localStorage.getItem('fish_frenzy_streak_day') !== day) {
@@ -63,10 +62,7 @@ async function bootstrap() {
     powerPreference: perf.tier === 'low' ? 'low-power' : 'high-performance'
   });
 
-  if (perf.targetFps === 30) {
-    app.ticker.maxFPS = 30;
-  }
-
+  if (perf.targetFps === 30) app.ticker.maxFPS = 30;
   root.appendChild(app.canvas);
 
   try {
@@ -90,16 +86,12 @@ async function bootstrap() {
   WalletService.getInstance().onChange((b) => {
     gameScene.syncWalletBalances(b.goldCoins, b.sweepstakesCoins, b.source);
   });
-
-  app.ticker.add((ticker) => {
-    gameScene.update(ticker.deltaMS);
-  });
+  app.ticker.add((ticker) => gameScene.update(ticker.deltaMS));
 
   console.log(
     `[Fish Frenzy] online @ ${perf.targetFps} FPS target, tier=${perf.tier}, maxFish=${perf.maxFish}`
   );
 
-  // React status chip (auth/wallet) — does not own the game loop
   let statusHost = document.getElementById('ff-react-root');
   if (!statusHost) {
     statusHost = document.createElement('div');
@@ -122,9 +114,7 @@ async function bootstrap() {
 }
 
 if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', () => {
-    void bootstrap();
-  });
+  window.addEventListener('DOMContentLoaded', () => void bootstrap());
 } else {
   void bootstrap();
 }
