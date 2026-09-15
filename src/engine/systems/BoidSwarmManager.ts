@@ -78,6 +78,7 @@ export class BoidSwarmManager {
     let cohY = 0;
     let sepCount = 0;
     let neighborCount = 0;
+    let cohCount = 0;
 
     for (let j = 0; j < flock.length; j++) {
       const other = flock[j];
@@ -106,9 +107,17 @@ export class BoidSwarmManager {
         if (sameSchool) {
           aliX += other.vx;
           aliY += other.vy;
-          cohX += other.x;
-          cohY += other.y;
           neighborCount++;
+
+          // Cohesion only applies outside the separation radius. Neighbors
+          // close enough to trigger separation shouldn't also be pulled
+          // together by cohesion — the two forces fought each other and
+          // let overlapping boids stay overlapped indefinitely.
+          if (dist >= w.separationRadius) {
+            cohX += other.x;
+            cohY += other.y;
+            cohCount++;
+          }
         }
       }
     }
@@ -127,10 +136,12 @@ export class BoidSwarmManager {
       aliY /= neighborCount;
       ax += (aliX - boid.vx) * w.alignment;
       ay += (aliY - boid.vy) * w.alignment;
+    }
 
-      // Cohesion: steer toward average position
-      cohX = cohX / neighborCount - boid.x;
-      cohY = cohY / neighborCount - boid.y;
+    if (cohCount > 0) {
+      // Cohesion: steer toward average position of non-overlapping neighbors
+      cohX = cohX / cohCount - boid.x;
+      cohY = cohY / cohCount - boid.y;
       const cDist = Math.sqrt(cohX * cohX + cohY * cohY);
       if (cDist > 0.001) {
         ax += (cohX / cDist) * w.cohesion;

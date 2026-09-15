@@ -690,10 +690,13 @@ export class PayoutEngine {
             mult *= 2;
           }
 
+          // Matches evaluateKillMultiplier(): no extra discount on top
+          // of the multiplier roll — the simulator previously applied an
+          // undocumented *0.7 here that live gameplay never applied,
+          // underreporting realized RTP by ~30%.
           const killPay =
             bet *
-            mult *
-            0.7;
+            mult;
 
           batchWin += killPay;
           totalWin += killPay;
