@@ -22,7 +22,7 @@ export class DebugOverlay {
 
   constructor() {
     window.addEventListener('keydown', (e) => {
-      if (e.key === '`' || e.key === '~') {
+      if (!e.shiftKey && (e.key === '`' || e.key === '~')) {
         this.toggle();
       }
     });
@@ -153,12 +153,17 @@ export class DebugOverlay {
       </div>
 
       <!-- PROVABLY FAIR -->
-      <div style="font-size:9px; color:#64748b; border-top:1px solid #1e293b; padding-top:4px;">
-        Seed: ${sess?.serverSeedHash ? sess.serverSeedHash.slice(0, 14) + '…' : 'local'}
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:9px; color:#64748b; border-top:1px solid #1e293b; padding-top:4px;">
+        <span>Seed: ${sess?.serverSeedHash ? sess.serverSeedHash.slice(0, 14) + '…' : 'local'}</span>
+        <button id="ff-dbg-admin" style="background:#475569; color:#f1f5f9; border:none; padding:2px 4px; cursor:pointer;">OPERATOR PORTAL</button>
       </div>
     `;
 
-    this.el.querySelector('#ff-dbg-close')?.addEventListener('click', () => this.destroy());
+    this.el.querySelector('#ff-dbg-close')?.addEventListener('click', () => this.toggle());
+    this.el.querySelector('#ff-dbg-admin')?.addEventListener('click', () => {
+      // Broadcast event that UIManager listens to, or just click the hidden shortcut
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '~', shiftKey: true }));
+    });
     this.el.querySelector('#ff-dbg-trigger-boss')?.addEventListener('click', () => {
       BossSystem.getInstance().forceTrigger();
     });

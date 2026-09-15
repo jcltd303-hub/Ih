@@ -108,14 +108,10 @@ export class BossRaidEvent {
       contributors: new Map()
     };
 
-    // Give the boss fish/BossManager the SAME hp pool the raid is tracking.
-    // Previously the fish spawned with a hardcoded 28 hp (fish-scale, not
-    // boss-scale) and would die — and vanish from the field — within a
-    // couple dozen hits, well before this 90s/150-249hp raid was meant to
-    // resolve. That made boss mode look like it cancelled itself moments
-    // after starting.
+    console.log('[BossRaidEvent] Spawning boss fish with HP:', maxHp);
     const boss = this.fishManager.spawnFish('boss', maxHp);
     this.bossId = boss.id;
+    console.log('[BossRaidEvent] Boss spawned with ID:', this.bossId);
 
     /* title handled by HUD */
     SoundManager.playBossWarning();
@@ -186,6 +182,11 @@ export class BossRaidEvent {
 
   public update(deltaTime: number): void {
     if (!this.state.active) return;
+
+    // Guard against uninitialized timeRemaining if active is flipped incorrectly
+    if (this.state.timeRemaining <= 0 && this.state.active && this.state.phase === 'engaged') {
+       this.state.timeRemaining = this.RAID_DURATION_MS;
+    }
 
     this.state.timeRemaining -= deltaTime;
     if (this.state.timeRemaining <= 0 && this.state.phase !== 'defeated') {

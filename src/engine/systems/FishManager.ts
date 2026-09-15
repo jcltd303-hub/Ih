@@ -59,7 +59,9 @@ export class FishManager {
 
     this.activeFish.set(id, fish);
     this.activeFishList.push(fish);
+
     if (type === 'boss') {
+      console.log(`[AUDIT] FishManager: Boss spawned! id=${id}, x=${startX}, y=${startY}, hp=${maxHpOverride}`);
       SoundManager.playBossWarning();
     }
     return fish;

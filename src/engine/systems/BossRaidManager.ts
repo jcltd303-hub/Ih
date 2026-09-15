@@ -69,18 +69,17 @@ export class BossRaidManager {
   }
 
   private handleTableChange(table: TableConfig): void {
+    const prevTableId = this.state.tableId;
     this.state.tableId = table.id;
     this.state.tableMode = table.mode;
 
-    if (table.mode === 'practice') {
-      // Practice table does not auto-start timed boss raid
-      this.stopRaid();
-      this.state.active = false;
-      this.state.status = 'idle';
-      this.emit();
-    } else {
-      // Boss starts from combat progress (kills/score) — not on table entry
-      this.stopRaid();
+    // Only stop raid if we are actually switching to a DIFFERENT table
+    // This prevents re-sync/init events from killing an active boss fight.
+    if (prevTableId !== table.id) {
+      if (this.state.active) {
+        console.log(`[BossRaidManager] Stopping active raid due to table switch from ${prevTableId} to ${table.id}`);
+        this.stopRaid();
+      }
       this.state.active = false;
       this.state.status = 'idle';
       this.emit();

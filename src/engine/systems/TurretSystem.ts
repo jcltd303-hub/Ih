@@ -98,9 +98,19 @@ export class TurretSystem {
       }
     } else if (this.state === 'COOLDOWN') {
       this.remainingCooldownMs -= deltaMs;
+      
+      GameEventBus.getInstance().emit('TURRET_UPDATE', {
+        active: false,
+        multiplier: 1,
+        remainingMs: this.remainingCooldownMs,
+        totalDurationMs: this.config.cooldownMs,
+        state: 'COOLDOWN'
+      });
+
       if (this.remainingCooldownMs <= 0) {
         this.remainingCooldownMs = 0;
         this.state = 'NORMAL';
+        GameEventBus.getInstance().emit('TURRET_READY');
       }
     }
   }

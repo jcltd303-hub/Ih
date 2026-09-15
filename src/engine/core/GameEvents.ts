@@ -29,7 +29,11 @@ export type GameEventType =
   | 'GAME_OVER'
   | 'PAYOUT'
   | 'THEME_CHANGED'
-  | 'SCREEN_SHAKE';
+  | 'SCREEN_SHAKE'
+  | 'SCREEN_DIM'
+  | 'BOSS_PHASE_CHANGE'
+  | 'TURRET_READY'
+  | 'AIM_UPDATE';
 
 export interface FishHitEvent {
   fishId: string;
@@ -67,6 +71,7 @@ export interface TurretMultiplierEvent {
   multiplier: number;
   remainingMs: number;
   totalDurationMs: number;
+  state?: 'BONUS' | 'COOLDOWN';
 }
 
 export interface ScreenShakeEvent {

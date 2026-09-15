@@ -26,10 +26,10 @@ import { ArcadeCombatWidgets } from './ArcadeCombatWidgets';
 
 export class UIManager {
   private container: HTMLElement;
-  private gcBalanceEl!: HTMLElement;
-  private scBalanceEl!: HTMLElement;
+  private gcBalanceEl: HTMLElement | null = null;
+  private scBalanceEl: HTMLElement | null = null;
   private betDisplayEl: HTMLElement | null = null;
-  private soundBtn!: HTMLElement;
+  private soundBtn: HTMLElement | null = null;
   private modalContainer!: HTMLElement;
 
   private currentBetIndex: number = 4; // Default 1.00 SC
@@ -391,55 +391,31 @@ export class UIManager {
     const activeTable = TableSelectionManager.getInstance().getActiveTable();
 
     this.container.innerHTML = `
-      <!-- Street Fighter Arcade Top Bar -->
+      <!-- Minimal Floating Top Bar -->
       <div id="hud-topbar" style="
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
         width: 100%;
         pointer-events: auto;
-        gap: 10px;
-        flex-wrap: wrap;
-        padding: 6px 10px;
-        background: rgba(3, 7, 18, 0.92);
-        border: 2px solid #38bdf8;
-        box-shadow: 0 4px 0 #020617, inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        border-radius: 2px;
+        padding: 8px 12px;
+        background: transparent;
+        z-index: 50;
       ">
-        <!-- Top Left: Player Status, Balances & Bet -->
-        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-          <!-- Player Tag (Clickable for dossier) -->
-          <div id="hud-player-tag" title="Click to view Pilot Dossier" style="
-            background: #0f172a;
-            border: 1px solid #475569;
-            padding: 3px 8px;
-            color: #f8fafc;
-            font-size: 12px;
-            font-weight: 900;
-            font-style: italic;
-            letter-spacing: 1px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-          ">
-            <span style="color:#38bdf8;">P1</span>
-            <span id="hud-player-name">PILOT</span>
-          </div>
-
-          <!-- Currency & Balance Pill (Click to toggle) -->
-          <button id="hud-currency-toggle" type="button" title="Click to toggle GC / SC" style="
-            background: #111827;
-            border: 1px solid #38bdf8;
-            padding: 3px 8px;
+        <!-- Top Left: Currency -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="hud-currency-toggle" type="button" title="Toggle GC/SC" style="
+            background: transparent;
+            border: none;
+            padding: 0;
             cursor: pointer;
             display: flex;
             align-items: baseline;
             gap: 4px;
             color: #f8fafc;
-            box-shadow: 1px 1px 0 #020617;
+            text-shadow: 0 2px 4px #000;
           ">
-            <span id="hud-active-balance" style="font-size: 14px; font-weight: 900; color: #38bdf8; font-family: var(--font-mono, monospace);">
+            <span id="hud-active-balance" style="font-size: 18px; font-weight: 900; color: #38bdf8; font-family: var(--font-mono, monospace);">
               ${this.activeCurrency === 'SC' ? this.scBalance.toFixed(2) : this.gcBalance.toLocaleString()}
             </span>
             <span id="hud-active-currency" style="font-size: 10px; font-weight: 900; color: #fbbf24;">
@@ -447,136 +423,82 @@ export class UIManager {
             </span>
           </button>
 
-          <!-- Hidden balance elements for compatibility -->
+          <!-- Hidden compatibility elements -->
           <span id="hud-gc-balance" style="display:none;"></span>
           <span id="hud-sc-balance" style="display:none;"></span>
           <div id="hud-gc-wallet" style="display:none;"></div>
           <div id="hud-sc-wallet" style="display:none;"></div>
+          <span id="hud-player-name" style="display:none;"></span>
+          <div id="hud-player-tag" style="display:none;"></div>
+          <button id="hud-level-btn" style="display:none;"></button>
+          <span id="hud-level-val" style="display:none;"></span>
+          <div id="hud-level-bar" style="display:none;"></div>
+        </div>
 
-          <!-- Bet Steppers -->
-          <div style="
-            display: flex;
-            align-items: center;
-            background: #0f172a;
-            border: 1px solid #475569;
-            border-radius: 2px;
-            overflow: hidden;
-          ">
-            <button id="hud-bet-minus" type="button" style="
-              background: #1e293b;
-              color: #f8fafc;
-              border: none;
-              padding: 4px 8px;
-              font-weight: 900;
-              cursor: pointer;
-            ">-</button>
-            <span id="hud-bet-display" style="
-              padding: 2px 8px;
-              font-size: 13px;
-              font-weight: 900;
-              color: #fbbf24;
-              font-family: var(--font-mono, monospace);
-              min-width: 58px;
-              text-align: center;
-            ">${this.getCurrentBet()} ${this.activeCurrency}</span>
-            <button id="hud-bet-plus" type="button" style="
-              background: #1e293b;
-              color: #f8fafc;
-              border: none;
-              padding: 4px 8px;
-              font-weight: 900;
-              cursor: pointer;
-            ">+</button>
-          </div>
-
-          <!-- Level Badge -->
-          <button id="hud-level-btn" title="Pilot Progression" style="
-            background: #111827;
-            border: 1px solid #64748b;
-            padding: 3px 6px;
+        <!-- Top Right: Action -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="hud-store-btn" style="
+            background: rgba(3, 7, 18, 0.6);
+            border: 1px solid #34d399;
+            color: #34d399;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 900;
+            border-radius: 4px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: #f8fafc;
+            text-shadow: 0 1px 2px #000;
           ">
-            <span style="font-size: 11px; font-weight: 900; font-style: italic;">LV <span id="hud-level-val">1</span></span>
-            <div style="width: 32px; height: 6px; background: #020617; border: 1px solid #475569; overflow: hidden;">
-              <div id="hud-level-bar" style="width: 0%; height: 100%; background: #22d3ee;"></div>
-            </div>
-          </button>
-        </div>
-
-        <!-- Top Center: Stage & Combat State -->
-        <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
-          <div style="font-size: 14px; font-weight: 900; font-style: italic; letter-spacing: 2px; color: #f8fafc; text-shadow: 0 2px 4px #000;">
-            STAGE 1 // ABYSSAL TRENCH
-          </div>
-          <div id="hud-combat-status" style="font-size: 10px; font-weight: 900; letter-spacing: 1px; color: #38bdf8;">
-            ROUND 1 // COMBAT ACTIVE
-          </div>
-        </div>
-
-        <!-- Top Right: Action Controls -->
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <button id="hud-table-btn" class="ff-arcade-btn ff-arcade-btn-slate" style="padding: 4px 8px; font-size: 11px;">
-            TABLES
-          </button>
-          <button id="hud-store-btn" class="ff-arcade-btn ff-arcade-btn-green" style="padding: 4px 8px; font-size: 11px;">
             STORE
           </button>
-          <button id="hud-options-btn" class="ff-arcade-btn ff-arcade-btn-slate" style="padding: 4px 8px; font-size: 11px;" title="Options & Audio">
-            OPT ⚙
-          </button>
-          <button id="hud-sound-toggle" class="ff-arcade-btn ff-arcade-btn-slate" style="padding: 4px 8px; font-size: 11px;" title="Sound Output">
-            🔊
-          </button>
+          
+          <!-- Hidden compatibility buttons -->
+          <button id="hud-table-btn" style="display:none;"></button>
+          <button id="hud-diag-btn" style="display:none;"></button>
         </div>
       </div>
 
-      <!-- Bottom Status Indicators (Above Turret) -->
+      <!-- Floating Bottom Status -->
       <div style="
         position: absolute;
-        bottom: 80px;
+        bottom: 74px;
         left: 50%;
         transform: translateX(-50%);
         display: flex;
-        gap: 12px;
+        gap: 16px;
         align-items: center;
         pointer-events: none;
         z-index: 20;
       ">
         <div id="hud-bet-badge" style="
-          background: rgba(3, 7, 18, 0.88);
-          border: 1px solid #38bdf8;
-          padding: 3px 10px;
-          border-radius: 2px;
           font-weight: 900;
-          font-size: 13px;
+          font-size: 16px;
           font-style: italic;
-          color: #38bdf8;
-          box-shadow: 2px 2px 0 #020617;
+          color: #fbbf24;
+          text-shadow: 0 2px 4px #000;
+          letter-spacing: 1px;
         ">×1.00 SC</div>
 
         <div id="hud-barrel-badge" style="
-          background: rgba(3, 7, 18, 0.88);
-          border: 1px solid #fbbf24;
-          padding: 3px 8px;
-          border-radius: 2px;
           font-weight: 900;
-          font-size: 12px;
+          font-size: 14px;
           font-style: italic;
-          color: #fbbf24;
-          box-shadow: 2px 2px 0 #020617;
-        ">1× BARREL</div>
+          color: #38bdf8;
+          text-shadow: 0 2px 4px #000;
+          letter-spacing: 1px;
+        ">2× BARREL</div>
       </div>
+      
+      <!-- Hidden compatibility spacers -->
+      <span id="hud-bet-display" style="display:none;"></span>
+      <button id="hud-bet-minus" style="display:none;"></button>
+      <button id="hud-bet-plus" style="display:none;"></button>
     `;
 
     // Reference elements
-    this.gcBalanceEl = document.getElementById('hud-gc-balance')!;
-    this.scBalanceEl = document.getElementById('hud-sc-balance')!;
+    this.gcBalanceEl = document.getElementById('hud-gc-balance');
+    this.scBalanceEl = document.getElementById('hud-sc-balance');
     this.betDisplayEl = document.getElementById('hud-bet-display');
-    this.soundBtn = document.getElementById('hud-sound-toggle')!;
+    this.soundBtn = document.getElementById('hud-sound-toggle');
     this.tableBadgeBtn = document.getElementById('hud-table-btn');
 
     // Event listeners
@@ -598,7 +520,7 @@ export class UIManager {
       showAuthModal(this.modalCtx(), syncHudPilotName);
     });
 
-    this.soundBtn.addEventListener('click', () => this.cycleAudioMode());
+    this.soundBtn?.addEventListener('click', () => this.cycleAudioMode());
     document.getElementById('hud-currency-toggle')?.addEventListener('click', () => this.toggleCurrency());
     document.getElementById('hud-bet-minus')?.addEventListener('click', () => this.adjustBet(-1));
     document.getElementById('hud-bet-plus')?.addEventListener('click', () => this.adjustBet(1));
@@ -608,6 +530,11 @@ export class UIManager {
       showOptionsModal(this.modalCtx(), (theme) => {
         this.currentTheme = theme;
         this.onThemeChangeCallback?.(theme);
+      });
+    });
+    document.getElementById('hud-diag-btn')?.addEventListener('click', () => {
+      import('./DebugOverlay').then(({ debugOverlay }) => {
+        debugOverlay.toggle();
       });
     });
     document.getElementById('hud-level-btn')?.addEventListener('click', () => showProgressionModal(this.modalCtx()));
@@ -638,9 +565,9 @@ export class UIManager {
       });
     }
 
-    // Operator shortcut
+    // Operator shortcut (Shift + `)
     window.addEventListener('keydown', (e) => {
-      if (e.key === '`' || e.key === '~') {
+      if (e.shiftKey && (e.key === '`' || e.key === '~')) {
         this.showAdminPortalModal();
       }
     });

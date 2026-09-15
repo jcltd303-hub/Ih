@@ -1,6 +1,6 @@
 {
   "name": "Fish Frenzy",
-  "description": "Cyberpunk arcade fishing game with PixiJS v8 graphics, boid swarm physics, and tactical HUD.",
+  "description": "High-octane minimalist arcade fishing combat with 90s fighting-game aesthetics, punchy impact feedback, and tactical HUD.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

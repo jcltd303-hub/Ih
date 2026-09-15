@@ -15,11 +15,11 @@ export class KillFeed {
     this.container.id = 'ff-kill-feed';
     this.container.style.cssText = `
       position: absolute;
-      top: 76px;
+      top: 140px;
       right: 16px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
       pointer-events: none;
       z-index: 25;
       font-family: var(--font-display, 'Impact', sans-serif);
@@ -72,26 +72,23 @@ export class KillFeed {
       : '#f8fafc';
 
     item.style.cssText = `
-      background: ${bg};
-      border: 1px solid ${border};
-      border-radius: 2px;
-      padding: 4px 10px;
-      font-size: 12px;
+      padding: 2px 0;
+      font-size: 13px;
       font-weight: 900;
       color: ${color};
-      box-shadow: 2px 2px 0 #020617;
+      text-shadow: 0 2px 4px #000;
       display: flex;
       align-items: center;
-      gap: 8px;
-      min-width: 140px;
-      justify-content: space-between;
+      gap: 12px;
+      min-width: 160px;
+      justify-content: flex-end;
     `;
 
     const payoutText = `+${event.payout.toFixed(2)} ${event.currency}`;
 
     item.innerHTML = `
-      <span style="text-transform:uppercase;">${event.name}</span>
-      <span style="color:#fbbf24; font-size:13px;">${payoutText}</span>
+      <span style="text-transform:uppercase; letter-spacing:0.5px; opacity: 0.8; font-size: 11px;">${event.name}</span>
+      <span style="color:#fbbf24; font-size:14px; letter-spacing:0.5px;">${payoutText}</span>
     `;
 
     this.container.appendChild(item);

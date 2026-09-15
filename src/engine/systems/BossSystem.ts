@@ -118,6 +118,10 @@ export class BossSystem {
 
       case 'BOSS_INTRO':
         this.remainingPhaseMs -= deltaMs;
+        // Progressively dim during intro
+        const dimRatio = 1 - (this.remainingPhaseMs / this.config.introDurationMs);
+        GameEventBus.getInstance().emit('SCREEN_DIM', { intensity: dimRatio * 0.6 });
+
         if (this.remainingPhaseMs <= 0) {
           this.enterActiveCombatPhase();
         }
@@ -125,10 +129,14 @@ export class BossSystem {
 
       case 'BOSS_ACTIVE':
         this.remainingPhaseMs -= deltaMs;
+        // Maintain dimming during active combat
+        GameEventBus.getInstance().emit('SCREEN_DIM', { intensity: 0.6 });
+
         // Check enrage threshold (< 35% HP)
         if (!this.isEnraged && this.currentHp <= this.maxHp * 0.35) {
           this.isEnraged = true;
           SoundManager.setBossMusic(true, true);
+          GameEventBus.getInstance().emit('BOSS_PHASE_CHANGE', { phase: 'ENRAGED', name: this.bossName });
         }
 
         this.emitState();
@@ -140,6 +148,10 @@ export class BossSystem {
 
       case 'BOSS_DEFEATED':
         this.remainingPhaseMs -= deltaMs;
+        // Quickly fade out dimming
+        const fadeOutRatio = Math.max(0, this.remainingPhaseMs / 1000);
+        GameEventBus.getInstance().emit('SCREEN_DIM', { intensity: fadeOutRatio * 0.6 });
+
         if (this.remainingPhaseMs <= 0) {
           this.enterRewardPhase();
         }
@@ -147,6 +159,8 @@ export class BossSystem {
 
       case 'REWARD':
         this.remainingPhaseMs -= deltaMs;
+        GameEventBus.getInstance().emit('SCREEN_DIM', { intensity: 0 });
+
         if (this.remainingPhaseMs <= 0) {
           this.returnToNormal();
         }

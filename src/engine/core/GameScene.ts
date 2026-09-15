@@ -32,7 +32,7 @@ export class GameScene {
   private weaponController: WeaponController;
   private particleFX: ParticleFXManager;
   private themeManager: ThemeManager;
-  private postProcessor: AbyssalPostProcessor;
+  private abyssalPostProcessor: AbyssalPostProcessor;
   private uiManager: UIManager;
   private multiplayerTable: MultiplayerTableManager;
   private presenceLayer: MultiplayerPresenceLayer | null = null;
@@ -64,6 +64,8 @@ export class GameScene {
   // Screen shake
   private shakeIntensity = 0;
   private shakeDuration = 0;
+  private hitStopRemainingMs = 0;
+  private elapsedSeconds = 0;
 
   constructor(
     app: Application,
@@ -83,7 +85,7 @@ export class GameScene {
     this.app.stage.addChild(this.worldContainer);
 
     this.themeManager = new ThemeManager(app);
-    this.postProcessor = new AbyssalPostProcessor();
+    this.abyssalPostProcessor = new AbyssalPostProcessor();
     this.spatialGrid = new SpatialHashGrid(128);
     this.fishManager = new FishManager(this.worldContainer, this.spatialGrid, width, height);
     this.particleFX = new ParticleFXManager(this.worldContainer, width, height);
@@ -124,7 +126,7 @@ export class GameScene {
           this.uiManager.addBalance(winAmount * 100, 0);
           TournamentManager.addScore(GameConfig.localPlayerId, winAmount);
         }
-        this.postProcessor.triggerImpactGlitch(0.015);
+        this.abyssalPostProcessor.triggerImpactGlitch(0.015);
       },
       (userId, damage, fishId) => {
         if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) {
@@ -134,7 +136,7 @@ export class GameScene {
     );
 
     if (this.postFxEnabled) {
-      const postFilter = this.postProcessor.getFilter();
+      const postFilter = this.abyssalPostProcessor.getFilter();
       if (postFilter) {
         this.worldContainer.filters = [postFilter];
       }
@@ -158,60 +160,7 @@ export class GameScene {
   }
 
   private renderCombatHUD(): void {
-    // Persistent Crosshair
-    const crosshair = document.createElement('div');
-    crosshair.id = 'ff-crosshair';
-    crosshair.style.cssText = `
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      pointer-events: none;
-      z-index: 1000;
-      border: 2px solid #38bdf8;
-      transform: translate(-50%, -50%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: border-color 0.1s;
-    `;
-    crosshair.innerHTML = `<div style="width:2px; height:2px; background:#fff;"></div>`;
-    this.app.canvas.parentElement?.appendChild(crosshair);
-
-    // Kill Feed
-    const killFeed = document.createElement('div');
-    killFeed.id = 'ff-kill-feed';
-    killFeed.style.cssText = `
-      position: absolute;
-      top: 80px;
-      right: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-family: var(--font-mono, monospace);
-      font-size: 12px;
-      color: #38bdf8;
-      text-transform: uppercase;
-      pointer-events: none;
-    `;
-    this.app.canvas.parentElement?.appendChild(killFeed);
-
-    // Round Banner (center screen)
-    const roundBanner = document.createElement('div');
-    roundBanner.id = 'ff-round-banner';
-    roundBanner.style.cssText = `
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(0);
-      font-family: var(--font-display, 'Impact', sans-serif);
-      font-size: 64px;
-      color: #fff;
-      text-shadow: 0 0 10px #38bdf8;
-      pointer-events: none;
-      opacity: 0;
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    `;
-    this.app.canvas.parentElement?.appendChild(roundBanner);
+    // HUD is now handled by UIManager and sub-components
   }
   // ... (rest of the file)
 
@@ -274,6 +223,25 @@ export class GameScene {
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
     }
+
+    // Arcade impact feedback: Hit Stop on crits and boss hits
+    GameEventBus.getInstance().on('FISH_HIT', (e: any) => {
+      if (e.isCrit || e.fishType === 'boss') {
+        this.hitStopRemainingMs = e.fishType === 'boss' ? 100 : 65;
+      }
+    });
+    
+    GameEventBus.getInstance().on('BOSS_HIT', () => {
+      this.hitStopRemainingMs = 90;
+    });
+
+    GameEventBus.getInstance().on('SCREEN_SHAKE', (e: { intensity: number; durationMs: number }) => {
+      this.triggerShake(e.intensity, e.durationMs);
+    });
+
+    GameEventBus.getInstance().on('SCREEN_DIM', (e: { intensity: number }) => {
+      this.abyssalPostProcessor.setDim(e.intensity);
+    });
   }
 
   private tryStartBossFromProgress(): void {
@@ -286,23 +254,32 @@ export class GameScene {
       return;
     }
     const table = this.tableSelection.getCurrentTable() as any;
+    const raidAllowed = TableSelectionManager.getInstance().isBossRaidAllowed();
+    
     if (table?.isPractice || table?.mode === 'practice') {
-      console.log('[AUDIT] BossRaid blocked: Practice mode');
-      return;
-    }
-    if (!TableSelectionManager.getInstance().isBossRaidAllowed()) {
+      if (!raidAllowed) {
+        console.log('[AUDIT] BossRaid blocked: Practice mode (Raid Disabled)');
+        return;
+      }
+    } else if (!raidAllowed) {
       console.log('[AUDIT] BossRaid blocked: Raid not allowed for this table');
       return;
     }
+
     if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) {
-      console.log(`[AUDIT] BossRaid blocked: Progress score too low (${this.bossProgressScore} < ${this.BOSS_PROGRESS_THRESHOLD})`);
+      // Optional: don't log every frame/shot to avoid spam, but log at certain intervals
+      if (this.bossProgressScore % 10 === 0 && this.bossProgressScore > 0) {
+        console.log(`[AUDIT] BossRaid progress: ${this.bossProgressScore}/${this.BOSS_PROGRESS_THRESHOLD}`);
+      }
       return;
     }
-    console.log('[AUDIT] BossRaid starting now!');
+    
+    console.log('[AUDIT] BossRaid conditions met. Starting raid sequence...');
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     this.bossProgressScore = 0;
     this.bossRaid.startRaid(uid, (result) => {
       console.info('[BossRaid] completed', result);
+      this.bossUnlockAtMs = Date.now() + 60000; // 60s cooldown
     });
   }
 
@@ -315,11 +292,8 @@ export class GameScene {
       this.lastTargetY = clientY - rect.top;
       this.weaponController.updateAim(this.lastTargetX, this.lastTargetY);
       
-      const crosshair = document.getElementById('ff-crosshair');
-      if (crosshair) {
-        crosshair.style.left = `${this.lastTargetX}px`;
-        crosshair.style.top = `${this.lastTargetY}px`;
-      }
+      // Aim data is also used by the UI components (like Crosshair) via GameEventBus
+      GameEventBus.getInstance().emit('AIM_UPDATE', { x: this.lastTargetX, y: this.lastTargetY });
     };
 
     canvas.addEventListener('pointermove', (e) => {
@@ -366,6 +340,7 @@ export class GameScene {
       this.weaponController.resize(width, height);
       this.particleFX.resize(width, height);
       this.bossRaid.resize(width, height);
+      this.abyssalPostProcessor.resize(width, height);
     });
   }
 
@@ -421,8 +396,16 @@ export class GameScene {
   }
 
   public update(deltaTime: number): void {
+    // Temporal Pause (Hit Stop)
+    if (this.hitStopRemainingMs > 0) {
+      this.hitStopRemainingMs -= deltaTime;
+      return;
+    }
+
+    this.elapsedSeconds += deltaTime / 1000;
+    this.abyssalPostProcessor.update(this.elapsedSeconds);
+
     this.animatedBackground.update(deltaTime);
-    debugOverlay.ensure();
     debugOverlay.tick();
 
     // Apply shake
@@ -471,16 +454,18 @@ export class GameScene {
        console.log(`[AUDIT] BossRaid active: phase=${state.phase}, hp=${state.hp}/${state.maxHp}, time=${Math.ceil(state.timeRemaining/1000)}s`);
     }
 
-    if (raidActive && !this.lastBossBashActive) {
-      this.uiManager.showBossFrenzyTitle();
-      SoundManager.setBossMusic(true, false);
-      SoundManager.playBossWarning();
-      const cx = this.app.screen.width / 2;
-      const cy = this.app.screen.height * 0.22;
-      this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);
-      this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 16);
-    }
+    // Bug 3 Fix: Show overlay/title whenever raid is active, not just on the rising edge
     if (raidActive) {
+      if (!this.lastBossBashActive) {
+        this.uiManager.showBossFrenzyTitle();
+        SoundManager.setBossMusic(true, false);
+        SoundManager.playBossWarning();
+        const cx = this.app.screen.width / 2;
+        const cy = this.app.screen.height * 0.22;
+        this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);
+        this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 16);
+      }
+
       const bossState = this.bossRaid.getState();
       const secs = Math.ceil(bossState.timeRemaining / 1000);
       const hpPercent = bossState.maxHp > 0

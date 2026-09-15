@@ -21,42 +21,42 @@ export class StreetFighterBossBar {
     this.container.id = 'sf-boss-bar-widget';
     this.container.style.cssText = `
       position: absolute;
-      top: 12px;
-      right: 16px;
-      width: min(340px, calc(100vw - 32px));
-      z-index: 30;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(440px, 92vw);
+      z-index: 35;
       display: none;
       flex-direction: column;
       pointer-events: none;
       font-family: var(--font-display, 'Impact', sans-serif);
       letter-spacing: 1px;
+      padding: 0 10px;
     `;
 
     this.container.innerHTML = `
       <!-- Boss Header -->
       <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:4px;">
         <div style="display:flex; align-items:center; gap:6px;">
-          <span style="background:#b91c1c; color:#fff; border:1px solid #ef4444; font-size:10px; font-weight:900; padding:1px 4px; font-style:italic;">TARGET</span>
-          <span id="sf-boss-name" style="color:#f8fafc; font-size:14px; font-weight:900; font-style:italic; text-shadow:0 2px 4px #000;">APEX LEVIATHAN</span>
+          <span style="color:#ef4444; font-size:10px; font-weight:900; font-style:italic; text-shadow: 0 1px 2px #000;">TARGET</span>
+          <span id="sf-boss-name" style="color:#f8fafc; font-size:14px; font-weight:900; font-style:italic; text-shadow:0 2px 4px #000; letter-spacing:1px;">APEX LEVIATHAN</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px; font-size:11px; font-family:var(--font-mono, monospace);">
-          <span id="sf-boss-multiplier" style="color:#fbbf24; font-weight:900;">x2.5 BOUNTY</span>
-          <span id="sf-boss-timer" style="color:#ef4444; font-weight:900;">35s</span>
+          <span id="sf-boss-multiplier" style="color:#fbbf24; font-weight:900; text-shadow: 0 1px 2px #000;">x2.5</span>
+          <span id="sf-boss-timer" style="color:#ef4444; font-weight:900; text-shadow: 0 1px 2px #000;">88s</span>
         </div>
       </div>
 
-      <!-- Street Fighter Dual-Layer Bar -->
-      <div class="sf-bar-frame" style="height: 18px;">
-        <div class="sf-bar-depleted"></div>
-        <div id="sf-boss-bar-trailing" class="sf-bar-trailing" style="width: 100%;"></div>
-        <div id="sf-boss-bar-active" class="sf-bar-active" style="width: 100%;"></div>
-        <div class="sf-bar-segments"></div>
+      <!-- Street Fighter Dual-Layer Bar (Floating) -->
+      <div class="sf-bar-frame" style="height: 10px; position: relative; background: rgba(0,0,0,0.3); overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+        <div id="sf-boss-bar-trailing" class="sf-bar-trailing" style="position: absolute; top: 0; bottom: 0; left: 0; background: #fbbf24; opacity: 0.6; width: 100%;"></div>
+        <div id="sf-boss-bar-active" class="sf-bar-active" style="position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(180deg, #22d3ee, #0891b2); width: 100%; box-shadow: 0 0 8px #22d3ee;"></div>
       </div>
 
       <!-- Sub stats -->
-      <div style="display:flex; justify-content:space-between; margin-top:3px; font-size:10px; color:#cbd5e1; font-family:var(--font-mono, monospace);">
+      <div style="display:flex; justify-content:space-between; margin-top:4px; font-size:10px; color:#cbd5e1; font-family:var(--font-mono, monospace); font-weight: 700; text-shadow: 0 1px 2px #000;">
         <span id="sf-boss-damage">DMG: 0</span>
-        <span id="sf-boss-phase" style="color:#22d3ee; font-weight:900; text-transform:uppercase;">ENGAGED</span>
+        <span id="sf-boss-phase" style="color:#22d3ee; text-transform:uppercase; letter-spacing:1px;">ENGAGED</span>
         <span id="sf-boss-hp-text">HP: 100%</span>
       </div>
     `;
