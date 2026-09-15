@@ -9,25 +9,33 @@ export interface EntityBounds {
 export type Bounds = EntityBounds;
 
 /**
- * Lightweight 2D Spatial Hash Grid for fast O(1) collision detection
- * between bullets and swimming targets.
+ * High-performance 2D Spatial Hash Grid with zero allocations per frame.
+ * Uses 32-bit integer polynomial hashing and recycled bucket/query buffers.
  */
 export class SpatialHashGrid {
   private cellSize: number;
-  private cells: Map<string, EntityBounds[]> = new Map();
+  private cells: Map<number, EntityBounds[]> = new Map();
+  private activeKeys: number[] = [];
+  private scratchResults: EntityBounds[] = [];
+  private scratchVisited: Set<string> = new Set();
 
   constructor(cellSize: number = 128) {
     this.cellSize = cellSize;
   }
 
   public clear(): void {
-    this.cells.clear();
+    for (let i = 0; i < this.activeKeys.length; i++) {
+      const bucket = this.cells.get(this.activeKeys[i]);
+      if (bucket) bucket.length = 0;
+    }
+    this.activeKeys.length = 0;
   }
 
-  private getCellKey(x: number, y: number): string {
-    const cx = Math.floor(x / this.cellSize);
-    const cy = Math.floor(y / this.cellSize);
-    return `${cx},${cy}`;
+  /**
+   * Fast 32-bit integer spatial hash (zero string allocations).
+   */
+  private getCellKey(cx: number, cy: number): number {
+    return ((cx * 73856093) ^ (cy * 19349663)) | 0;
   }
 
   public insert(entity: EntityBounds): void {
@@ -36,20 +44,25 @@ export class SpatialHashGrid {
     const startY = Math.floor(entity.y / this.cellSize);
     const endY = Math.floor((entity.y + entity.height) / this.cellSize);
 
-    for (let x = startX; x <= endX; x++) {
-      for (let y = startY; y <= endY; y++) {
-        const key = `${x},${y}`;
-        if (!this.cells.has(key)) {
-          this.cells.set(key, []);
+    for (let cx = startX; cx <= endX; cx++) {
+      for (let cy = startY; cy <= endY; cy++) {
+        const key = this.getCellKey(cx, cy);
+        let bucket = this.cells.get(key);
+        if (!bucket) {
+          bucket = [];
+          this.cells.set(key, bucket);
         }
-        this.cells.get(key)!.push(entity);
+        if (bucket.length === 0) {
+          this.activeKeys.push(key);
+        }
+        bucket.push(entity);
       }
     }
   }
 
   public query(x: number, y: number, width: number = 20, height: number = 20): EntityBounds[] {
-    const results: EntityBounds[] = [];
-    const visited = new Set<string>();
+    this.scratchResults.length = 0;
+    this.scratchVisited.clear();
 
     const startX = Math.floor(x / this.cellSize);
     const endX = Math.floor((x + width) / this.cellSize);
@@ -58,25 +71,26 @@ export class SpatialHashGrid {
 
     for (let cx = startX; cx <= endX; cx++) {
       for (let cy = startY; cy <= endY; cy++) {
-        const key = `${cx},${cy}`;
+        const key = this.getCellKey(cx, cy);
         const bucket = this.cells.get(key);
-        if (bucket) {
-          for (const entity of bucket) {
-            if (!visited.has(entity.id)) {
-              visited.add(entity.id);
+        if (bucket && bucket.length > 0) {
+          for (let i = 0; i < bucket.length; i++) {
+            const entity = bucket[i];
+            if (!this.scratchVisited.has(entity.id)) {
+              this.scratchVisited.add(entity.id);
               if (
                 x < entity.x + entity.width &&
                 x + width > entity.x &&
                 y < entity.y + entity.height &&
                 y + height > entity.y
               ) {
-                results.push(entity);
+                this.scratchResults.push(entity);
               }
             }
           }
         }
       }
     }
-    return results;
+    return this.scratchResults;
   }
 }

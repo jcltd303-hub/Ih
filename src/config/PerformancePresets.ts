@@ -38,8 +38,9 @@ function hardwareTier(): PerformanceTier {
 
 export function resolvePerformanceSettings(force?: PerformanceTier): PerformanceSettings {
   const tier = force || hardwareTier();
+  const mobile = isMobileLike();
   const dpr =
-    typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, tier === 'high' ? 2 : 1.5) : 1;
+    typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
 
   switch (tier) {
     case 'low':
@@ -55,8 +56,8 @@ export function resolvePerformanceSettings(force?: PerformanceTier): Performance
     case 'medium':
       return {
         tier,
-        resolution: Math.min(dpr, 1.5),
-        antialias: true,
+        resolution: Math.min(dpr, mobile ? 1.25 : 1.5),
+        antialias: !mobile,
         maxFish: 14,
         particlesEnabled: true,
         postFxEnabled: false,
@@ -65,8 +66,8 @@ export function resolvePerformanceSettings(force?: PerformanceTier): Performance
     default:
       return {
         tier: 'high',
-        resolution: dpr,
-        antialias: true,
+        resolution: mobile ? Math.min(dpr, 1.5) : dpr,
+        antialias: !mobile,
         maxFish: 18,
         particlesEnabled: true,
         postFxEnabled: true,

@@ -10,6 +10,7 @@ export class FishManager {
   private stage: Container;
   private spatialGrid: SpatialHashGrid;
   private activeFish: Map<string, Fish> = new Map();
+  private activeFishList: Fish[] = [];
   private screenWidth: number;
   private screenHeight: number;
   private fishIdCounter = 0;
@@ -29,8 +30,8 @@ export class FishManager {
 
   public setTheme(theme: 'light' | 'dark'): void {
     this.currentTheme = theme;
-    for (const fish of this.activeFish.values()) {
-      fish.setTheme(theme);
+    for (let i = 0; i < this.activeFishList.length; i++) {
+      this.activeFishList[i].setTheme(theme);
     }
   }
 
@@ -51,6 +52,7 @@ export class FishManager {
     this.stage.addChild(fish.container);
 
     this.activeFish.set(id, fish);
+    this.activeFishList.push(fish);
     if (type === 'boss') {
       SoundManager.playBossWarning();
     }
@@ -76,23 +78,15 @@ export class FishManager {
 
   public update(deltaTime: number, threatX?: number, threatY?: number): void {
     const dtScale = Math.min(deltaTime * 0.06, 2.5);
-    const fishArray = Array.from(this.activeFish.values());
+    const list = this.activeFishList;
 
-    for (const fish of fishArray) {
+    for (let i = 0; i < list.length; i++) {
+      const fish = list[i];
       if (!fish.isAlive) continue;
 
-      // Pass neighboring fish for steering/flocking behaviors
-      fish.updateSteering(fishArray, this.screenWidth, this.screenHeight, threatX, threatY, dtScale);
-
-      const bounds: EntityBounds = {
-        id: fish.id,
-        x: fish.x - fish.width / 2,
-        y: fish.y - fish.height / 2,
-        width: fish.width,
-        height: fish.height
-      };
-
-      this.spatialGrid.insert(bounds);
+      // Pass cached active list for steering/flocking behaviors with zero allocations
+      fish.updateSteering(list, this.screenWidth, this.screenHeight, threatX, threatY, dtScale);
+      this.spatialGrid.insert(fish.bounds);
     }
   }
 
@@ -116,6 +110,10 @@ export class FishManager {
     if (!fish) return;
     fish.kill();
     this.activeFish.delete(fishId);
+    const idx = this.activeFishList.indexOf(fish);
+    if (idx !== -1) {
+      this.activeFishList.splice(idx, 1);
+    }
   }
 
   public getActiveCount(): number {

@@ -1,9 +1,10 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { BossManager } from './BossManager';
 import { SpriteSheetManager, FishAnimationRig } from './SpriteSheetManager';
-import { BoidSwarmManager } from './BoidSwarmManager';
+import { BoidSwarmManager, Boid } from './BoidSwarmManager';
+import { EntityBounds } from './SpatialHashGrid';
 
-export class Fish {
+export class Fish implements Boid {
   public id: string;
   public typeId: 'small' | 'medium' | 'boss';
   public x: number;
@@ -23,10 +24,14 @@ export class Fish {
   public facing: 'left' | 'right' = 'right';
   public isAlive: boolean = true;
   public theme: 'light' | 'dark' = 'light';
+  public bounds: EntityBounds;
   private maxSpeed: number;
   private maxForce: number;
   private panicTimer: number = 0;
   private miniHealthBar?: Graphics;
+  private lodCounter: number = Math.floor(Math.random() * 3);
+  private cachedAx: number = 0;
+  private cachedAy: number = 0;
 
   constructor(
     id: string,
@@ -64,6 +69,14 @@ export class Fish {
     this.maxHealth = this.health;
     this.multiplier = isBoss ? 25 : isSmall ? 1.2 : 4;
     this.worth = this.multiplier;
+
+    this.bounds = {
+      id: this.id,
+      x: this.x - this.width / 2,
+      y: this.y - this.height / 2,
+      width: this.width,
+      height: this.height
+    };
 
     this.container = new Container();
 
@@ -113,37 +126,60 @@ export class Fish {
   ): void {
     if (!this.isAlive) return;
 
-    // Build lightweight boid views for flocking (small + medium participate; bosses light touch)
-    const flock = neighbors
-      .filter((f) => f.isAlive)
-      .map((f) => ({
-        id: f.id,
-        x: f.x,
-        y: f.y,
-        vx: f.vx,
-        vy: f.vy,
-        typeId: f.typeId
-      }));
+    // Meta AI optimization: Boss uses autonomous spline/undulating pathing (bypasses boid neighbor calculations entirely)
+    if (this.typeId === 'boss') {
+      const targetSpeed = 1.25;
+      const targetVx = this.facing === 'left' ? -targetSpeed : targetSpeed;
+      this.vx += (targetVx - this.vx) * 0.04 * dtScale;
+      this.vy = Math.sin(Date.now() * 0.0018 + this.x * 0.008) * 0.95;
 
-    const selfBoid = {
-      id: this.id,
-      x: this.x,
-      y: this.y,
-      vx: this.vx,
-      vy: this.vy,
-      typeId: this.typeId
-    };
+      this.x += this.vx * dtScale;
+      this.y += this.vy * dtScale;
 
-    const { ax, ay } = BoidSwarmManager.computeSteering(selfBoid, flock, threatX, threatY);
+      if (this.x < -160) {
+        this.x = screenWidth + 140;
+      } else if (this.x > screenWidth + 160) {
+        this.x = -140;
+      }
+      if (this.y < 90) {
+        this.y = 90;
+      } else if (this.y > screenHeight - 120) {
+        this.y = screenHeight - 120;
+      }
+
+      this.container.x = this.x;
+      this.container.y = this.y;
+      this.bounds.x = this.x - this.width / 2;
+      this.bounds.y = this.y - this.height / 2;
+      return;
+    }
+
+    // Small and medium fish flocking: zero-alloc pass-through + LOD frame staggering for tetras
+    this.lodCounter++;
+    let ax = this.cachedAx;
+    let ay = this.cachedAy;
+
+    const shouldRecalculateSteering =
+      this.typeId !== 'small' ||
+      (this.lodCounter & 1) === 0 ||
+      threatX !== undefined;
+
+    if (shouldRecalculateSteering) {
+      const steering = BoidSwarmManager.computeSteering(this, neighbors, threatX, threatY);
+      ax = steering.ax;
+      ay = steering.ay;
+      this.cachedAx = ax;
+      this.cachedAy = ay;
+    }
 
     // Threat panic (erratic jinking for small/medium)
     if (threatX !== undefined && threatY !== undefined) {
       const tdx = this.x - threatX;
       const tdy = this.y - threatY;
-      const tdist = Math.sqrt(tdx * tdx + tdy * tdy);
-      const panicRadius = this.typeId === 'boss' ? 200 : this.typeId === 'medium' ? 170 : 180;
-      if (tdist > 0 && tdist < panicRadius) {
-        this.panicTimer = this.typeId === 'small' ? 50 : this.typeId === 'medium' ? 35 : 20;
+      const tdistSq = tdx * tdx + tdy * tdy;
+      const panicRadius = this.typeId === 'medium' ? 170 : 180;
+      if (tdistSq > 0 && tdistSq < panicRadius * panicRadius) {
+        this.panicTimer = this.typeId === 'small' ? 50 : 35;
       }
     }
 
@@ -151,34 +187,29 @@ export class Fish {
     let extraY = 0;
     if (this.panicTimer > 0) {
       this.panicTimer--;
-      if (this.typeId !== 'boss') {
-        extraX = (Math.random() - 0.5) * 1.9;
-        extraY = (Math.random() - 0.5) * 1.9;
-      }
-    }
-
-    // Boss: slow deliberate cruise with mild vertical sway
-    if (this.typeId === 'boss') {
-      extraY += Math.sin(Date.now() * 0.0015 + this.x * 0.01) * 0.15;
+      extraX = (Math.random() - 0.5) * 1.9;
+      extraY = (Math.random() - 0.5) * 1.9;
     }
 
     this.vx += (ax + extraX) * dtScale;
     this.vy += (ay + extraY) * dtScale;
 
     const weights = BoidSwarmManager.getWeights(this.typeId);
-    const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    const currentSpeedSq = this.vx * this.vx + this.vy * this.vy;
     const effectiveMaxSpeed =
-      this.panicTimer > 0 && this.typeId !== 'boss'
+      this.panicTimer > 0
         ? weights.maxSpeed * 1.55
         : weights.maxSpeed;
+    const maxSpeedSq = effectiveMaxSpeed * effectiveMaxSpeed;
 
-    if (currentSpeed > effectiveMaxSpeed) {
+    if (currentSpeedSq > maxSpeedSq) {
+      const currentSpeed = Math.sqrt(currentSpeedSq);
       this.vx = (this.vx / currentSpeed) * effectiveMaxSpeed;
       this.vy = (this.vy / currentSpeed) * effectiveMaxSpeed;
-    } else if (currentSpeed < 0.8 && this.typeId !== 'boss') {
-      const angle = Math.atan2(this.vy, this.vx) || Math.random() * Math.PI * 2;
-      this.vx = Math.cos(angle) * 1.15;
-      this.vy = Math.sin(angle) * 1.15;
+    } else if (currentSpeedSq < 0.64) {
+      const currentSpeed = Math.sqrt(currentSpeedSq) || 0.001;
+      this.vx = (this.vx / currentSpeed) * 1.15;
+      this.vy = (this.vy / currentSpeed) * 1.15;
     }
 
     this.x += this.vx * dtScale;
@@ -198,6 +229,8 @@ export class Fish {
 
     this.container.x = this.x;
     this.container.y = this.y;
+    this.bounds.x = this.x - this.width / 2;
+    this.bounds.y = this.y - this.height / 2;
 
     // Sprite sheet animated swimming and 3D turning
     if (this.animRig) {
@@ -220,7 +253,8 @@ export class Fish {
         }
       }
 
-      this.animRig.setSpeed(Math.max(0.7, currentSpeed / this.maxSpeed));
+      const animSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      this.animRig.setSpeed(Math.max(0.7, animSpeed / this.maxSpeed));
     } else if (this.bossInstance) {
       this.bossInstance.update(dtScale, this.vx, this.vy);
     }

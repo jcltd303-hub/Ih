@@ -10,6 +10,7 @@ export interface Boid {
   vx: number;
   vy: number;
   typeId?: 'small' | 'medium' | 'boss';
+  isAlive?: boolean;
 }
 
 export interface FlockWeights {
@@ -53,22 +54,26 @@ const DEFAULT_WEIGHTS: Record<'small' | 'medium' | 'boss', FlockWeights> = {
 };
 
 export class BoidSwarmManager {
+  private static _outSteering = { ax: 0, ay: 0 };
+
   public static getWeights(typeId: 'small' | 'medium' | 'boss' = 'small'): FlockWeights {
     return DEFAULT_WEIGHTS[typeId] ?? DEFAULT_WEIGHTS.small;
   }
 
   /**
    * Compute steering forces for a single boid given the full flock.
-   * Returns { ax, ay } acceleration to apply (caller handles integration).
+   * Returns { ax, ay } acceleration to apply with zero allocations.
    */
   public static computeSteering(
     boid: Boid,
-    flock: Boid[],
+    flock: Boid[] | readonly Boid[],
     threatX?: number,
     threatY?: number
   ): { ax: number; ay: number } {
     const type = boid.typeId ?? 'small';
     const w = this.getWeights(type);
+    const sepRadiusSq = w.separationRadius * w.separationRadius;
+    const neighRadiusSq = w.neighborRadius * w.neighborRadius;
 
     let sepX = 0;
     let sepY = 0;
@@ -82,42 +87,38 @@ export class BoidSwarmManager {
 
     for (let j = 0; j < flock.length; j++) {
       const other = flock[j];
-      if (other.id === boid.id) continue;
+      if (other.id === boid.id || (other.isAlive !== undefined && !other.isAlive)) continue;
 
       const dx = boid.x - other.x;
       const dy = boid.y - other.y;
       const distSq = dx * dx + dy * dy;
-      if (distSq <= 0) continue;
-      const dist = Math.sqrt(distSq);
+      if (distSq <= 0 || distSq > neighRadiusSq) continue;
 
       // Separation (close range, inverse-distance weighted)
-      if (dist < w.separationRadius) {
+      if (distSq < sepRadiusSq) {
+        const dist = Math.sqrt(distSq);
         const inv = 1 / dist;
         sepX += (dx / dist) * inv;
         sepY += (dy / dist) * inv;
         sepCount++;
       }
 
-      // Alignment + cohesion (wider neighborhood, prefer same-ish size)
-      if (dist < w.neighborRadius) {
-        const sameSchool =
-          !other.typeId || !boid.typeId || other.typeId === boid.typeId ||
-          (boid.typeId === 'small' && other.typeId === 'medium') ||
-          (boid.typeId === 'medium' && other.typeId === 'small');
-        if (sameSchool) {
-          aliX += other.vx;
-          aliY += other.vy;
-          neighborCount++;
+      // Alignment + cohesion (within neighbor radius)
+      const sameSchool =
+        !other.typeId || !boid.typeId || other.typeId === boid.typeId ||
+        (boid.typeId === 'small' && other.typeId === 'medium') ||
+        (boid.typeId === 'medium' && other.typeId === 'small');
 
-          // Cohesion only applies outside the separation radius. Neighbors
-          // close enough to trigger separation shouldn't also be pulled
-          // together by cohesion — the two forces fought each other and
-          // let overlapping boids stay overlapped indefinitely.
-          if (dist >= w.separationRadius) {
-            cohX += other.x;
-            cohY += other.y;
-            cohCount++;
-          }
+      if (sameSchool) {
+        aliX += other.vx;
+        aliY += other.vy;
+        neighborCount++;
+
+        // Cohesion only applies outside the separation radius
+        if (distSq >= sepRadiusSq) {
+          cohX += other.x;
+          cohY += other.y;
+          cohCount++;
         }
       }
     }
@@ -131,7 +132,6 @@ export class BoidSwarmManager {
     }
 
     if (neighborCount > 0) {
-      // Alignment: steer toward average velocity
       aliX /= neighborCount;
       aliY /= neighborCount;
       ax += (aliX - boid.vx) * w.alignment;
@@ -139,11 +139,11 @@ export class BoidSwarmManager {
     }
 
     if (cohCount > 0) {
-      // Cohesion: steer toward average position of non-overlapping neighbors
       cohX = cohX / cohCount - boid.x;
       cohY = cohY / cohCount - boid.y;
-      const cDist = Math.sqrt(cohX * cohX + cohY * cohY);
-      if (cDist > 0.001) {
+      const cDistSq = cohX * cohX + cohY * cohY;
+      if (cDistSq > 0.0001) {
+        const cDist = Math.sqrt(cDistSq);
         ax += (cohX / cDist) * w.cohesion;
         ay += (cohY / cDist) * w.cohesion;
       }
@@ -153,9 +153,11 @@ export class BoidSwarmManager {
     if (threatX !== undefined && threatY !== undefined) {
       const tdx = boid.x - threatX;
       const tdy = boid.y - threatY;
-      const tdist = Math.sqrt(tdx * tdx + tdy * tdy);
+      const tdistSq = tdx * tdx + tdy * tdy;
       const threatRadius = type === 'boss' ? 200 : type === 'medium' ? 160 : 140;
-      if (tdist > 0 && tdist < threatRadius) {
+      const threatRadiusSq = threatRadius * threatRadius;
+      if (tdistSq > 0 && tdistSq < threatRadiusSq) {
+        const tdist = Math.sqrt(tdistSq);
         const strength = (1 - tdist / threatRadius) * (type === 'small' ? 2.8 : type === 'medium' ? 2.0 : 1.2);
         ax += (tdx / tdist) * strength;
         ay += (tdy / tdist) * strength;
@@ -163,13 +165,17 @@ export class BoidSwarmManager {
     }
 
     // Clamp force
-    const forceMag = Math.sqrt(ax * ax + ay * ay);
-    if (forceMag > w.maxForce) {
+    const forceMagSq = ax * ax + ay * ay;
+    const maxForceSq = w.maxForce * w.maxForce;
+    if (forceMagSq > maxForceSq) {
+      const forceMag = Math.sqrt(forceMagSq);
       ax = (ax / forceMag) * w.maxForce;
       ay = (ay / forceMag) * w.maxForce;
     }
 
-    return { ax, ay };
+    this._outSteering.ax = ax;
+    this._outSteering.ay = ay;
+    return this._outSteering;
   }
 
   /** Legacy batch update kept for any external callers */
