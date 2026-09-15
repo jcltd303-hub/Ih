@@ -127,7 +127,12 @@ export class StreetFighterBossBar {
     }
 
     if (this.trailingBar) {
-      this.trailingBar.style.width = `${pct}%`;
+      // Add a slight delay before trailing bar matches active bar
+      setTimeout(() => {
+        if (this.trailingBar) {
+          this.trailingBar.style.width = `${pct}%`;
+        }
+      }, 300);
     }
 
     if (this.timerEl) {

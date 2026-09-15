@@ -450,13 +450,18 @@ export class WeaponController {
 
         // Register hit with ComboSystem and emit FISH_HIT
         ComboSystem.getInstance().registerHit();
+        
+        // Enhance hit effect based on hierarchy
+        const hierarchyBonus = fish?.hierarchy === 'CRITICAL' ? 1.5 : (fish?.hierarchy === 'ELITE' ? 1.2 : 1.0);
+        
         GameEventBus.getInstance().emit('FISH_HIT', {
           fishId: hitEntity.id,
           fishType: fishType as 'small' | 'medium' | 'boss',
-          damage: evalHit.damage,
+          hierarchy: fish?.hierarchy,
+          damage: evalHit.damage * hierarchyBonus,
           x: proj.x,
           y: proj.y,
-          isCrit: evalHit.isCrit,
+          isCrit: evalHit.isCrit || fish?.hierarchy === 'CRITICAL',
           isSuperCrit: evalHit.isSuperCrit,
           isInstantKill: evalHit.isInstantKill,
           payout: evalHit.hitPayout,

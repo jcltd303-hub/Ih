@@ -141,9 +141,73 @@ export class GameScene {
     this.setupInputListeners();
     this.setupResizeListener();
 
+    // ... (previous code)
+    this.setupResizeListener();
+
+    // HUD Elements
+    this.renderCombatHUD();
+
     // Show start screen; gameplay + multiplayer join after Play
     this.uiManager.showStartScreen();
   }
+
+  private renderCombatHUD(): void {
+    // Persistent Crosshair
+    const crosshair = document.createElement('div');
+    crosshair.id = 'ff-crosshair';
+    crosshair.style.cssText = `
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      pointer-events: none;
+      z-index: 1000;
+      border: 2px solid #38bdf8;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.1s;
+    `;
+    crosshair.innerHTML = `<div style="width:2px; height:2px; background:#fff;"></div>`;
+    this.app.canvas.parentElement?.appendChild(crosshair);
+
+    // Kill Feed
+    const killFeed = document.createElement('div');
+    killFeed.id = 'ff-kill-feed';
+    killFeed.style.cssText = `
+      position: absolute;
+      top: 80px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-family: var(--font-mono, monospace);
+      font-size: 12px;
+      color: #38bdf8;
+      text-transform: uppercase;
+      pointer-events: none;
+    `;
+    this.app.canvas.parentElement?.appendChild(killFeed);
+
+    // Round Banner (center screen)
+    const roundBanner = document.createElement('div');
+    roundBanner.id = 'ff-round-banner';
+    roundBanner.style.cssText = `
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      font-family: var(--font-display, 'Impact', sans-serif);
+      font-size: 64px;
+      color: #fff;
+      text-shadow: 0 0 10px #38bdf8;
+      pointer-events: none;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    `;
+    this.app.canvas.parentElement?.appendChild(roundBanner);
+  }
+  // ... (rest of the file)
 
   private startPlay(): void {
     if (this.isPlaying) return;
@@ -228,6 +292,12 @@ export class GameScene {
       this.lastTargetX = clientX - rect.left;
       this.lastTargetY = clientY - rect.top;
       this.weaponController.updateAim(this.lastTargetX, this.lastTargetY);
+      
+      const crosshair = document.getElementById('ff-crosshair');
+      if (crosshair) {
+        crosshair.style.left = `${this.lastTargetX}px`;
+        crosshair.style.top = `${this.lastTargetY}px`;
+      }
     };
 
     canvas.addEventListener('pointermove', (e) => {

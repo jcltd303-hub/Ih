@@ -72,6 +72,43 @@ export class ArcadeCombatWidgets {
     this.comboBonusEl = this.comboContainer.querySelector('#ff-combo-bonus');
   }
 
+  private renderTurretWidget(): void {
+    this.turretContainer = document.createElement('div');
+    this.turretContainer.id = 'ff-turret-widget';
+    this.turretContainer.style.cssText = `
+      position: absolute;
+      bottom: 84px;
+      left: 16px;
+      z-index: 25;
+      pointer-events: none;
+      display: none;
+      flex-direction: column;
+      background: rgba(9, 13, 24, 0.92);
+      border: 2px solid #38bdf8;
+      border-radius: 2px;
+      padding: 6px 10px;
+      box-shadow: 2px 2px 0 #020617;
+      min-width: 120px;
+      font-family: var(--font-display, 'Impact', sans-serif);
+      font-style: italic;
+    `;
+
+    this.turretContainer.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <span style="font-size:11px; color:#94a3b8; font-weight:900; letter-spacing:1px;">WEAPON BOOST</span>
+        <span id="ff-turret-val" style="font-size:13px; color:#38bdf8; font-weight:900; letter-spacing:1px;">TURRET x2</span>
+      </div>
+      <!-- Draining duration bar -->
+      <div style="height: 6px; background: #020617; border: 1px solid #475569; overflow: hidden;">
+        <div id="ff-turret-bar" style="height: 100%; width: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); transition: width 0.1s linear;"></div>
+      </div>
+    `;
+
+    this.parent.appendChild(this.turretContainer);
+    this.turretBarEl = this.turretContainer.querySelector('#ff-turret-bar');
+    this.turretValEl = this.turretContainer.querySelector('#ff-turret-val');
+  }
+
   private renderPlayerHealthBar(): void {
     this.playerHealthContainer = document.createElement('div');
     this.playerHealthContainer.id = 'ff-player-health-widget';

@@ -24,6 +24,7 @@ export class Fish implements Boid {
   public facing: 'left' | 'right' = 'right';
   public isAlive: boolean = true;
   public theme: 'light' | 'dark' = 'light';
+  public hierarchy: 'NORMAL' | 'ELITE' | 'CRITICAL' | 'BOSS' = 'NORMAL';
   public bounds: EntityBounds;
   private maxSpeed: number;
   private maxForce: number;
@@ -47,6 +48,9 @@ export class Fish implements Boid {
     this.x = startX;
     this.y = startY;
     this.theme = theme;
+    
+    // Assign hierarchy based on type
+    this.hierarchy = type === 'boss' ? 'BOSS' : (Math.random() < 0.1 ? 'CRITICAL' : (Math.random() < 0.25 ? 'ELITE' : 'NORMAL'));
 
     const isSmall = type === 'small';
     const isBoss = type === 'boss';
