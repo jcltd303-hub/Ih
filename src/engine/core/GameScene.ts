@@ -38,6 +38,7 @@ export class GameScene {
   private presenceLayer: MultiplayerPresenceLayer | null = null;
   private tableUnsub: (() => void) | null = null;
   private tableSelectionUnsub: (() => void) | null = null;
+  private eventUnsubs: Array<() => void> = [];
   private activeTableId: string = 'table_practice';
   private lastSeenShotTs = 0;
   private aimBroadcastTimer = 0;
@@ -51,17 +52,13 @@ export class GameScene {
   private postFxEnabled: boolean = true;
   private particlesEnabled: boolean = true;
 
-  // New systems
   private bossRaid: BossRaidEvent;
   private lastBossBashActive = false;
   private tableSelection: TableSelection;
-  /** Combat progress toward next boss (not time-based). */
   private bossProgressScore = 0;
   private readonly BOSS_PROGRESS_THRESHOLD = GameConfig.bossProgressThreshold;
-  /** Earliest time boss may start after Play. */
   private bossUnlockAtMs = 0;
-  
-  // Screen shake
+
   private shakeIntensity = 0;
   private shakeDuration = 0;
   private hitStopRemainingMs = 0;
@@ -91,7 +88,6 @@ export class GameScene {
     this.particleFX = new ParticleFXManager(this.worldContainer, width, height);
     this.multiplayerTable = new MultiplayerTableManager();
 
-    // Initialize new systems
     this.bossRaid = new BossRaidEvent(this.worldContainer, this.fishManager, this.particleFX);
     this.bossRaid.resize(width, height);
     this.tableSelection = TableSelection.getInstance();
@@ -137,9 +133,7 @@ export class GameScene {
 
     if (this.postFxEnabled) {
       const postFilter = this.abyssalPostProcessor.getFilter();
-      if (postFilter) {
-        this.worldContainer.filters = [postFilter];
-      }
+      if (postFilter) this.worldContainer.filters = [postFilter];
     }
 
     this.lastTargetX = width / 2;
@@ -147,22 +141,32 @@ export class GameScene {
 
     this.setupInputListeners();
     this.setupResizeListener();
-
-    // HUD Elements
     this.renderCombatHUD();
 
-    GameEventBus.getInstance().on<ScreenShakeEvent>('SCREEN_SHAKE', (data) => {
-      this.triggerShake(data.intensity, data.durationMs);
-    });
+    const events = GameEventBus.getInstance();
+    this.eventUnsubs.push(
+      events.on<ScreenShakeEvent>('SCREEN_SHAKE', (data) => {
+        this.triggerShake(data.intensity, data.durationMs);
+      }),
+      events.on('FISH_HIT', (e: any) => {
+        if (e.isCrit || e.fishType === 'boss') {
+          this.hitStopRemainingMs = e.fishType === 'boss' ? 100 : 65;
+        }
+      }),
+      events.on('BOSS_HIT', () => {
+        this.hitStopRemainingMs = 90;
+      }),
+      events.on('SCREEN_DIM', (e: { intensity: number }) => {
+        this.abyssalPostProcessor.setDim(e.intensity);
+      })
+    );
 
-    // Show start screen; gameplay + multiplayer join after Play
     this.uiManager.showStartScreen();
   }
 
   private renderCombatHUD(): void {
-    // HUD is now handled by UIManager and sub-components
+    // HUD is handled by UIManager and sub-components.
   }
-  // ... (rest of the file)
 
   private startPlay(): void {
     if (this.isPlaying) return;
@@ -175,8 +179,6 @@ export class GameScene {
 
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
-
-    // Table selection: use current table from TableSelection
     const currentTable = this.tableSelection.getCurrentTable();
     this.multiplayerTable.joinSharedTable(currentTable.id, uid, name);
     this.tableSelection.joinPresence(uid, name);
@@ -208,78 +210,42 @@ export class GameScene {
     const initialTable = this.tableSelection.getCurrentTable() as any;
     joinTable(initialTable);
 
-    this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
-      joinTable(tbl as any);
-    });
+    if (!this.tableSelectionUnsub) {
+      this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
+        joinTable(tbl as any);
+      });
+    }
 
-    // Boss is progress-gated (shots/bets), never on room entry or fixed timer
     this.bossProgressScore = 0;
     this.bossUnlockAtMs = Date.now() + GameConfig.bossGracePeriodMs;
     this.lastBossBashActive = false;
     this.uiManager.setBossOverlay(false);
     SoundManager.setBossMusic(false, false);
 
-    // Seed a few more fish for an active room (no bosses in waves)
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
     }
-
-    // Arcade impact feedback: Hit Stop on crits and boss hits
-    GameEventBus.getInstance().on('FISH_HIT', (e: any) => {
-      if (e.isCrit || e.fishType === 'boss') {
-        this.hitStopRemainingMs = e.fishType === 'boss' ? 100 : 65;
-      }
-    });
-    
-    GameEventBus.getInstance().on('BOSS_HIT', () => {
-      this.hitStopRemainingMs = 90;
-    });
-
-    GameEventBus.getInstance().on('SCREEN_SHAKE', (e: { intensity: number; durationMs: number }) => {
-      this.triggerShake(e.intensity, e.durationMs);
-    });
-
-    GameEventBus.getInstance().on('SCREEN_DIM', (e: { intensity: number }) => {
-      this.abyssalPostProcessor.setDim(e.intensity);
-    });
   }
 
   private tryStartBossFromProgress(): void {
-    if (this.bossRaid.isActive()) {
-      console.log('[AUDIT] BossRaid blocked: Already active');
-      return;
-    }
-    if (Date.now() < this.bossUnlockAtMs) {
-      console.log(`[AUDIT] BossRaid blocked: Grace period active (${this.bossUnlockAtMs - Date.now()}ms remaining)`);
-      return;
-    }
+    if (this.bossRaid.isActive()) return;
+    if (Date.now() < this.bossUnlockAtMs) return;
+
     const table = this.tableSelection.getCurrentTable() as any;
     const raidAllowed = TableSelectionManager.getInstance().isBossRaidAllowed();
-    
     if (table?.isPractice || table?.mode === 'practice') {
-      if (!raidAllowed) {
-        console.log('[AUDIT] BossRaid blocked: Practice mode (Raid Disabled)');
-        return;
-      }
+      if (!raidAllowed) return;
     } else if (!raidAllowed) {
-      console.log('[AUDIT] BossRaid blocked: Raid not allowed for this table');
       return;
     }
 
-    if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) {
-      // Optional: don't log every frame/shot to avoid spam, but log at certain intervals
-      if (this.bossProgressScore % 10 === 0 && this.bossProgressScore > 0) {
-        console.log(`[AUDIT] BossRaid progress: ${this.bossProgressScore}/${this.BOSS_PROGRESS_THRESHOLD}`);
-      }
-      return;
-    }
-    
-    console.log('[AUDIT] BossRaid conditions met. Starting raid sequence...');
+    if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) return;
+
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     this.bossProgressScore = 0;
     this.bossRaid.startRaid(uid, (result) => {
       console.info('[BossRaid] completed', result);
-      this.bossUnlockAtMs = Date.now() + 60000; // 60s cooldown
+      this.bossUnlockAtMs = Date.now() + 60000;
     });
   }
 
@@ -291,8 +257,6 @@ export class GameScene {
       this.lastTargetX = clientX - rect.left;
       this.lastTargetY = clientY - rect.top;
       this.weaponController.updateAim(this.lastTargetX, this.lastTargetY);
-      
-      // Aim data is also used by the UI components (like Crosshair) via GameEventBus
       GameEventBus.getInstance().emit('AIM_UPDATE', { x: this.lastTargetX, y: this.lastTargetY });
     };
 
@@ -317,24 +281,17 @@ export class GameScene {
 
     const endHold = (e: PointerEvent) => {
       this.autoFireActive = false;
-      try {
-        canvas.releasePointerCapture?.(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+      try { canvas.releasePointerCapture?.(e.pointerId); } catch { /* ignore */ }
     };
     canvas.addEventListener('pointerup', endHold);
     canvas.addEventListener('pointercancel', endHold);
-    canvas.addEventListener('pointerleave', () => {
-      this.autoFireActive = false;
-    });
+    canvas.addEventListener('pointerleave', () => { this.autoFireActive = false; });
   }
 
   private setupResizeListener(): void {
     window.addEventListener('resize', () => {
       const width = this.app.screen.width;
       const height = this.app.screen.height;
-
       this.animatedBackground.resize(width, height);
       this.fishManager.resize(width, height);
       this.weaponController.resize(width, height);
@@ -345,9 +302,7 @@ export class GameScene {
   }
 
   private fireWeapon(targetX: number, targetY: number): void {
-    if (!this.weaponController.canFire()) {
-      return;
-    }
+    if (!this.weaponController.canFire()) return;
 
     const betAmount = this.uiManager.getCurrentBet();
     const currency = this.uiManager.getCurrency();
@@ -355,12 +310,8 @@ export class GameScene {
       console.warn('[SC] Real-SC mode requires Firebase — switch to GC or configure env.');
       return;
     }
+    if (!this.uiManager.deductBet()) return;
 
-    if (!this.uiManager.deductBet()) {
-      return;
-    }
-
-    // Progress toward boss: shots + stake weight
     this.bossProgressScore += 1 + Math.min(4, betAmount);
     this.tryStartBossFromProgress();
 
@@ -377,13 +328,7 @@ export class GameScene {
     );
 
     const currentTable = this.tableSelection.getCurrentTable();
-    this.multiplayerTable.broadcastTableShot(
-      currentTable.id,
-      uid,
-      targetX,
-      targetY,
-      betAmount
-    );
+    this.multiplayerTable.broadcastTableShot(currentTable.id, uid, targetX, targetY, betAmount);
   }
 
   public syncWalletBalances(gc: number, sc: number, _source?: string): void {
@@ -396,7 +341,6 @@ export class GameScene {
   }
 
   public update(deltaTime: number): void {
-    // Temporal Pause (Hit Stop)
     if (this.hitStopRemainingMs > 0) {
       this.hitStopRemainingMs -= deltaTime;
       return;
@@ -404,13 +348,11 @@ export class GameScene {
 
     this.elapsedSeconds += deltaTime / 1000;
     this.abyssalPostProcessor.update(this.elapsedSeconds);
-
     this.animatedBackground.update(deltaTime);
     debugOverlay.tick();
 
-    // Apply shake
     if (this.shakeDuration > 0) {
-      this.shakeDuration -= deltaTime; // deltaTime is already in milliseconds
+      this.shakeDuration -= deltaTime;
       const offsetX = (Math.random() - 0.5) * this.shakeIntensity;
       const offsetY = (Math.random() - 0.5) * this.shakeIntensity;
       this.worldContainer.position.set(offsetX, offsetY);
@@ -428,7 +370,6 @@ export class GameScene {
     }
 
     this.spatialGrid.clear();
-
     this.spawnTimer += deltaTime;
     if (this.spawnTimer > GameConfig.spawnIntervalMs) {
       this.fishManager.spawnRandomWave();
@@ -437,24 +378,15 @@ export class GameScene {
 
     if (this.autoFireActive) {
       this.autoFireTimer += deltaTime;
-      if (this.autoFireTimer >= GameConfig.autoFireIntervalMs) {
-        if (this.weaponController.canFire()) {
-          this.fireWeapon(this.lastTargetX, this.lastTargetY);
-          this.autoFireTimer = 0;
-        }
+      if (this.autoFireTimer >= GameConfig.autoFireIntervalMs && this.weaponController.canFire()) {
+        this.fireWeapon(this.lastTargetX, this.lastTargetY);
+        this.autoFireTimer = 0;
       }
     }
 
-    // Update boss raid
     this.bossRaid.update(deltaTime);
     const raidActive = this.bossRaid.isActive();
-    
-    if (raidActive && (Math.floor(Date.now() / 1000) % 5 === 0)) {
-       const state = this.bossRaid.getState();
-       console.log(`[AUDIT] BossRaid active: phase=${state.phase}, hp=${state.hp}/${state.maxHp}, time=${Math.ceil(state.timeRemaining/1000)}s`);
-    }
 
-    // Bug 3 Fix: Show overlay/title whenever raid is active, not just on the rising edge
     if (raidActive) {
       if (!this.lastBossBashActive) {
         this.uiManager.showBossFrenzyTitle();
@@ -468,18 +400,8 @@ export class GameScene {
 
       const bossState = this.bossRaid.getState();
       const secs = Math.ceil(bossState.timeRemaining / 1000);
-      const hpPercent = bossState.maxHp > 0
-        ? (bossState.hp / bossState.maxHp) * 100
-        : 0;
-
-      this.uiManager.setBossOverlay(
-        true,
-        secs,
-        hpPercent,
-        bossState.phase,
-        bossState.totalDamage
-      );
-
+      const hpPercent = bossState.maxHp > 0 ? (bossState.hp / bossState.maxHp) * 100 : 0;
+      this.uiManager.setBossOverlay(true, secs, hpPercent, bossState.phase, bossState.totalDamage);
       SoundManager.setBossMusic(true, bossState.phase === 'enraged');
     } else if (this.lastBossBashActive) {
       this.uiManager.setBossOverlay(false);
@@ -491,5 +413,17 @@ export class GameScene {
     this.fishManager.update(deltaTime, this.lastTargetX, this.lastTargetY);
     this.weaponController.update(deltaTime);
     this.particleFX.update(deltaTime);
+  }
+
+  /** Release scene-owned subscriptions when the scene is discarded. */
+  public destroy(): void {
+    this.eventUnsubs.forEach((unsubscribe) => unsubscribe());
+    this.eventUnsubs = [];
+    if (this.tableUnsub) this.tableUnsub();
+    if (this.tableSelectionUnsub) this.tableSelectionUnsub();
+    this.tableUnsub = null;
+    this.tableSelectionUnsub = null;
+    this.isPlaying = false;
+    this.autoFireActive = false;
   }
 }
