@@ -60,8 +60,11 @@ export function showAdminPortalModal(ctx: ModalContext): void {
         </div>
       </div>
 
-      <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:8px;">PACKAGES (READ)</div>
-      <div id="admin-packages" style="font-size:11px;color:#cbd5e1;margin-bottom:12px;">Loading…</div>
+      <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:8px;">PACKAGES (GC editable · SC% auto)</div>
+      <div id="admin-packages" style="font-size:11px;color:#cbd5e1;margin-bottom:8px;">Loading…</div>
+      <button id="admin-pkg-save" style="width:100%;margin-bottom:8px;padding:10px;border-radius:8px;border:1px solid #22d3ee;background:#0e7490;color:#ecfeff;cursor:pointer;font-weight:800;">SAVE PACKAGE GC AMOUNTS</button>
+      <button id="admin-pkg-seed" style="width:100%;margin-bottom:12px;padding:8px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#94a3b8;cursor:pointer;font-size:11px;">Reset to defaults</button>
+      <div id="admin-pkg-status" style="font-size:11px;color:#64748b;margin-bottom:12px;"></div>
 
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:12px;cursor:pointer;">
         <input type="checkbox" id="admin-debug-toggle" />
@@ -92,28 +95,82 @@ export function showAdminPortalModal(ctx: ModalContext): void {
     });
   }
 
+  let packageTiers: any[] = [];
   const pkgEl = document.getElementById('admin-packages');
+  const statusEl = document.getElementById('admin-pkg-status');
+
+  const renderPkgEditor = (tiers: any[]) => {
+    packageTiers = tiers;
+    if (!pkgEl) return;
+    pkgEl.innerHTML = tiers
+      .map(
+        (t, i) => `
+      <div style="padding:8px 0;border-bottom:1px solid #1e293b;display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;">
+        <div>
+          <div style="font-weight:700;color:#67e8f9;">${t.label || t.id}</div>
+          <div style="color:#64748b;">$${Number(t.priceUsd).toFixed(2)} · SC bonus ${t.scBonusPct ?? 0}% → ${t.bonusScAmount ?? 0} SC</div>
+        </div>
+        <label style="font-size:10px;color:#94a3b8;">GC
+          <input data-pkg-i="${i}" class="admin-gc-input" type="number" min="0" step="100" value="${t.gcAmount}"
+            style="width:100%;margin-top:4px;background:#020617;border:1px solid #334155;color:#e2e8f0;border-radius:6px;padding:6px;" />
+        </label>
+      </div>`
+      )
+      .join('');
+  };
+
+  const defaults = [
+    { id: 'pack_5', priceUsd: 4.99, gcAmount: 5000, scBonusPct: 0, bonusScAmount: 0, label: '$4.99 Starter', active: true },
+    { id: 'pack_10', priceUsd: 9.99, gcAmount: 12000, scBonusPct: 3, bonusScAmount: 0.3, label: '$9.99 Plus', active: true },
+    { id: 'pack_20', priceUsd: 19.99, gcAmount: 28000, scBonusPct: 5, bonusScAmount: 1, label: '$19.99 Pro', active: true },
+    { id: 'pack_50', priceUsd: 49.99, gcAmount: 80000, scBonusPct: 7, bonusScAmount: 3.5, label: '$49.99 Elite', active: true },
+    { id: 'pack_100', priceUsd: 99.99, gcAmount: 180000, scBonusPct: 10, bonusScAmount: 10, label: '$99.99 Ultimate', active: true }
+  ];
+
   if (pkgEl && isFirebaseConfigured) {
     httpsCallable(functions, 'listPackages')()
       .then((res) => {
         const tiers = ((res.data as any)?.tiers || []) as any[];
-        pkgEl.innerHTML = tiers
-          .map(
-            (t) =>
-              `<div style="padding:6px 0;border-bottom:1px solid #1e293b;">${t.label || t.id}: <strong>${t.gcAmount} GC</strong> + <strong>${t.bonusScAmount ?? 0} SC</strong> ($${t.priceUsd})</div>`
-          )
-          .join('');
+        renderPkgEditor(tiers.length ? tiers : defaults);
       })
-      .catch(() => {
-        pkgEl.textContent = 'Packages unavailable offline — defaults apply on server.';
-      });
-  } else if (pkgEl) {
-    pkgEl.innerHTML = `
-      <div>$4.99 → 5000 GC (GC only)</div>
-      <div>$9.99 → 12000 GC + 3% SC</div>
-      <div>$19.99 → 28000 GC + 5% SC</div>
-      <div>$49.99 → 80000 GC + 7% SC</div>
-      <div>$99.99 → 180000 GC + 10% SC</div>
-    `;
+      .catch(() => renderPkgEditor(defaults));
+  } else {
+    renderPkgEditor(defaults);
   }
+
+  document.getElementById('admin-pkg-save')?.addEventListener('click', async () => {
+    if (!isFirebaseConfigured) {
+      if (statusEl) statusEl.textContent = 'Firebase required to save packages.';
+      return;
+    }
+    pkgEl?.querySelectorAll('.admin-gc-input').forEach((input) => {
+      const i = parseInt((input as HTMLElement).getAttribute('data-pkg-i') || '0', 10);
+      if (packageTiers[i]) packageTiers[i].gcAmount = Number((input as HTMLInputElement).value) || 0;
+    });
+    if (statusEl) statusEl.textContent = 'Saving…';
+    try {
+      const res = await httpsCallable(functions, 'updatePackages')({ tiers: packageTiers });
+      const tiers = ((res.data as any)?.tiers || []) as any[];
+      renderPkgEditor(tiers);
+      if (statusEl) statusEl.textContent = 'Saved package GC amounts.';
+      SoundManager.playUiSound('chip_up');
+    } catch (e: any) {
+      if (statusEl) statusEl.textContent = e?.message || 'Save failed';
+    }
+  });
+
+  document.getElementById('admin-pkg-seed')?.addEventListener('click', async () => {
+    if (!isFirebaseConfigured) {
+      renderPkgEditor(defaults);
+      return;
+    }
+    try {
+      const res = await httpsCallable(functions, 'seedDefaultPackages')({});
+      renderPkgEditor(((res.data as any)?.tiers || defaults) as any[]);
+      if (statusEl) statusEl.textContent = 'Defaults restored.';
+    } catch (e: any) {
+      if (statusEl) statusEl.textContent = e?.message || 'Seed failed';
+    }
+  });
 }
+
