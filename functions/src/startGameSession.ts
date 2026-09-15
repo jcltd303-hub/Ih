@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { DEFAULT_PAYOUT_TABLE, validatePayoutTable } from './payoutTable';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -27,13 +28,18 @@ export const startGameSession = onCall(async (request) => {
   const sessionId = `sess_${userId.slice(0, 8)}_${Date.now()}`;
 
   const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
+
+  const payoutTable = validatePayoutTable(DEFAULT_PAYOUT_TABLE);
+
   await sessionRef.set({
     serverSeed, // server-only until reveal
     serverSeedHash,
     clientSeed,
     nonce: 0,
     status: 'active',
-    targetRtp: 85,
+    targetRtp: payoutTable.targetRtp,
+    payoutTableVersion: payoutTable.version,
+    payoutTable,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     revealedAt: null
   });
@@ -42,7 +48,8 @@ export const startGameSession = onCall(async (request) => {
     sessionId,
     serverSeedHash,
     clientSeed,
-    targetRtp: 85,
+    targetRtp: payoutTable.targetRtp,
+    payoutTableVersion: payoutTable.version,
     message: 'Server seed committed. Verify hash after reveal.'
   };
 });

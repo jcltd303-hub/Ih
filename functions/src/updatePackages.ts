@@ -6,12 +6,15 @@ import { DEFAULT_PACKAGES, scBonusForPackage, type PackageTier } from './economy
  * Admin-editable package tiers. For now any authenticated user can update
  * in staging; gate with custom claim admin:true before production.
  */
-function assertAdmin(request: { auth?: { uid: string; token?: Record<string, unknown> } }) {
-  if (!request.auth?.uid) {
+function assertAdmin(request: { auth?: { uid: string; token?: Record<string, unknown> } }): string {
+  const auth = request.auth;
+  if (!auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
+  const uid = auth.uid;
+
   // Staging: allow if claim admin:true OR env ALLOW_PACKAGE_EDIT_ALL=1
-  const isAdmin = request.auth.token?.admin === true;
+  const isAdmin = auth.token?.admin === true;
   const allowAll = process.env.ALLOW_PACKAGE_EDIT_ALL === '1';
   if (!isAdmin && !allowAll) {
     throw new HttpsError(
@@ -19,10 +22,12 @@ function assertAdmin(request: { auth?: { uid: string; token?: Record<string, unk
       'Admin claim required to edit packages. Set custom claim admin:true or ALLOW_PACKAGE_EDIT_ALL=1 for staging.'
     );
   }
+
+  return uid;
 }
 
 export const updatePackages = onCall(async (request) => {
-  assertAdmin(request);
+  const userId = assertAdmin(request);
   const tiers = request.data?.tiers as PackageTier[] | undefined;
   if (!Array.isArray(tiers) || tiers.length === 0) {
     throw new HttpsError('invalid-argument', 'tiers array required.');
@@ -51,7 +56,7 @@ export const updatePackages = onCall(async (request) => {
   await db.collection('config').doc('packages').set({
     tiers: cleaned,
     updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: request.auth.uid
+    updatedBy: userId
   });
 
   return {
@@ -61,12 +66,12 @@ export const updatePackages = onCall(async (request) => {
 });
 
 export const seedDefaultPackages = onCall(async (request) => {
-  assertAdmin(request);
+  const userId = assertAdmin(request);
   const db = getFirestore();
   await db.collection('config').doc('packages').set({
     tiers: DEFAULT_PACKAGES,
     updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: request.auth.uid
+    updatedBy: userId
   });
   return {
     ok: true,
