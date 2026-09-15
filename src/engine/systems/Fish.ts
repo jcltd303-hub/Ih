@@ -49,8 +49,7 @@ export class Fish implements Boid {
     this.x = startX;
     this.y = startY;
     this.theme = theme;
-    
-    // Assign hierarchy based on type
+
     this.hierarchy = type === 'boss' ? 'BOSS' : (Math.random() < 0.1 ? 'CRITICAL' : (Math.random() < 0.25 ? 'ELITE' : 'NORMAL'));
 
     const isSmall = type === 'small';
@@ -69,11 +68,6 @@ export class Fish implements Boid {
     this.vy = Math.sin(angle) * (baseSpeed * 0.5);
     this.facing = this.vx < 0 ? 'left' : 'right';
 
-    // Reduced HP for high-impact arcade gameplay. Boss HP defaults to a
-    // small placeholder but should always be supplied by the caller
-    // (e.g. BossRaidEvent) matching the raid's actual HP pool — otherwise
-    // the boss fish dies in a handful of hits while the raid tracker
-    // still thinks the fight has barely started.
     this.health = isBoss ? (maxHpOverride ?? 28) : isSmall ? 2 : 6;
     this.maxHealth = this.health;
     this.multiplier = isBoss ? 25 : isSmall ? 1.2 : 4;
@@ -93,21 +87,67 @@ export class Fish implements Boid {
       this.bossInstance = new BossManager(this.health, theme);
       this.container.addChild(this.bossInstance);
     } else {
-      // Create animated sprite sheet rig for swimming and 3D turning with species and theme fidelity
+      // Keep a lightweight native Pixi silhouette behind the animated texture.
+      // It guarantees a visible combat target on mobile GPUs that occasionally
+      // fail to display canvas-backed AnimatedSprite textures.
+      this.graphics = this.createFallbackGraphic(type, theme);
+      this.container.addChild(this.graphics);
+
       this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
       this.container.addChild(this.animRig.container);
 
       if (type === 'medium' && theme === 'light') {
-        // Distinct electric cobalt/neon tint for medium cyber lionfish in light mode
         this.animRig.tint(0xa5f3fc);
       }
 
-      // Initial animation matching initial movement direction
       this.animRig.playState(this.facing === 'left' ? 'swim_left' : 'swim_right');
     }
 
     this.container.x = this.x;
     this.container.y = this.y;
+  }
+
+  private createFallbackGraphic(type: 'small' | 'medium', theme: 'light' | 'dark'): Graphics {
+    const g = new Graphics();
+    const small = type === 'small';
+    const bodyW = small ? 25 : 46;
+    const bodyH = small ? 14 : 28;
+    const tail = small ? 13 : 22;
+    const fill = theme === 'dark' ? 0x7f1d1d : 0x075985;
+    const stroke = theme === 'dark' ? 0xf87171 : 0x67e8f9;
+    const glow = theme === 'dark' ? 0xef4444 : 0x22d3ee;
+
+    // Shadow/halo.
+    g.ellipse(0, 0, bodyW + 9, bodyH + 7);
+    g.fill({ color: glow, alpha: 0.10 });
+
+    // Body.
+    g.ellipse(0, 0, bodyW, bodyH);
+    g.fill({ color: fill, alpha: 0.82 });
+    g.stroke({ width: small ? 1.5 : 2, color: stroke, alpha: 0.92 });
+
+    // Tail.
+    g.moveTo(bodyW - 3, 0);
+    g.lineTo(bodyW + tail, -bodyH * 0.85);
+    g.lineTo(bodyW + tail, bodyH * 0.85);
+    g.closePath();
+    g.fill({ color: fill, alpha: 0.76 });
+    g.stroke({ width: 1.5, color: stroke, alpha: 0.8 });
+
+    // Dorsal fin and eye make the fallback read as a fish rather than a marker.
+    g.moveTo(-bodyW * 0.15, -bodyH * 0.7);
+    g.lineTo(bodyW * 0.15, -bodyH * 1.35);
+    g.lineTo(bodyW * 0.38, -bodyH * 0.62);
+    g.closePath();
+    g.fill({ color: stroke, alpha: 0.38 });
+
+    g.circle(-bodyW * 0.52, -bodyH * 0.18, small ? 2.2 : 3.2);
+    g.fill({ color: 0xffffff, alpha: 0.95 });
+    g.circle(-bodyW * 0.52, -bodyH * 0.18, small ? 1 : 1.4);
+    g.fill({ color: theme === 'dark' ? 0xff0033 : 0x0f172a, alpha: 1 });
+
+    g.alpha = 0.92;
+    return g;
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
@@ -135,7 +175,6 @@ export class Fish implements Boid {
   ): void {
     if (!this.isAlive) return;
 
-    // Meta AI optimization: Boss uses autonomous spline/undulating pathing (bypasses boid neighbor calculations entirely)
     if (this.typeId === 'boss') {
       const targetSpeed = 1.25;
       const targetVx = this.facing === 'left' ? -targetSpeed : targetSpeed;
@@ -145,16 +184,10 @@ export class Fish implements Boid {
       this.x += this.vx * dtScale;
       this.y += this.vy * dtScale;
 
-      if (this.x < -160) {
-        this.x = screenWidth + 140;
-      } else if (this.x > screenWidth + 160) {
-        this.x = -140;
-      }
-      if (this.y < 90) {
-        this.y = 90;
-      } else if (this.y > screenHeight - 120) {
-        this.y = screenHeight - 120;
-      }
+      if (this.x < -160) this.x = screenWidth + 140;
+      else if (this.x > screenWidth + 160) this.x = -140;
+      if (this.y < 90) this.y = 90;
+      else if (this.y > screenHeight - 120) this.y = screenHeight - 120;
 
       this.container.x = this.x;
       this.container.y = this.y;
@@ -163,7 +196,6 @@ export class Fish implements Boid {
       return;
     }
 
-    // Small and medium fish flocking: zero-alloc pass-through + LOD frame staggering for tetras
     this.lodCounter++;
     let ax = this.cachedAx;
     let ay = this.cachedAy;
@@ -181,7 +213,6 @@ export class Fish implements Boid {
       this.cachedAy = ay;
     }
 
-    // Threat panic (erratic jinking for small/medium)
     if (threatX !== undefined && threatY !== undefined) {
       const tdx = this.x - threatX;
       const tdy = this.y - threatY;
@@ -205,10 +236,7 @@ export class Fish implements Boid {
 
     const weights = BoidSwarmManager.getWeights(this.typeId);
     const currentSpeedSq = this.vx * this.vx + this.vy * this.vy;
-    const effectiveMaxSpeed =
-      this.panicTimer > 0
-        ? weights.maxSpeed * 1.55
-        : weights.maxSpeed;
+    const effectiveMaxSpeed = this.panicTimer > 0 ? weights.maxSpeed * 1.55 : weights.maxSpeed;
     const maxSpeedSq = effectiveMaxSpeed * effectiveMaxSpeed;
 
     if (currentSpeedSq > maxSpeedSq) {
@@ -224,7 +252,6 @@ export class Fish implements Boid {
     this.x += this.vx * dtScale;
     this.y += this.vy * dtScale;
 
-    // Screen wrap-around with vertical bounds
     if (this.x < -120) this.x = screenWidth + 110;
     if (this.x > screenWidth + 120) this.x = -110;
     if (this.y < 80) {
@@ -241,7 +268,6 @@ export class Fish implements Boid {
     this.bounds.x = this.x - this.width / 2;
     this.bounds.y = this.y - this.height / 2;
 
-    // Sprite sheet animated swimming and 3D turning
     if (this.animRig) {
       const heading = this.vx < -0.25 ? 'left' : this.vx > 0.25 ? 'right' : this.facing;
 
@@ -251,15 +277,11 @@ export class Fish implements Boid {
         const targetSwim = heading === 'left' ? 'swim_left' : 'swim_right';
 
         this.animRig.playState(turnAnim, () => {
-          if (this.isAlive && this.animRig) {
-            this.animRig.playState(targetSwim);
-          }
+          if (this.isAlive && this.animRig) this.animRig.playState(targetSwim);
         });
       } else if (!this.animRig.isTurning) {
         const activeSwim = this.facing === 'left' ? 'swim_left' : 'swim_right';
-        if (this.animRig.currentState !== activeSwim) {
-          this.animRig.playState(activeSwim);
-        }
+        if (this.animRig.currentState !== activeSwim) this.animRig.playState(activeSwim);
       }
 
       const animSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -284,7 +306,6 @@ export class Fish implements Boid {
         return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
       }
     } else {
-      // Strictly monotonically decreasing health (guaranteed no health regeneration)
       this.health = Math.max(0, this.health - damage);
       this.updateMiniHealthBar();
       if (this.health <= 0) {
@@ -293,16 +314,12 @@ export class Fish implements Boid {
       }
     }
 
-    // Hit pulse and flash reaction
     if (this.animRig) {
       this.animRig.tint(0xff4444);
       setTimeout(() => {
         if (this.isAlive && this.animRig) {
-          if (this.typeId === 'medium') {
-            this.animRig.tint(0xa5f3fc);
-          } else {
-            this.animRig.resetTint();
-          }
+          if (this.typeId === 'medium') this.animRig.tint(0xa5f3fc);
+          else this.animRig.resetTint();
         }
       }, 90);
     }
@@ -330,12 +347,10 @@ export class Fish implements Boid {
     const yPos = -radius * 0.7 - 8;
     const pct = Math.max(0, Math.min(1, this.health / this.maxHealth));
 
-    // Dark background pill
     this.miniHealthBar.rect(-barWidth / 2, yPos, barWidth, barHeight);
     this.miniHealthBar.fill({ color: 0x0f172a, alpha: 0.85 });
     this.miniHealthBar.stroke({ width: 1, color: 0x334155, alpha: 0.8 });
 
-    // Remaining HP fill (green -> amber -> crimson)
     const fillColor = pct > 0.6 ? 0x00ffcc : pct > 0.3 ? 0xffb703 : 0xff0055;
     this.miniHealthBar.rect(-barWidth / 2 + 0.5, yPos + 0.5, Math.max(0, (barWidth - 1) * pct), barHeight - 1);
     this.miniHealthBar.fill({ color: fillColor, alpha: 0.95 });
