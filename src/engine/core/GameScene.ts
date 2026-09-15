@@ -55,6 +55,9 @@ export class GameScene {
   private lastBossBashActive = false;
   private tableSelection: TableSelection;
   private bossRaidTimer: ReturnType<typeof setInterval> | null = null;
+  /** Combat progress toward next boss (not time-based). */
+  private bossProgressScore = 0;
+  private readonly BOSS_PROGRESS_THRESHOLD = 40;
 
   constructor(
     app: Application,
@@ -145,18 +148,25 @@ export class GameScene {
       const hpPct = raid.sharedBossMaxHp > 0
         ? Math.round((raid.sharedBossHp / raid.sharedBossMaxHp) * 100)
         : 0;
-      this.uiManager.setBossBashActive(
-        isRaidActive,
-        isEnraged
-          ? `ENRAGED · ${hpPct}% HP · ${Math.ceil(raid.timeRemainingSec)}s`
-          : `HP ${hpPct}% · ${Math.ceil(raid.timeRemainingSec)}s LEFT`
-      );
+      // Title is brief "FISH FRENZY" only; timer lives in HUD corner
       if (isRaidActive && !this.lastBossBashActive) {
+        this.uiManager.showBossFrenzyTitle();
         const cx = this.app.screen.width / 2;
         const cy = this.app.screen.height * 0.22;
         this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);
         this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 18);
         this.particleFX.spawnExplosion(cx + 40, cy + 20, 0xfbbf24, 18);
+        SoundManager.setBossMusic(true, isEnraged);
+        SoundManager.playBossWarning();
+      }
+      if (!isRaidActive && this.lastBossBashActive) {
+        SoundManager.setBossMusic(false, false);
+        this.uiManager.setBossOverlay(false);
+        this.bossProgressScore = 0;
+      }
+      if (isRaidActive) {
+        this.uiManager.setBossOverlay(true, Math.ceil(raid.timeRemainingSec));
+        SoundManager.setBossMusic(true, isEnraged);
       }
       this.lastBossBashActive = isRaidActive;
     });
@@ -213,27 +223,25 @@ export class GameScene {
       joinTable(tbl as any);
     });
 
-    // Boss raid every ~3 minutes (only on public/tournament tables)
-    if (!currentTable.isPractice) {
-      this.bossRaidTimer = setInterval(() => {
-        if (!this.bossRaid.isActive()) {
-          this.bossRaid.startRaid(uid, (result) => {
-            console.info('[BossRaid] completed', result);
-          });
-        }
-      }, 180000);
-      // First raid after 60s
-      setTimeout(() => {
-        if (!this.bossRaid.isActive()) {
-          this.bossRaid.startRaid(uid);
-        }
-      }, 60000);
-    }
+    // Boss is progress-gated (shots/bets), never on room entry or fixed timer
+    this.bossProgressScore = 0;
 
-    // Seed a few more fish for an active trench
+    // Seed a few more fish for an active room
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
     }
+  }
+
+  private tryStartBossFromProgress(): void {
+    if (this.bossRaid.isActive()) return;
+    const table = this.tableSelection.getCurrentTable() as any;
+    if (table?.isPractice || table?.mode === 'practice') return;
+    if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) return;
+    const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
+    this.bossProgressScore = 0;
+    this.bossRaid.startRaid(uid, (result) => {
+      console.info('[BossRaid] completed', result);
+    });
   }
 
   private setupInputListeners(): void {
@@ -309,12 +317,17 @@ export class GameScene {
       return;
     }
 
+    // Progress toward boss: shots + stake weight
+    this.bossProgressScore += 1 + Math.min(4, betAmount);
+    this.tryStartBossFromProgress();
+
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
+    const barrels = this.uiManager.getBarrelCount();
     void this.weaponController.fireCannon(
       uid,
       FairnessSession.getInstance().getSessionId(),
       currency,
-      betAmount,
+      betAmount * barrels,
       targetX,
       targetY
     );
@@ -326,7 +339,7 @@ export class GameScene {
       uid,
       targetX,
       targetY,
-      betAmount
+      betAmount * barrels
     );
   }
 
@@ -366,6 +379,26 @@ export class GameScene {
 
     // Update boss raid
     this.bossRaid.update(deltaTime);
+    const raidActive = this.bossRaid.isActive();
+    if (raidActive && !this.lastBossBashActive) {
+      this.uiManager.showBossFrenzyTitle();
+      SoundManager.setBossMusic(true, false);
+      SoundManager.playBossWarning();
+      const cx = this.app.screen.width / 2;
+      const cy = this.app.screen.height * 0.22;
+      this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);
+      this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 16);
+    }
+    if (raidActive) {
+      const secs = Math.ceil(this.bossRaid.getState().timeRemaining / 1000);
+      this.uiManager.setBossOverlay(true, secs);
+      SoundManager.setBossMusic(true, this.bossRaid.getState().phase === 'enraged');
+    } else if (this.lastBossBashActive) {
+      this.uiManager.setBossOverlay(false);
+      SoundManager.setBossMusic(false, false);
+      this.bossProgressScore = 0;
+    }
+    this.lastBossBashActive = raidActive;
 
     this.fishManager.update(deltaTime, this.lastTargetX, this.lastTargetY);
     this.weaponController.update(deltaTime);
