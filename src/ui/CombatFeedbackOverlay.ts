@@ -1,3 +1,4 @@
+import './CombatFeedback.css';
 import { GameEventBus, FishHitEvent, FishKilledEvent, ComboEvent, TurretMultiplierEvent } from '../engine/core/GameEvents';
 
 /** Final arcade feedback layer: terse fight-state telemetry, impact grades and KO cadence. */
