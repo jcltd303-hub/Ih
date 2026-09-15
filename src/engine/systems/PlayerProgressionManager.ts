@@ -255,6 +255,10 @@ export class PlayerProgressionManager {
     }
   }
 
+  public setBossUpgrade(active: boolean): void {
+    this.setBossRaidActive(active);
+  }
+
   public subscribe(listener: ProgressionListener): () => void {
     this.listeners.push(listener);
     listener(this.getState());

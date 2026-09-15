@@ -121,9 +121,8 @@ export class WeaponController {
 
     this.cannonGraphic = new Graphics();
 
-    const initialSkin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
     // Animated Sci-Fi Turret Rig from Sprite Sheet driven by Player Progression
-    const initialSkin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin;
+    const initialSkin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin as TurretSkinId;
     this.turretRig = SpriteSheetManager.getInstance().createTurretRig(initialSkin);
     this.turretRig.container.x = this.cannonX;
     this.turretRig.container.y = this.cannonY;
@@ -154,8 +153,7 @@ export class WeaponController {
           betAmount: queued.betAmount,
           targetId: queued.targetId,
           clientHitConfirmed: queued.clientHitConfirmed,
-          timestamp, nonce, signature
-          timestamp,
+          timestamp, nonce, signature,
           requestId
         });
         return true;
@@ -235,8 +233,7 @@ export class WeaponController {
     const graphics = container.children[0] as Graphics;
     graphics.clear();
 
-    const skin = (LoadoutManager.getLoadout().activeCannonSkin || 'plasma_neon') as TurretSkinId;
-    const skin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin;
+    const skin = PlayerProgressionManager.getInstance().getState().effectiveTurretSkin as TurretSkinId;
 
     // Rotate container to match flight trajectory
     container.rotation = angle + Math.PI / 2;
@@ -289,22 +286,11 @@ export class WeaponController {
 
   private async dispatchServerShot(projectile: Projectile): Promise<void> {
     const timestamp = Date.now();
-    const nonce = Math.random().toString(36).substring(2);
     try {
-      const signature = await CryptoSigner.generateSignature(
-        projectile.userId, projectile.sessionId, projectile.betAmount,
-        'pending_collision', timestamp, nonce
-      );
-      const processShot = httpsCallable(functions, 'processPlayerShot');
-      await processShot({
-        sessionId: projectile.sessionId, currencyType: projectile.currencyType,
-        betAmount: projectile.betAmount, targetId: 'pending_collision',
-        clientHitConfirmed: false, timestamp, nonce, signature
-    const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-    try {
       // Invoke server-authoritative verification if online
       const processShot = httpsCallable(functions, 'processPlayerShot');
       await processShot({
@@ -314,6 +300,8 @@ export class WeaponController {
         targetId: 'pending_collision',
         clientHitConfirmed: false,
         timestamp,
+        nonce,
+        signature,
         requestId
       });
     } catch {
@@ -412,10 +400,6 @@ export class WeaponController {
           // Award kill XP based on fish tier
           const killXp = fishType === 'boss' ? 350 : (fishType === 'medium' ? 70 : 25);
           PlayerProgressionManager.getInstance().addXp(killXp);
-
-          // Gamble bonus multiplier on kill (1.5x up to 10x jackpot, scaled by Looseness)
-          const killGamble = PayoutEngine.evaluateKillMultiplier(hitResult.multiplier, fishType);
-          const winAmount = proj.betAmount * killGamble.finalMultiplier * 0.70;
 
           // Lucky kill upgrade: ~14% chance on any kill, or guaranteed on jackpot/boss kill
           if (killGamble.isJackpot || fishType === 'boss' || Math.random() < 0.14) {

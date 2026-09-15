@@ -174,16 +174,6 @@ export class GameScene {
 
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
-    this.tableUnsub = this.multiplayerTable.subscribeToTableState(currentTable.id, (state) => {
-      this.presenceLayer?.syncPlayers(state?.players);
-      const shots = state?.shared_shots;
-      if (shots && typeof shots === 'object') {
-        for (const shot of Object.values(shots) as any[]) {
-          if (!shot || typeof shot.timestamp !== 'number') continue;
-          if (shot.timestamp <= this.lastSeenShotTs) continue;
-          this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
-          this.presenceLayer?.showRemoteShot(shot);
-        }
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
 
@@ -208,11 +198,11 @@ export class GameScene {
       });
     };
 
-    const initialTable = TableSelectionManager.getInstance().getActiveTable();
+    const initialTable = this.tableSelection.getCurrentTable() as any;
     joinTable(initialTable);
 
     this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
-      joinTable(tbl);
+      joinTable(tbl as any);
     });
 
     // Start clip recording
