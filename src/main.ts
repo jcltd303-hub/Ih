@@ -17,7 +17,7 @@ import { initAppCheck } from './network/AppCheckInit';
 import { FeatureFlags, prefersReducedMotion } from './config/FeatureFlags';
 import { maybeShowOnboarding } from './ui/OnboardingTips';
 
-window.addEventListener('DOMContentLoaded', async () => {
+async function bootstrap() {
   initAppCheck();
   if (prefersReducedMotion()) {
     document.documentElement.classList.add('ff-reduced-motion');
@@ -117,4 +117,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     banner.textContent = 'Graphics context lost — reload the page to recover.';
     document.body.appendChild(banner);
   }, { capture: true });
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => {
+    void bootstrap();
+  });
+} else {
+  void bootstrap();
+}

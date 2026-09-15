@@ -2,7 +2,8 @@ import { WalletService } from '../network/WalletService';
 import { AuthManager } from '../network/AuthManager';
 import { FeatureFlags } from '../config/FeatureFlags';
 import { SoundManager } from '../audio/SoundManager';
-import { GameTheme } from '../engine/systems/ThemeManager';
+import { AudioManager } from '../audio/AudioManager';
+import { GameTheme, ThemeManager } from '../engine/systems/ThemeManager';
 import { PayoutEngine } from '../engine/systems/PayoutEngine';
 import { showStreakModal as openStreakModal } from './modals/streakModal';
 import { showLeaderboardModal as openLeaderboardModal } from './modals/leaderboardModal';
@@ -10,8 +11,17 @@ import { showAdminPortalModal as openAdminPortalModal } from './modals/adminPort
 import { showProgressionModal } from './modals/progressionModal';
 import type { ModalContext } from './modals/ModalContext';
 import { showStoreModal } from './modals/storeModal';
+import { showHowToPlayModal } from './modals/howToPlayModal';
+import { showOptionsModal } from './modals/optionsModal';
+import { showAuthModal } from './modals/authModal';
+import { showDepositModal, showWithdrawModal } from './modals/walletModal';
 import { TableSelectionManager, AVAILABLE_TABLES, TableConfig } from '../network/TableSelectionManager';
 import { PlayerProgressionManager, PlayerProgressionState } from '../engine/systems/PlayerProgressionManager';
+import { GameEventBus } from '../engine/core/GameEvents';
+import { ARCADE } from './StyleConstants';
+import { KillFeed } from './KillFeed';
+import { StreetFighterBossBar } from './StreetFighterBossBar';
+import { ArcadeCombatWidgets } from './ArcadeCombatWidgets';
 
 export class UIManager {
   private container: HTMLElement;
@@ -40,6 +50,11 @@ export class UIManager {
   private startScreenEl: HTMLElement | null = null;
   private isGameActive: boolean = false;
 
+  // Sub-widgets
+  private killFeed: KillFeed | null = null;
+  private bossBar: StreetFighterBossBar | null = null;
+  private combatWidgets: ArcadeCombatWidgets | null = null;
+
   constructor(
     rootElement: HTMLElement,
     callbacks?: {
@@ -60,9 +75,9 @@ export class UIManager {
     this.container.id = 'fish-frenzy-hud';
     this.container.style.cssText = `
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      pointer-events: none; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      pointer-events: none; font-family: var(--font-display, 'Impact', sans-serif);
       z-index: 20; display: flex; flex-direction: column; justify-content: space-between;
-      box-sizing: border-box; padding: 16px; overflow: hidden;
+      box-sizing: border-box; padding: 12px 16px; overflow: hidden;
     `;
     rootElement.appendChild(this.container);
 
@@ -81,6 +96,12 @@ export class UIManager {
 
     this.renderHUD();
     this.createModalContainer(rootElement);
+
+    // Subsystem widgets
+    this.killFeed = new KillFeed(this.container);
+    this.bossBar = new StreetFighterBossBar(this.container);
+    this.combatWidgets = new ArcadeCombatWidgets(this.container);
+
     window.addEventListener('ff-show-streak', () => {
       void this.showStreakModal();
     });
@@ -95,11 +116,12 @@ export class UIManager {
         localStorage.setItem('fish_frenzy_deposit_seeded', '1');
       }
     } catch { /* ignore */ }
+
     // HUD starts hidden until Play
     this.container.style.visibility = 'hidden';
   }
 
-  /** Full-screen arcade title card with Play CTA */
+  /** Full-screen arcade cabinet title screen with Play CTA */
   public showStartScreen(): void {
     if (this.startScreenEl) return;
 
@@ -117,170 +139,125 @@ export class UIManager {
       justifyContent: 'center',
       padding: '20px',
       boxSizing: 'border-box',
-      background:
-        '#02060e',
-      color: '#fff',
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      background: 'radial-gradient(ellipse at center, #0a1120 0%, #030712 100%)',
+      color: '#f8fafc',
+      fontFamily: 'var(--font-display, "Impact", sans-serif)',
     });
 
     this.startScreenEl.innerHTML = `
       <style>
-        @keyframes ff-hand-bounce {
-          0% { transform: translateY(-6px) scale(0.95); }
-          100% { transform: translateY(4px) scale(1.08); }
+        @keyframes ff-play-pulse {
+          0% { box-shadow: 0 4px 0 #92400e, 0 0 16px rgba(250,204,21,.4); }
+          100% { box-shadow: 0 4px 0 #92400e, 0 0 32px rgba(250,204,21,.85), 0 0 48px rgba(56,189,248,.35); }
         }
-        @keyframes ff-hand-glow {
-          0% { filter: drop-shadow(0 0 4px #fde047); }
-          100% { filter: drop-shadow(0 0 14px #facc15) drop-shadow(0 0 22px #38bdf8); }
-        }
-        @keyframes ff-play-glow {
-          0% { box-shadow: 0 6px 0 #a16207, 0 0 16px rgba(250,204,21,.45); }
-          100% { box-shadow: 0 6px 0 #a16207, 0 0 32px rgba(250,204,21,.85), 0 0 48px rgba(56,189,248,.35); }
-        }
-        #fish-frenzy-start .ff-arcade-card {
-          width: min(400px, 100%);
-          max-height: calc(100vh - 40px);
-          overflow: auto;
+        #fish-frenzy-start .ff-arcade-cabinet {
+          width: min(440px, 100%);
+          max-height: calc(100vh - 32px);
+          overflow-y: auto;
           box-sizing: border-box;
-          padding: 20px 16px 16px;
-          border-radius: 0;
-          background:
-            #082f49;
-          box-shadow:
-            0 0 0 5px #fbbf24,
-            0 0 0 10px #0ea5e9,
-            0 18px 48px rgba(0,0,0,.7);
+          padding: 24px 20px 20px;
+          border-radius: 2px;
+          background: #090e1a;
+          border: 3px solid #38bdf8;
+          box-shadow: 0 0 35px rgba(56, 189, 248, 0.25), 6px 6px 0 #020617;
           text-align: center;
-          font-family: system-ui, -apple-system, sans-serif;
-        }
-        #fish-frenzy-start .ff-btn {
-          border: none;
-          border-radius: 0;
-          cursor: pointer;
-          font-weight: 900;
-          letter-spacing: 0.04em;
-          font-family: system-ui, sans-serif;
-          box-shadow: 0 5px 0 rgba(0,0,0,.35);
-          transition: transform .08s ease, filter .12s ease;
-        }
-        #fish-frenzy-start .ff-btn:active {
-          transform: translateY(3px);
-          box-shadow: 0 2px 0 rgba(0,0,0,.35);
-          filter: brightness(.96);
-        }
-        #fish-frenzy-start .ff-btn-cyan {
-          background: #0ea5e9;
-          color: #0c4a6e;
-          text-shadow: 0 1px 0 rgba(255,255,255,.35);
-        }
-        #fish-frenzy-start .ff-btn-pink {
-          background: #ec4899;
-          color: #831843;
-          text-shadow: 0 1px 0 rgba(255,255,255,.3);
-        }
-        #fish-frenzy-start .ff-btn-green {
-          background: #10b981;
-          color: #064e3b;
-        }
-        #fish-frenzy-start .ff-btn-slate {
-          background: #475569;
-          color: #f8fafc;
-        }
-        #fish-frenzy-start .ff-btn-purple {
-          background: #8b5cf6;
-          color: #2e1065;
-        }
-        #fish-frenzy-start .ff-play {
-          width: 100%;
-          padding: 18px 14px;
-          border: none;
-          border-radius: 0;
-          background: #facc15;
-          color: #713f12;
-          font-size: 20px;
-          font-weight: 900;
-          letter-spacing: 0.14em;
-          cursor: pointer;
-          text-transform: uppercase;
-          font-family: system-ui, sans-serif;
-          animation: ff-play-glow 1.2s ease-in-out infinite alternate;
           position: relative;
         }
-        #fish-frenzy-start .ff-play:active {
-          transform: translateY(4px);
-          box-shadow: 0 2px 0 #a16207, 0 0 16px rgba(250,204,21,.5) !important;
+        #fish-frenzy-start .ff-arcade-cabinet::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          opacity: .05;
+          background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, #fff 3px);
         }
-        #fish-frenzy-start .ff-title {
-          font-size: clamp(36px, 10vw, 52px);
+        #fish-frenzy-start .ff-cabinet-title {
+          font-size: clamp(34px, 8vw, 48px);
           line-height: 0.95;
           font-weight: 900;
-          letter-spacing: 0.02em;
-          margin-bottom: 4px;
-          background: #22d3ee;
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          filter: drop-shadow(0 3px 0 #0c4a6e);
+          font-style: italic;
+          letter-spacing: 2px;
+          margin-bottom: 2px;
+          color: #f8fafc;
+          text-shadow: 0 3px 0 #0284c7, 0 0 20px rgba(56, 189, 248, 0.6);
+        }
+        #fish-frenzy-start .ff-cabinet-sub {
+          font-size: 11px;
+          letter-spacing: 3px;
+          color: #38bdf8;
+          font-weight: 900;
+          text-transform: uppercase;
+          margin-bottom: 18px;
         }
       </style>
 
-      <div class="ff-arcade-card">
-        <div style="font-size:11px; letter-spacing:.22em; color:#7dd3fc; font-weight:800; margin-bottom:4px;">SWEEPSTAKES CASINO</div>
-        <div class="ff-title">FISH FRENZY</div>
-        <div style="font-size:12px; color:#bae6fd; margin-bottom:16px; font-weight:700;">Aim · Hold to fire · Win big</div>
+      <div class="ff-arcade-cabinet">
+        <div style="font-size:10px; letter-spacing:4px; color:#fbbf24; font-weight:900; margin-bottom:2px;">SYS.ONLINE // COMBAT SIMULATOR</div>
+        <div class="ff-cabinet-title">FISH FRENZY</div>
+        <div class="ff-cabinet-sub">ARCADE COMBAT // PREDATOR TRENCH</div>
 
-        <div id="ff-auth-row" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; align-items:center; margin-bottom:14px;">
-          <div id="ff-auth-status" style="padding:10px 14px; border-radius:14px; font-size:12px; font-weight:800; color:#e0f2fe; flex:1; min-width:140px; background:rgba(0,0,0,.28);"></div>
-          <button id="ff-auth-action" type="button" class="ff-btn ff-btn-cyan" style="padding:12px 16px; font-size:12px;">SIGN IN</button>
+        <!-- Auth row -->
+        <div id="ff-auth-row" style="display:flex; gap:8px; justify-content:center; align-items:center; margin-bottom:14px;">
+          <div id="ff-auth-status" style="padding:6px 10px; border-radius:2px; font-size:11px; font-weight:900; color:#e0f2fe; flex:1; background:#0f172a; border:1px solid #334155; font-family:var(--font-mono, monospace);">
+            GUEST // REEF HUNTER
+          </div>
+          <button id="ff-auth-action" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:6px 12px; font-size:11px;">
+            SIGN IN
+          </button>
         </div>
 
-        <div style="display:flex; justify-content:center; gap:28px; margin-bottom:14px; font-variant-numeric:tabular-nums;">
+        <!-- Credits / Balance Display -->
+        <div style="background:#0f172a; border:1px solid #334155; padding:12px; margin-bottom:14px; display:flex; justify-content:space-around; align-items:center;">
           <div style="text-align:center;">
-            <div style="font-size:10px; letter-spacing:.12em; color:#fde68a; font-weight:800;">GC</div>
+            <div style="font-size:10px; letter-spacing:2px; color:#fde68a; font-weight:900;">GOLD COINS</div>
             <div id="ff-lobby-gc" style="font-size:20px; font-weight:900; color:#fbbf24; text-shadow:0 2px 0 #78350f;">—</div>
           </div>
+          <div style="width:1px; height:28px; background:#334155;"></div>
           <div style="text-align:center;">
-            <div style="font-size:10px; letter-spacing:.12em; color:#a5f3fc; font-weight:800;">SC</div>
-            <div id="ff-lobby-sc" style="font-size:20px; font-weight:900; color:#22d3ee; text-shadow:0 2px 0 #0e7490;">—</div>
+            <div style="font-size:10px; letter-spacing:2px; color:#a5f3fc; font-weight:900;">SWEEPS COINS</div>
+            <div id="ff-lobby-sc" style="font-size:20px; font-weight:900; color:#38bdf8; text-shadow:0 2px 0 #0e7490;">—</div>
           </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
-          <button id="ff-deposit" type="button" class="ff-btn ff-btn-green" style="padding:14px 10px; font-size:13px;">DEPOSIT</button>
-          <button id="ff-withdraw" type="button" class="ff-btn ff-btn-pink" style="padding:14px 10px; font-size:13px;">WITHDRAW</button>
+        <!-- Deposit / Withdraw -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
+          <button id="ff-deposit" type="button" class="ff-arcade-btn ff-arcade-btn-green" style="padding:10px 8px; font-size:12px;">+ DEPOSIT</button>
+          <button id="ff-withdraw" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px 8px; font-size:12px;">- WITHDRAW</button>
         </div>
-        <div id="ff-wallet-status" style="min-height:16px; margin:0 0 12px; font-size:11px; color:#94a3b8;"></div>
+        <div id="ff-wallet-status" style="min-height:16px; margin:0 0 10px; font-size:11px; color:#94a3b8; font-family:var(--font-mono, monospace);"></div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
-          <button id="ff-theme-open" type="button" class="ff-btn ff-btn-purple" style="padding:14px 10px; font-size:13px;">🎨 THEME</button>
-          <div style="padding:14px 10px; border-radius:16px; font-size:11px; color:#bae6fd; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.25); font-weight:700;">
-            Audio in-game ↑
-          </div>
-        </div>
-
-        <div style="position:relative; margin-bottom:6px;">
-          <div id="ff-train-hand" style="
-            position:absolute; left:50%; bottom:100%; transform:translateX(-50%);
-            font-size:36px; line-height:1; pointer-events:none; z-index:2;
-            animation: ff-hand-bounce 0.7s ease-in-out infinite alternate, ff-hand-glow 0.7s ease-in-out infinite alternate;
-            margin-bottom:4px;
-          ">👇</div>
-          <button id="ff-play" type="button" class="ff-play">▶ PLAY</button>
+        <!-- Primary Action: INSERT COIN / PLAY -->
+        <div style="margin-bottom:14px;">
+          <button id="ff-play" type="button" class="ff-arcade-btn ff-arcade-btn-primary" style="
+            width: 100%;
+            padding: 16px 12px;
+            font-size: 22px;
+            letter-spacing: 3px;
+            font-style: italic;
+            animation: ff-play-pulse 1.2s ease-in-out infinite alternate;
+          ">
+            INSERT COIN // START COMBAT
+          </button>
         </div>
 
-        <div style="margin-top:12px; font-size:10px; line-height:1.45; color:#64748b; font-weight:600;">
-          Hold to fire · Stake in Lobby
+        <!-- Cabinet Utility Menu -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+          <button id="ff-start-how-to-play" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:8px; font-size:11px;">
+            HOW TO PLAY
+          </button>
+          <button id="ff-start-options" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:8px; font-size:11px;">
+            OPTIONS / AUDIO
+          </button>
+          <button id="ff-start-tables" type="button" class="ff-arcade-btn ff-arcade-btn-cyan" style="padding:8px; font-size:11px;">
+            TABLE SELECT
+          </button>
+          <button id="ff-start-store" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:8px; font-size:11px;">
+            STORE & PERKS
+          </button>
         </div>
-      </div>
 
-      <div id="ff-theme-modal" style="display:none; position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,.75); align-items:center; justify-content:center; padding:20px;">
-        <div class="ff-arcade-card" style="width:min(320px,100%); max-height:none;">
-          <div style="font-size:14px; letter-spacing:.16em; color:#fde68a; font-weight:900; margin-bottom:16px;">SELECT THEME</div>
-          <div style="display:grid; gap:12px;">
-            <button id="ff-theme-light" type="button" class="ff-btn ff-btn-cyan" style="padding:16px; font-size:15px;">☀ LIGHT</button>
-            <button id="ff-theme-dark" type="button" class="ff-btn ff-btn-pink" style="padding:16px; font-size:15px;">☾ DARK</button>
-            <button id="ff-theme-close" type="button" class="ff-btn ff-btn-slate" style="padding:12px; font-size:12px;">CLOSE</button>
-          </div>
+        <div style="font-size:10px; color:#64748b; font-family:var(--font-mono, monospace);">
+          PROVABLY FAIR · HMAC-SHA256 DETERMINISTIC
         </div>
       </div>
     `;
@@ -294,23 +271,19 @@ export class UIManager {
     const authEl = root.querySelector<HTMLElement>('#ff-auth-status');
     const authBtn = root.querySelector<HTMLButtonElement>('#ff-auth-action');
     const statusEl = root.querySelector<HTMLElement>('#ff-wallet-status');
-    const themeModal = root.querySelector<HTMLElement>('#ff-theme-modal');
 
     const renderAuth = () => {
       const state = AuthManager.getInstance().getState();
-      const signedIn = !!(state.user && !state.isAnonymous);
+      const signedIn = !state.isAnonymous || !!(state.user && !state.user.isAnonymous);
       if (authEl) {
         authEl.textContent = signedIn
-          ? `SIGNED IN · ${state.displayName}`
+          ? `P1 // ${state.displayName || 'PILOT'}`
           : state.displayName
-            ? `GUEST · ${state.displayName}`
-            : 'GUEST SESSION';
+          ? `GUEST // ${state.displayName}`
+          : 'P1 // REEF HUNTER';
       }
       if (authBtn) {
-        authBtn.textContent = signedIn ? 'LOG OUT' : 'SIGN IN / SIGN UP';
-        authBtn.className = signedIn ? 'ff-btn ff-btn-slate' : 'ff-btn ff-btn-cyan';
-        authBtn.style.padding = '12px 16px';
-        authBtn.style.fontSize = '12px';
+        authBtn.textContent = signedIn ? 'PILOT ID' : 'SIGN IN';
       }
     };
 
@@ -325,238 +298,273 @@ export class UIManager {
     (root as any).__walletUnsubscribe = unsubscribeWallet;
 
     void wallet.connect().then(renderWallet).catch((error) => {
-      console.error('[Lobby] wallet connect failed', error);
-      if (statusEl) statusEl.textContent = 'Wallet unavailable.';
+      console.warn('[Lobby] wallet connect fallback to local storage', error?.message || error);
+      if (statusEl) statusEl.textContent = 'Local credits active.';
     });
 
     AuthManager.getInstance().onChange(() => renderAuth());
     renderAuth();
 
-    authBtn?.addEventListener('click', async () => {
-      const auth = AuthManager.getInstance();
-      const state = auth.getState();
-      try {
-        if (state.user && !state.isAnonymous) {
-          if (statusEl) statusEl.textContent = 'Signing out…';
-          await auth.signOut();
-          if (statusEl) statusEl.textContent = 'Signed out.';
-        } else {
-          if (statusEl) statusEl.textContent = 'Opening Google sign-in…';
-          await auth.linkGoogle();
-          if (statusEl) statusEl.textContent = 'Signed in.';
-        }
+    const openPilotModal = () => {
+      showAuthModal(this.modalCtx(), () => {
         renderAuth();
         renderWallet();
-      } catch (e) {
-        if (statusEl) statusEl.textContent = e instanceof Error ? e.message : 'Auth failed.';
-      }
-    });
-
-    root.querySelector<HTMLButtonElement>('#ff-deposit')
-      ?.addEventListener('click', async () => {
-        const amountText = window.prompt('Deposit amount (SC):', '10');
-        if (amountText === null) return;
-        const amount = Number(amountText);
-        if (!Number.isFinite(amount) || amount <= 0) {
-          if (statusEl) statusEl.textContent = 'Enter a valid amount.';
-          return;
-        }
-        if (statusEl) statusEl.textContent = 'Creating deposit request…';
-        try {
-          const result = await wallet.requestDeposit(amount, 'SC');
-          if (statusEl) {
-            statusEl.textContent = `Deposit request ${result.requestId.slice(0, 8)}… pending.`;
-          }
-        } catch (error) {
-          if (statusEl) {
-            statusEl.textContent =
-              error instanceof Error ? error.message : 'Deposit request failed.';
-          }
-        }
       });
+    };
 
-    root.querySelector<HTMLButtonElement>('#ff-withdraw')
-      ?.addEventListener('click', async () => {
-        const balance = wallet.getBalance('SC');
-        const amountText = window.prompt(
-          `Withdraw SC amount (available: ${balance.toLocaleString()}):`,
-          ''
-        );
-        if (amountText === null) return;
-        const amount = Number(amountText);
-        if (!Number.isFinite(amount) || amount <= 0) {
-          if (statusEl) statusEl.textContent = 'Enter a valid amount.';
-          return;
-        }
-        if (amount > balance) {
-          if (statusEl) statusEl.textContent = 'Insufficient SC balance.';
-          return;
-        }
-        if (statusEl) statusEl.textContent = 'Creating withdrawal request…';
-        try {
-          const result = await wallet.requestWithdrawal(amount, 'SC');
-          if (statusEl) {
-            statusEl.textContent = `Withdrawal ${result.requestId.slice(0, 8)}… pending.`;
-          }
-          renderWallet();
-        } catch (error) {
-          if (statusEl) {
-            statusEl.textContent =
-              error instanceof Error ? error.message : 'Withdrawal request failed.';
-          }
-        }
+    authBtn?.addEventListener('click', openPilotModal);
+    authEl?.addEventListener('click', openPilotModal);
+    if (authEl) {
+      authEl.style.cursor = 'pointer';
+      authEl.title = 'Click to edit Pilot Callsign';
+    }
+
+    root.querySelector<HTMLButtonElement>('#ff-deposit')?.addEventListener('click', () => {
+      showDepositModal(this.modalCtx(), wallet, () => {
+        renderWallet();
+        if (statusEl) statusEl.textContent = 'Deposit confirmed.';
       });
+    });
 
-    const openTheme = () => {
-      if (themeModal) themeModal.style.display = 'flex';
-    };
-    const closeTheme = () => {
-      if (themeModal) themeModal.style.display = 'none';
-    };
-    root.querySelector('#ff-theme-open')?.addEventListener('click', openTheme);
-    root.querySelector('#ff-theme-close')?.addEventListener('click', closeTheme);
-    themeModal?.addEventListener('click', (e) => {
-      if (e.target === themeModal) closeTheme();
+    root.querySelector<HTMLButtonElement>('#ff-withdraw')?.addEventListener('click', () => {
+      showWithdrawModal(this.modalCtx(), wallet, () => {
+        renderWallet();
+        if (statusEl) statusEl.textContent = 'Withdrawal processed.';
+      });
     });
-    root.querySelector('#ff-theme-light')?.addEventListener('click', () => {
-      this.currentTheme = 'light';
-      this.onThemeChangeCallback?.('light');
-      SoundManager.setTheme('light');
-      closeTheme();
+
+    root.querySelector('#ff-start-how-to-play')?.addEventListener('click', () => {
+      showHowToPlayModal(this.modalCtx());
     });
-    root.querySelector('#ff-theme-dark')?.addEventListener('click', () => {
-      this.currentTheme = 'dark';
-      this.onThemeChangeCallback?.('dark');
-      SoundManager.setTheme('dark');
-      closeTheme();
+
+    root.querySelector('#ff-start-options')?.addEventListener('click', () => {
+      showOptionsModal(this.modalCtx(), (theme) => {
+        this.currentTheme = theme;
+        this.onThemeChangeCallback?.(theme);
+      });
+    });
+
+    root.querySelector('#ff-start-tables')?.addEventListener('click', () => {
+      this.showLobby();
+    });
+
+    root.querySelector('#ff-start-store')?.addEventListener('click', () => {
+      this.openStore();
     });
 
     const playBtn = root.querySelector<HTMLButtonElement>('#ff-play');
     playBtn?.addEventListener('click', () => {
-      SoundManager.playUiSound('click');
-      if (this.currentTheme === 'dark') {
-        SoundManager.playHorrorWhisper(0.8);
+      try {
+        SoundManager.playUiSound('click');
+        AudioManager.getInstance().transitionTo('GAMEPLAY');
+        if (this.currentTheme === 'dark') {
+          SoundManager.playHorrorWhisper(0.8);
+        }
+        SoundManager.startBgm();
+      } catch (err) {
+        console.warn('[StartScreen] Audio initialization warning:', err);
       }
-      SoundManager.startBgm();
-      setTimeout(() => {
-        this.onPlayCallback?.();
-      }, 150);
+      this.onPlayCallback?.();
     });
   }
 
   public hideStartScreen(): void {
-
     if (this.startScreenEl) {
       const unsubscribe = (this.startScreenEl as any).__walletUnsubscribe;
       if (typeof unsubscribe === 'function') {
         unsubscribe();
       }
-    }
-
-
-    if (this.startScreenEl) {
       this.startScreenEl.remove();
       this.startScreenEl = null;
     }
     this.isGameActive = true;
     this.container.style.visibility = 'visible';
+    GameEventBus.getInstance().emit('GAME_START');
   }
 
   private renderHUD(): void {
     const activeTable = TableSelectionManager.getInstance().getActiveTable();
+
     this.container.innerHTML = `
-      <!-- TOP NAV — flat, no boxed chrome -->
+      <!-- Street Fighter Arcade Top Bar -->
       <div id="hud-topbar" style="
-  display:flex; justify-content:space-between; align-items:center;
-  width:100%; pointer-events:auto; gap:8px; flex-wrap:wrap;
-  padding:5px 7px;
-  background:rgba(3,7,12,.88);
-  border:2px solid rgba(148,163,184,.55);
-  border-bottom:3px solid #020617;
-  box-shadow:0 3px 0 #020617, inset 0 1px 0 rgba(255,255,255,.08);
-  font-family:monospace;
-  letter-spacing:.5px;
-">
-        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:rgba(15,23,42,.72); border:1px solid rgba(148,163,184,.35);
-padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
-            <span id="hud-gc-balance" style="font-size:16px; font-weight:900; color:#fbbf24; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.gcBalance.toLocaleString()}<sub style="font-size:10px;color:#fcd34d;margin-left:2px;font-weight:800;">GC</sub></span>
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        pointer-events: auto;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 6px 10px;
+        background: rgba(3, 7, 18, 0.92);
+        border: 2px solid #38bdf8;
+        box-shadow: 0 4px 0 #020617, inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+      ">
+        <!-- Top Left: Player Status, Balances & Bet -->
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <!-- Player Tag (Clickable for dossier) -->
+          <div id="hud-player-tag" title="Click to view Pilot Dossier" style="
+            background: #0f172a;
+            border: 1px solid #475569;
+            padding: 3px 8px;
+            color: #f8fafc;
+            font-size: 12px;
+            font-weight: 900;
+            font-style: italic;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+          ">
+            <span style="color:#38bdf8;">P1</span>
+            <span id="hud-player-name">PILOT</span>
           </div>
-          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:rgba(15,23,42,.72); border:1px solid rgba(148,163,184,.35);
-padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
-            <span id="hud-sc-balance" style="font-size:16px; font-weight:900; color:#5eead4; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.scBalance.toFixed(2)}<sub style="font-size:10px;color:#99f6e4;margin-left:2px;font-weight:800;">SC</sub></span>
+
+          <!-- Currency & Balance Pill (Click to toggle) -->
+          <button id="hud-currency-toggle" type="button" title="Click to toggle GC / SC" style="
+            background: #111827;
+            border: 1px solid #38bdf8;
+            padding: 3px 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            color: #f8fafc;
+            box-shadow: 1px 1px 0 #020617;
+          ">
+            <span id="hud-active-balance" style="font-size: 14px; font-weight: 900; color: #38bdf8; font-family: var(--font-mono, monospace);">
+              ${this.activeCurrency === 'SC' ? this.scBalance.toFixed(2) : this.gcBalance.toLocaleString()}
+            </span>
+            <span id="hud-active-currency" style="font-size: 10px; font-weight: 900; color: #fbbf24;">
+              ${this.activeCurrency}
+            </span>
+          </button>
+
+          <!-- Hidden balance elements for compatibility -->
+          <span id="hud-gc-balance" style="display:none;"></span>
+          <span id="hud-sc-balance" style="display:none;"></span>
+          <div id="hud-gc-wallet" style="display:none;"></div>
+          <div id="hud-sc-wallet" style="display:none;"></div>
+
+          <!-- Bet Steppers -->
+          <div style="
+            display: flex;
+            align-items: center;
+            background: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 2px;
+            overflow: hidden;
+          ">
+            <button id="hud-bet-minus" type="button" style="
+              background: #1e293b;
+              color: #f8fafc;
+              border: none;
+              padding: 4px 8px;
+              font-weight: 900;
+              cursor: pointer;
+            ">-</button>
+            <span id="hud-bet-display" style="
+              padding: 2px 8px;
+              font-size: 13px;
+              font-weight: 900;
+              color: #fbbf24;
+              font-family: var(--font-mono, monospace);
+              min-width: 58px;
+              text-align: center;
+            ">${this.getCurrentBet()} ${this.activeCurrency}</span>
+            <button id="hud-bet-plus" type="button" style="
+              background: #1e293b;
+              color: #f8fafc;
+              border: none;
+              padding: 4px 8px;
+              font-weight: 900;
+              cursor: pointer;
+            ">+</button>
           </div>
-          ${activeTable.mode === 'tournament' ? `<span id="hud-tourney-shield" title="Tournament" style="font-size:18px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.8)); line-height:1;">🛡️</span>` : ''}
-          <button id="hud-level-btn" title="Level" style="
-  background:#111827; border:2px solid #64748b; padding:3px 7px;
-  cursor:pointer; display:flex; align-items:center; gap:6px;
-  color:#f8fafc; box-shadow:0 2px 0 #020617;
-">
-  <span style="font-size:12px; font-weight:900; color:#f8fafc;">LV <span id="hud-level-val">1</span></span>
-  <div style="width:44px; height:7px; background:#020617; border:1px solid #475569; overflow:hidden;">
-    <div id="hud-level-bar" style="width:0%; height:100%; background:#22d3ee;"></div>
-  </div>
-</button>
-          <span id="hud-bet-display" style="display:none;">${this.getCurrentBet()}</span>
-          <button id="hud-table-btn" style="display:none;"></button>
-        </div>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <button id="hud-lobby-btn" title="Lobby" style="background:none; border:none; padding:0; cursor:pointer; font-size:22px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));">⌂</button>
-          <button id="hud-sound-toggle" title="Audio: cycle On / Mute / SFX / No FX" style="background:none; border:none; padding:0; cursor:pointer; font-size:20px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8)); min-width:auto;">🔊</button>
-        </div>
-      </div>
 
-      <!-- Boss combat HUD -->
-      <div id="hud-boss-overlay" style="display:none; position:absolute; inset:0; z-index:15; pointer-events:none;
-        background:rgba(180,0,20,0.10);"></div>
-
-      <div id="hud-boss-combat" style="display:none; position:absolute; left:50%; top:8px;
-        transform:translateX(-50%); width:min(680px,calc(100% - 28px)); z-index:31;
-        pointer-events:none; font-family:monospace;">
-
-        <div style="display:flex; align-items:center; justify-content:space-between;
-          padding:4px 8px; background:#09090b; border:2px solid #ef4444;
-          border-bottom:none; text-transform:uppercase; letter-spacing:2px;">
-          <span style="font-size:11px; font-weight:900; color:#f87171;">BOSS</span>
-          <span id="hud-boss-name" style="font-size:13px; font-weight:900; letter-spacing:1.5px; color:#f8fafc; font-family:monospace;">ABYSSAL BOSS</span>
-          <span id="hud-boss-phase" style="font-size:10px; font-weight:900; letter-spacing:1px; color:#fbbf24; font-family:monospace;">ENGAGED</span>
+          <!-- Level Badge -->
+          <button id="hud-level-btn" title="Pilot Progression" style="
+            background: #111827;
+            border: 1px solid #64748b;
+            padding: 3px 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #f8fafc;
+          ">
+            <span style="font-size: 11px; font-weight: 900; font-style: italic;">LV <span id="hud-level-val">1</span></span>
+            <div style="width: 32px; height: 6px; background: #020617; border: 1px solid #475569; overflow: hidden;">
+              <div id="hud-level-bar" style="width: 0%; height: 100%; background: #22d3ee;"></div>
+            </div>
+          </button>
         </div>
 
-        <div style="height:18px; padding:2px; background:#020617; border:2px solid #f8fafc;
-          box-sizing:border-box;">
-          <div id="hud-boss-hp-segments" style="display:flex; gap:2px; height:100%;"></div>
+        <!-- Top Center: Stage & Combat State -->
+        <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+          <div style="font-size: 14px; font-weight: 900; font-style: italic; letter-spacing: 2px; color: #f8fafc; text-shadow: 0 2px 4px #000;">
+            STAGE 1 // ABYSSAL TRENCH
+          </div>
+          <div id="hud-combat-status" style="font-size: 10px; font-weight: 900; letter-spacing: 1px; color: #38bdf8;">
+            ROUND 1 // COMBAT ACTIVE
+          </div>
         </div>
 
-        <div style="display:flex; justify-content:space-between; align-items:center;
-          padding:3px 6px; background:#111827; border:2px solid #374151; border-top:none;
-          font-size:10px; font-weight:900; letter-spacing:1px;">
-          <span id="hud-boss-damage">DMG 0</span>
-          <span id="hud-boss-timer">30</span>
-          <span id="hud-boss-hp-text">HP 100%</span>
+        <!-- Top Right: Action Controls -->
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button id="hud-table-btn" class="ff-arcade-btn ff-arcade-btn-slate" style="padding: 4px 8px; font-size: 11px;">
+            TABLES
+          </button>
+          <button id="hud-store-btn" class="ff-arcade-btn ff-arcade-btn-green" style="padding: 4px 8px; font-size: 11px;">
+            STORE
+          </button>
+          <button id="hud-options-btn" class="ff-arcade-btn ff-arcade-btn-slate" style="padding: 4px 8px; font-size: 11px;" title="Options & Audio">
+            OPT ⚙
+          </button>
+          <button id="hud-sound-toggle" class="ff-arcade-btn ff-arcade-btn-slate" style="padding: 4px 8px; font-size: 11px;" title="Sound Output">
+            🔊
+          </button>
         </div>
       </div>
 
-      <!-- Brief FISH FRENZY title (boss start only) -->
-      <div id="hud-boss-bash" style="display:none; position:absolute; left:50%; top:16%; transform:translateX(-50%); z-index:25; pointer-events:none; text-align:center;">
-        <div id="hud-boss-bash-title" style="font-size:clamp(30px,8vw,56px); font-weight:900; letter-spacing:6px; color:#ff0033;
-          text-shadow:0 0 18px #ff0033, 0 0 36px #22d3ee, 0 4px 0 #450a0a;
-          animation: bossFrenzyPulse 0.45s ease-in-out infinite alternate;">FISH FRENZY</div>
-      </div>
-      <style>
-        @keyframes bossFrenzyPulse {
-          from { opacity: .92; }
-          to { opacity: 1; }
-        }
-      </style>
+      <!-- Bottom Status Indicators (Above Turret) -->
+      <div style="
+        position: absolute;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        pointer-events: none;
+        z-index: 20;
+      ">
+        <div id="hud-bet-badge" style="
+          background: rgba(3, 7, 18, 0.88);
+          border: 1px solid #38bdf8;
+          padding: 3px 10px;
+          border-radius: 2px;
+          font-weight: 900;
+          font-size: 13px;
+          font-style: italic;
+          color: #38bdf8;
+          box-shadow: 2px 2px 0 #020617;
+        ">×1.00 SC</div>
 
-      <!-- Bet badge near turret (bottom-center, slightly right) -->
-      <div id="hud-bet-badge" style="position:absolute; left:58%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
-        padding:3px 8px; border:2px solid rgba(248,250,252,.55); font-weight:900; letter-spacing:1px; font-family:monospace; background:rgba(2,6,23,.88);
-        border:none; background:rgba(0,0,0,0.45); color:#67e8f9; font-size:13px;
-        text-shadow:0 0 8px rgba(34,211,238,0.8);">×1.00</div>
-      <div id="hud-barrel-badge" style="position:absolute; left:42%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
-        padding:3px 7px; border:2px solid #fbbf24; font-weight:900; font-size:12px; color:#fbbf24; font-family:monospace; background:rgba(2,6,23,.88);
-        text-shadow:0 0 8px rgba(251,191,36,.7); background:rgba(0,0,0,.4);">1×</div>
+        <div id="hud-barrel-badge" style="
+          background: rgba(3, 7, 18, 0.88);
+          border: 1px solid #fbbf24;
+          padding: 3px 8px;
+          border-radius: 2px;
+          font-weight: 900;
+          font-size: 12px;
+          font-style: italic;
+          color: #fbbf24;
+          box-shadow: 2px 2px 0 #020617;
+        ">1× BARREL</div>
+      </div>
     `;
 
     // Reference elements
@@ -569,9 +577,34 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     // Event listeners
     this.applyAudioModeIcon();
     this.refreshStakeHud();
+
+    // Player name sync & Pilot Dossier modal
+    const syncHudPilotName = () => {
+      const pName = document.getElementById('hud-player-name');
+      const authState = AuthManager.getInstance().getState();
+      if (pName && authState.displayName) {
+        pName.textContent = authState.displayName.toUpperCase();
+      }
+    };
+    syncHudPilotName();
+    AuthManager.getInstance().onChange(syncHudPilotName);
+
+    document.getElementById('hud-player-tag')?.addEventListener('click', () => {
+      showAuthModal(this.modalCtx(), syncHudPilotName);
+    });
+
     this.soundBtn.addEventListener('click', () => this.cycleAudioMode());
-    document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
-    this.tableBadgeBtn?.addEventListener('click', () => this.showLobby());
+    document.getElementById('hud-currency-toggle')?.addEventListener('click', () => this.toggleCurrency());
+    document.getElementById('hud-bet-minus')?.addEventListener('click', () => this.adjustBet(-1));
+    document.getElementById('hud-bet-plus')?.addEventListener('click', () => this.adjustBet(1));
+    document.getElementById('hud-table-btn')?.addEventListener('click', () => this.showLobby());
+    document.getElementById('hud-store-btn')?.addEventListener('click', () => this.openStore());
+    document.getElementById('hud-options-btn')?.addEventListener('click', () => {
+      showOptionsModal(this.modalCtx(), (theme) => {
+        this.currentTheme = theme;
+        this.onThemeChangeCallback?.(theme);
+      });
+    });
     document.getElementById('hud-level-btn')?.addEventListener('click', () => showProgressionModal(this.modalCtx()));
 
     // Subscribe to player progression updates
@@ -581,22 +614,13 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
       });
     }
 
-    // Subscribe to table changes with full currency & minStake synchronization
+    // Subscribe to table changes
     if (!this.tableUnsub) {
       this.tableUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
-        const lbl = document.getElementById('hud-table-btn-label');
-        if (lbl) lbl.textContent = tbl.badge;
-        if (this.tableBadgeBtn) {
-          this.tableBadgeBtn.style.borderColor = tbl.badgeColor;
-          this.tableBadgeBtn.style.color = tbl.badgeColor;
-        }
-
-        // Adjust currency to table-allowed currency if necessary
         if (!tbl.allowedCurrencies.includes(this.activeCurrency)) {
           this.activeCurrency = tbl.allowedCurrencies[0];
         }
 
-        // Adjust bet amount to table minStake
         let targetIdx = this.betTiers.findIndex((b) => Math.abs(b - tbl.minStake) < 0.001);
         if (targetIdx === -1) {
           targetIdx = this.betTiers.findIndex((b) => b >= tbl.minStake);
@@ -609,7 +633,7 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
       });
     }
 
-    // Operator shortcut still opens Admin from Lobby tools
+    // Operator shortcut
     window.addEventListener('keydown', (e) => {
       if (e.key === '`' || e.key === '~') {
         this.showAdminPortalModal();
@@ -619,34 +643,28 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
 
   private updateProgressionHud(prog: PlayerProgressionState): void {
     const lvlVal = document.getElementById('hud-level-val');
-    const lvlName = document.getElementById('hud-level-name');
     const lvlBar = document.getElementById('hud-level-bar');
-    const ocBadge = document.getElementById('hud-overcharge-badge');
-    const ocText = document.getElementById('hud-overcharge-text');
 
     if (lvlVal) lvlVal.textContent = prog.level.toString();
-    if (lvlName) lvlName.textContent = prog.title.split(' ')[0].toUpperCase();
     if (lvlBar) lvlBar.style.width = `${prog.progressPct}%`;
-
-    // Overdrive/overcharge banners removed — boss uses red overlay only
-    void ocBadge; void ocText;
   }
 
-  private createModalContainer(root: HTMLElement): void {
+  private createModalContainer(_root: HTMLElement): void {
     this.modalContainer = document.createElement('div');
     this.modalContainer.id = 'hud-modal-layer';
     this.modalContainer.style.cssText = `
-      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(5, 5, 10, 0.75); backdrop-filter: blur(8px);
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      background: rgba(3, 7, 18, 0.88); backdrop-filter: blur(8px);
       display: none; justify-content: center; align-items: center;
-      z-index: 50; padding: 20px; box-sizing: border-box;
+      z-index: 100000; padding: 20px; box-sizing: border-box;
+      pointer-events: auto;
     `;
     this.modalContainer.addEventListener('click', (e) => {
       if (e.target === this.modalContainer) {
         this.closeModal();
       }
     });
-    root.appendChild(this.modalContainer);
+    document.body.appendChild(this.modalContainer);
   }
 
   public closeModal(): void {
@@ -671,218 +689,111 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     };
   }
 
-
-  /** Full-screen lobby: shop, streak, ranks, operator tools — off the combat HUD. */
+  /** Full-screen lobby: rooms, ranks, operator tools — styled in arcade cabinet aesthetic. */
   public showLobby(): void {
     SoundManager.playUiSound('modal_open');
     const tables = TableSelectionManager.getInstance().getTables();
 
     const panel = (active: boolean, accent: string) =>
       active
-        ? `background:#111827;color:#f8fafc;border:2px solid ${accent};box-shadow:2px 2px 0 #020617,inset 0 0 0 1px ${accent}55;`
+        ? `background:#111827;color:#f8fafc;border:2px solid ${accent};box-shadow:2px 2px 0 #020617;`
         : `background:#0f172a;color:#94a3b8;border:2px solid #475569;box-shadow:2px 2px 0 #020617;`;
 
     this.modalContainer.innerHTML = `
-      <style>
-        .ff-arc-btn {
-          border:2px solid #64748b;
-          border-radius:0;
-          cursor:pointer;
-          font-weight:900;
-          letter-spacing:.06em;
-          font-family:monospace;
-          transition:transform .06s ease, filter .08s ease;
-        }
-
-        .ff-arc-btn:hover {
-          filter:brightness(1.12);
-        }
-
-        .ff-arc-btn:active {
-          transform:translate(2px,2px) !important;
-          filter:brightness(.92);
-        }
-
-        .ff-arc-chip {
-          border:2px solid #475569;
-          border-radius:0;
-          cursor:pointer;
-          font-weight:900;
-          font-family:monospace;
-          font-size:13px;
-          padding:9px 12px;
-          min-width:52px;
-          box-shadow:2px 2px 0 #020617;
-        }
-
-        .ff-arc-chip:active {
-          transform:translate(2px,2px);
-          box-shadow:none;
-        }
-
-        .ff-cabinet {
-          position:relative;
-          width:min(430px,100%);
-          max-height:90vh;
-          overflow:auto;
-          box-sizing:border-box;
-          padding:0;
-          border:3px solid #94a3b8;
-          background:#080d16;
-          box-shadow:
-            5px 5px 0 #020617,
-            inset 0 0 0 2px #1e293b;
-          color:#fff;
-          font-family:monospace;
-          text-align:center;
-        }
-
-        .ff-cabinet::before {
-          content:"";
-          position:absolute;
-          inset:0;
-          pointer-events:none;
-          opacity:.09;
-          background:repeating-linear-gradient(
-            0deg,
-            transparent 0,
-            transparent 3px,
-            #fff 4px
-          );
-          z-index:5;
-        }
-
-        .ff-cabinet-content {
-          position:relative;
-          z-index:6;
-          padding:0 14px 14px;
-        }
-
-        .ff-title-strip {
-          display:flex;
-          justify-content:space-between;
-          align-items:center;
-          min-height:58px;
-          padding:0 10px;
-          margin-bottom:14px;
-          box-sizing:border-box;
-          background:#111827;
-          border-bottom:3px solid #22d3ee;
-          box-shadow:inset 0 -1px 0 #020617;
-          text-align:left;
-        }
-
-        .ff-section-label {
-          font-size:11px;
-          letter-spacing:.15em;
-          color:#94a3b8;
-          font-weight:900;
-          margin-bottom:7px;
-        }
-      </style>
-
-      <div class="ff-cabinet">
-        <div class="ff-title-strip">
-          <div>
-            <div style="font-size:10px;letter-spacing:.22em;color:#22d3ee;font-weight:900;">FISH FRENZY // SYSTEM</div>
-            <div style="font-size:21px;letter-spacing:.08em;color:#f8fafc;font-weight:900;">LOBBY</div>
-          </div>
-
-          <button id="lobby-close-btn" class="ff-arc-btn" style="
-            width:34px;height:34px;
-            background:#1e293b;color:#f8fafc;
-            font-size:16px;border-color:#64748b;
-          ">✕</button>
+      <div class="ff-arcade-cabinet" style="
+        position: relative;
+        width: min(440px, 100%);
+        max-height: 90vh;
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding: 20px;
+        border: 3px solid #38bdf8;
+        background: #090d18;
+        box-shadow: 4px 4px 0 #020617;
+        color: #fff;
+        font-family: var(--font-display, 'Impact', sans-serif);
+        text-align: center;
+        border-radius: 2px;
+      ">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:2px solid #1e293b; padding-bottom:8px;">
+          <span style="font-size:18px; font-weight:900; font-style:italic; letter-spacing:1px; color:#38bdf8;">
+            COMBAT ROOM SELECTION
+          </span>
+          <button id="lobby-close-btn" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:4px 8px; font-size:11px;">[X]</button>
         </div>
 
-        <div class="ff-cabinet-content">
-          <div style="margin-bottom:14px;">
-            <div class="ff-section-label">CURRENCY</div>
-            <div style="display:flex;gap:8px;">
-              <button type="button" id="lobby-cur-sc" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.activeCurrency === 'SC', '#2dd4bf')}">SC</button>
-              <button type="button" id="lobby-cur-gc" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.activeCurrency === 'GC', '#fbbf24')}">GC</button>
-            </div>
+        <!-- Currency Switcher -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px; letter-spacing:2px; color:#94a3b8; margin-bottom:4px; text-align:left;">CURRENCY</div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="lobby-cur-sc" class="ff-arcade-btn" style="flex:1; padding:8px; ${panel(this.activeCurrency === 'SC', '#38bdf8')}">
+              SWEEPS COINS (SC)
+            </button>
+            <button type="button" id="lobby-cur-gc" class="ff-arcade-btn" style="flex:1; padding:8px; ${panel(this.activeCurrency === 'GC', '#fbbf24')}">
+              GOLD COINS (GC)
+            </button>
           </div>
-
-          <div style="margin-bottom:14px;">
-            <div class="ff-section-label">BET // TAP TO PLAY</div>
-            <div id="lobby-bet-chips" style="display:flex;flex-wrap:wrap;gap:7px;justify-content:center;">
-              ${this.betTiers.map((b, i) => {
-                const on = i === this.currentBetIndex;
-                return `<button type="button" class="lobby-bet-chip ff-arc-chip" data-bet-index="${i}" style="
-                  ${on
-                    ? 'background:#facc15;color:#422006;border-color:#fde047;box-shadow:2px 2px 0 #92400e;'
-                    : 'background:#1e293b;color:#e2e8f0;'}
-                ">${b}</button>`;
-              }).join('')}
-            </div>
-          </div>
-
-          <div style="margin-bottom:14px;">
-            <div class="ff-section-label">THEME</div>
-            <div style="display:flex;gap:8px;">
-              <button type="button" id="lobby-theme-light" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.currentTheme === 'light', '#38bdf8')}">☀ LIGHT</button>
-              <button type="button" id="lobby-theme-dark" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.currentTheme === 'dark', '#fb7185')}">☾ DARK</button>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <button class="lobby-tile ff-arc-btn" data-lobby="store" style="
-              flex:1;padding:12px 10px;
-              background:#064e3b;color:#a7f3d0;border-color:#10b981;
-              box-shadow:2px 2px 0 #020617;
-            ">STORE</button>
-
-            <button class="lobby-tile ff-arc-btn" data-lobby="operator" style="
-              flex:1;padding:12px 10px;
-              background:#78350f;color:#fde68a;border-color:#f59e0b;
-              box-shadow:2px 2px 0 #020617;
-            ">OPS</button>
-          </div>
-
-          <button id="lobby-resume-btn" class="ff-arc-btn" style="
-            width:100%;
-            padding:13px;
-            font-size:17px;
-            letter-spacing:.12em;
-            background:#facc15;
-            color:#422006;
-            border-color:#fde047;
-            box-shadow:3px 3px 0 #92400e;
-          ">▶ PLAY</button>
         </div>
+
+        <!-- Stake Tiers -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px; letter-spacing:2px; color:#94a3b8; margin-bottom:4px; text-align:left;">STAKE SELECTION</div>
+          <div id="lobby-bet-chips" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">
+            ${this.betTiers.map((b, i) => {
+              const on = i === this.currentBetIndex;
+              return `<button type="button" class="lobby-bet-chip ff-arcade-btn" data-bet-index="${i}" style="
+                ${on
+                  ? 'background:#facc15;color:#422006;border-color:#fde047;box-shadow:2px 2px 0 #92400e;'
+                  : 'background:#1e293b;color:#e2e8f0;border-color:#475569;'}
+                padding: 6px 12px; font-size: 13px; font-family: var(--font-mono, monospace);
+              ">${b}</button>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;">
+          <button class="lobby-tile ff-arcade-btn ff-arcade-btn-green" data-lobby="store" style="padding:10px;">
+            STORE & UPGRADES
+          </button>
+          <button class="lobby-tile ff-arcade-btn ff-arcade-btn-amber" data-lobby="operator" style="padding:10px;">
+            OPERATOR OPS
+          </button>
+        </div>
+
+        <button id="lobby-resume-btn" class="ff-arcade-btn ff-arcade-btn-primary" style="
+          width: 100%;
+          padding: 12px;
+          font-size: 16px;
+          letter-spacing: 2px;
+          font-style: italic;
+        ">
+          ▶ RETURN TO COMBAT
+        </button>
       </div>
     `;
+
     this.modalContainer.style.display = 'flex';
+
     document.getElementById('lobby-close-btn')?.addEventListener('click', () => this.closeModal());
     document.getElementById('lobby-resume-btn')?.addEventListener('click', () => this.closeModal());
+
     document.getElementById('lobby-cur-sc')?.addEventListener('click', () => {
       this.setCurrency('SC');
       this.showLobby();
     });
+
     document.getElementById('lobby-cur-gc')?.addEventListener('click', () => {
       this.setCurrency('GC');
       this.showLobby();
     });
-    document.getElementById('lobby-theme-light')?.addEventListener('click', () => {
-      this.currentTheme = 'light';
-      this.onThemeChangeCallback?.('light');
-      SoundManager.setTheme('light');
-      this.showLobby();
-    });
-    document.getElementById('lobby-theme-dark')?.addEventListener('click', () => {
-      this.currentTheme = 'dark';
-      this.onThemeChangeCallback?.('dark');
-      SoundManager.setTheme('dark');
-      this.showLobby();
-    });
+
     this.modalContainer.querySelectorAll('.lobby-bet-chip').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt((btn as HTMLElement).getAttribute('data-bet-index') || '0', 10);
         this.setBetIndex(idx);
         const bet = this.getCurrentBet();
         const cur = this.activeCurrency;
-        // Prefer rooms that allow the selected currency, then match stake
         const match =
           tables.find((t) => t.allowedCurrencies.includes(cur) && Math.abs(t.minStake - bet) < 0.001) ||
           tables.find((t) => t.allowedCurrencies.includes(cur) && t.minStake <= bet) ||
@@ -895,13 +806,10 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
           }
         }
         this.refreshStakeHud();
-        this.renderHUD();
         this.closeModal();
-        if (match?.mode === 'tournament') {
-          this.showLeaderboardModal();
-        }
       });
     });
+
     this.modalContainer.querySelectorAll('.lobby-tile').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-lobby');
@@ -916,7 +824,6 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     await openStreakModal(this.modalCtx());
   }
 
-
   private showLeaderboardModal(): void {
     if (!this.isTournamentSession()) {
       SoundManager.playUiSound('modal_close');
@@ -925,46 +832,31 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     openLeaderboardModal(this.modalCtx());
   }
 
-
   public showAdminPortalModal(): void {
     openAdminPortalModal(this.modalCtx());
   }
 
-
   private refreshStakeHud(): void {
-    // Always mirror wallet → HUD so currency/bet switches never show stale amounts
     const live = WalletService.getInstance().getBalances();
     this.gcBalance = live.goldCoins;
     this.scBalance = live.sweepstakesCoins;
 
-    const el = document.getElementById('hud-bet-display');
     const bet = this.getCurrentBet();
-    if (el) el.textContent = `${bet} ${this.activeCurrency}`;
+    const el = document.getElementById('hud-bet-display');
+    if (el) el.textContent = `${bet.toFixed(2)} ${this.activeCurrency}`;
+
     const badge = document.getElementById('hud-bet-badge');
     if (badge) {
-      const scale = 0.85 + Math.min(0.55, Math.log10(bet * 20 + 1) * 0.35);
-      const colors: Array<[number, string]> = [
-        [0.25, '#67e8f9'],
-        [1, '#22d3ee'],
-        [2.5, '#fbbf24'],
-        [5, '#f97316'],
-        [10, '#f43f5e'],
-      ];
-      let fg = '#67e8f9';
-      for (const [t, f] of colors) {
-        if (bet >= t) fg = f;
-      }
       badge.textContent = `×${bet.toFixed(2)} ${this.activeCurrency}`;
-      badge.style.transform = `translateX(-50%) scale(${scale})`;
-      badge.style.color = fg;
-      badge.style.boxShadow = `2px 2px 0 #020617, inset 0 0 0 1px ${fg}55`;
     }
+
     const barrelEl = document.getElementById('hud-barrel-badge');
     if (barrelEl) {
       const n = this.getBarrelCount();
-      barrelEl.textContent = n > 1 ? `${n} BAR` : '1×';
-      barrelEl.style.opacity = n > 1 ? '1' : '0.55';
+      barrelEl.textContent = n > 1 ? `${n}× BARREL` : '1× BARREL';
+      barrelEl.style.opacity = n > 1 ? '1' : '0.6';
     }
+
     this.paintBalances();
   }
 
@@ -989,7 +881,6 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
 
-  /** Lobby currency switch — picks a room that allows it, refreshes HUD. */
   private setCurrency(currency: 'GC' | 'SC'): void {
     const changed = this.activeCurrency !== currency;
     this.activeCurrency = currency;
@@ -999,7 +890,6 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
       SoundManager.playUiSound('currency_toggle');
     }
 
-    // Practice is GC-only; SC must land on public/tournament
     const tables = TableSelectionManager.getInstance().getTables();
     const active = TableSelectionManager.getInstance().getActiveTable();
     if (!active.allowedCurrencies.includes(currency)) {
@@ -1013,20 +903,9 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     }
 
     this.refreshStakeHud();
-    this.renderHUD();
     this.onBetChangeCallback?.(this.getCurrentBet(), this.activeCurrency);
   }
 
-  private toggleAutoFire(): void {
-    /* hold-to-fire on canvas; no HUD toggle */
-  }
-
-  private toggleTheme(): void {
-    this.currentTheme = this.currentTheme === 'light' ? 'dark' : 'light';
-    this.onThemeChangeCallback?.(this.currentTheme);
-  }
-
-  /** 0=all on 🔊 · 1=mute 🔇 · 2=sfx only 📢 · 3=no fx (bgm only) 🎵 */
   private audioMode: number = (() => {
     try {
       const v = parseInt(localStorage.getItem('fish_frenzy_audio_mode') || '0', 10);
@@ -1036,21 +915,11 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     }
   })();
 
-  private loadAudioMode(): number {
-    try {
-      const v = parseInt(localStorage.getItem('fish_frenzy_audio_mode') || '0', 10);
-      return Number.isFinite(v) ? ((v % 4) + 4) % 4 : 0;
-    } catch {
-      return 0;
-    }
-  }
-
   private applyAudioMode(mode: number): void {
     this.audioMode = ((mode % 4) + 4) % 4;
     try {
       localStorage.setItem('fish_frenzy_audio_mode', String(this.audioMode));
     } catch { /* ignore */ }
-    // Force underlying flags without relying on toggle side-effects
     const wantSfx = this.audioMode === 0 || this.audioMode === 2;
     const wantBgm = this.audioMode === 0 || this.audioMode === 3;
     if (SoundManager.isSoundEnabled() !== wantSfx) SoundManager.toggleSound();
@@ -1062,48 +931,17 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
   private applyAudioModeIcon(): void {
     if (!this.soundBtn) return;
     const icons = ['🔊', '🔇', '📢', '🎵'];
-    const labels = ['All on', 'Muted', 'SFX only', 'No FX (music)'];
     this.soundBtn.textContent = icons[this.audioMode] || '🔊';
-    this.soundBtn.title = `Audio: ${labels[this.audioMode]} — tap to cycle`;
-    this.soundBtn.style.color =
-      this.audioMode === 1 ? '#ef4444' : this.audioMode === 2 ? '#38bdf8' : this.audioMode === 3 ? '#00ffcc' : '#e2e8f0';
   }
 
   private cycleAudioMode(): void {
-    if (this.audioMode === undefined || this.audioMode === null) {
-      this.audioMode = this.loadAudioMode();
-    }
     this.applyAudioMode(this.audioMode + 1);
     if (this.audioMode !== 1) {
       SoundManager.playUiSound('click');
     }
   }
 
-  private toggleSound(): void {
-    this.cycleAudioMode();
-  }
-
-  private toggleBgm(): void {
-    this.cycleAudioMode();
-  }
-
-  /** @deprecated use showBossFrenzyTitle / setBossOverlay */
-  public setBossBashActive(active: boolean, _sub?: string): void {
-    if (active) this.showBossFrenzyTitle();
-    else this.setBossOverlay(false);
-  }
-
-  /** Brief pulsing FISH FRENZY title at boss start. */
-  public showBossFrenzyTitle(): void {
-    const el = document.getElementById('hud-boss-bash');
-    if (!el) return;
-    el.style.display = 'block';
-    // Spawn lightweight CSS “electric” flashes via title animation only
-    window.setTimeout(() => {
-      if (el) el.style.display = 'none';
-    }, 2200);
-  }
-
+  /** Delegate boss overlay directly to StreetFighterBossBar and event bus */
   public setBossOverlay(
     active: boolean,
     secondsLeft?: number,
@@ -1111,54 +949,48 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     phase?: string,
     totalDamage?: number
   ): void {
-    const overlay = document.getElementById('hud-boss-overlay');
-    const combat = document.getElementById('hud-boss-combat');
-    const timer = document.getElementById('hud-boss-timer');
-    const phaseEl = document.getElementById('hud-boss-phase');
-    const hpText = document.getElementById('hud-boss-hp-text');
-    const damage = document.getElementById('hud-boss-damage');
-    const segments = document.getElementById('hud-boss-hp-segments');
-
-    if (overlay) overlay.style.display = active ? 'block' : 'none';
-    if (combat) combat.style.display = active ? 'block' : 'none';
-
-    if (!active) return;
-
-    const hp = Math.max(0, Math.min(100, Math.round(hpPercent ?? 100)));
-
-    if (timer && typeof secondsLeft === 'number') {
-      timer.textContent = `${Math.max(0, secondsLeft)}s`;
+    if (this.bossBar) {
+      if (active) {
+        this.bossBar.updateState({
+          bossId: 'apex_leviathan',
+          name: 'APEX LEVIATHAN',
+          hp: hpPercent ?? 100,
+          maxHp: 100,
+          hpPercent: hpPercent ?? 100,
+          phase: (phase as any) || 'engaged',
+          timeRemainingSec: secondsLeft ?? 35,
+          totalDamage: totalDamage ?? 0,
+          multiplier: 2.5
+        });
+      } else {
+        this.bossBar.hide();
+      }
     }
 
-    if (phaseEl) {
-      phaseEl.textContent = String(phase ?? 'engaged').toUpperCase();
-      phaseEl.style.color =
-        phase === 'enraged' ? '#ef4444' :
-        phase === 'approaching' ? '#fbbf24' : '#22d3ee';
-    }
-
-    if (hpText) hpText.textContent = `HP ${hp}%`;
-    if (damage) damage.textContent = `DMG ${Math.max(0, Math.floor(totalDamage ?? 0))}`;
-
-    if (segments) {
-      const count = 24;
-      segments.innerHTML = '';
-      const filled = Math.ceil((hp / 100) * count);
-
-      for (let i = 0; i < count; i++) {
-        const segment = document.createElement('span');
-        segment.style.flex = '1';
-        segment.style.height = '100%';
-        segment.style.background = i < filled
-          ? (phase === 'enraged' ? '#ef4444' : '#22d3ee')
-          : '#1f2937';
-        segment.style.border = '1px solid #374151';
-        segments.appendChild(segment);
+    const combatStatus = document.getElementById('hud-combat-status');
+    if (combatStatus) {
+      if (active) {
+        combatStatus.textContent = 'BOSS BATTLE // ENGAGED';
+        combatStatus.style.color = phase === 'enraged' ? '#ef4444' : '#fbbf24';
+      } else {
+        combatStatus.textContent = 'ROUND 1 // COMBAT ACTIVE';
+        combatStatus.style.color = '#38bdf8';
       }
     }
   }
 
-  /** Barrel count from level / temporary upgrade (1–3). Multiplies stake & payout. */
+  public showBossFrenzyTitle(): void {
+    GameEventBus.getInstance().emit('BOSS_WARNING', {
+      name: 'APEX LEVIATHAN',
+      warningMs: 2500
+    });
+  }
+
+  public setBossBashActive(active: boolean, _sub?: string): void {
+    if (active) this.showBossFrenzyTitle();
+    else this.setBossOverlay(false);
+  }
+
   public getBarrelCount(): number {
     try {
       const prog = PlayerProgressionManager.getInstance().getState();
@@ -1191,23 +1023,21 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     this.paintBalances();
   }
 
-  /** Single paint path so GC/SC switch and spends stay consistent. */
   private paintBalances(): void {
-    // Re-query in case HUD was rebuilt
-    this.gcBalanceEl = document.getElementById('hud-gc-balance') as HTMLElement;
-    this.scBalanceEl = document.getElementById('hud-sc-balance') as HTMLElement;
-    if (this.gcBalanceEl) {
-      this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:10px;color:#fcd34d;margin-left:2px;font-weight:800;">GC</sub>`;
-    }
-    if (this.scBalanceEl) {
-      this.scBalanceEl.innerHTML = `${this.scBalance.toFixed(2)}<sub style="font-size:10px;color:#99f6e4;margin-left:2px;font-weight:800;">SC</sub>`;
-    }
-    const gcW = document.getElementById('hud-gc-wallet');
-    const scW = document.getElementById('hud-sc-wallet');
-    if (gcW) gcW.style.display = this.activeCurrency === 'GC' ? 'flex' : 'none';
-    if (scW) scW.style.display = this.activeCurrency === 'SC' ? 'flex' : 'none';
+    const activeBalEl = document.getElementById('hud-active-balance');
+    const activeCurEl = document.getElementById('hud-active-currency');
 
-    // Start-screen mirrors (if open)
+    if (activeBalEl) {
+      activeBalEl.textContent =
+        this.activeCurrency === 'SC'
+          ? this.scBalance.toFixed(2)
+          : this.gcBalance.toLocaleString();
+    }
+    if (activeCurEl) {
+      activeCurEl.textContent = this.activeCurrency;
+      activeCurEl.style.color = this.activeCurrency === 'SC' ? '#38bdf8' : '#fbbf24';
+    }
+
     const lobbyGc = document.getElementById('ff-lobby-gc');
     const lobbySc = document.getElementById('ff-lobby-sc');
     if (lobbyGc) lobbyGc.textContent = this.gcBalance.toLocaleString();
@@ -1218,11 +1048,6 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
     return this.activeCurrency;
   }
 
-  /**
-   * Stake cost in wallet units for the active currency.
-   * SC: bet amount (2dp). GC: bet amount as whole coins (1.00 → 1 GC).
-   * Barrel count multiplies damage/payout, not the stake charge.
-   */
   public getStakeCost(): number {
     const units = this.getCurrentBet();
     return this.activeCurrency === 'SC'
@@ -1232,7 +1057,6 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
 
   public deductBet(): boolean {
     const wallet = WalletService.getInstance();
-    // Prefer live wallet balances so we never fight a second copy
     const live = wallet.getBalances();
     this.gcBalance = live.goldCoins;
     this.scBalance = live.sweepstakesCoins;

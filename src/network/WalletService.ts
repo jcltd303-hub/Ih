@@ -205,7 +205,7 @@ export class WalletService {
         });
       },
       (error) => {
-        console.error('[WalletService] wallet subscription failed', error);
+        console.warn('[WalletService] wallet subscription fallback to local storage:', error?.message || error);
       }
     );
 

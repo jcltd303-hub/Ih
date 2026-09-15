@@ -1,53 +1,171 @@
 * {
-   box-sizing: border-box;
-   margin: 0;
-   padding: 0;
-   user-select: none;
-   -webkit-user-select: none;
-   -webkit-touch-callout: none;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+:root {
+  --font-display: 'Impact', 'Arial Black', -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 body, html {
-   width: 100vw;
-   height: 100vh;
-   overflow: hidden;
-   background-color: #05050a;
-   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', Courier, monospace;
-   color: #ffffff;
-}
-
-#app {
-   width: 100vw;
-   height: 100vh;
-   position: relative;
-   overflow: hidden;
-}
-
-canvas {
-   display: block;
-   width: 100vw;
-   height: 100vh;
-}
-
-
-/* Capacitor / notched devices */
-html, body, #app {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  background: #0a0f1d;
+  background-color: #05070f;
+  font-family: var(--font-mono);
+  color: #f8fafc;
   touch-action: none;
 }
 
-#fish-frenzy-hud {
-  padding-top: max(16px, env(safe-area-inset-top)) !important;
-  padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
-  padding-left: max(16px, env(safe-area-inset-left)) !important;
-  padding-right: max(16px, env(safe-area-inset-right)) !important;
+#app {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: #05070f;
 }
 
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Safe area padding for notch/mobile */
+#fish-frenzy-hud {
+  padding-top: max(12px, env(safe-area-inset-top)) !important;
+  padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+  padding-left: max(12px, env(safe-area-inset-left)) !important;
+  padding-right: max(12px, env(safe-area-inset-right)) !important;
+}
+
+/* Street Fighter / Arcade Button Styles */
+.ff-arcade-btn {
+  border-radius: 2px !important;
+  font-family: var(--font-display) !important;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 #020617;
+  transition: transform 0.05s ease, filter 0.08s ease;
+}
+
+.ff-arcade-btn:hover {
+  filter: brightness(1.15);
+}
+
+.ff-arcade-btn:active {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 0 0 0 #020617 !important;
+  filter: brightness(0.95);
+}
+
+/* Street Fighter Dual-Layer Health Bar System */
+.sf-bar-frame {
+  position: relative;
+  background: #090d16;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #020617, 0 3px 6px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.sf-bar-depleted {
+  position: absolute;
+  inset: 0;
+  background: #18181b;
+}
+
+.sf-bar-trailing {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: #f59e0b;
+  transition: width 0.4s cubic-bezier(0.2, 0, 0.2, 1) 0.15s;
+}
+
+.sf-bar-active {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+  transition: width 0.08s ease-out;
+}
+
+.sf-bar-active.boss-enraged {
+  background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);
+}
+
+.sf-bar-segments {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 9.5%,
+    rgba(0, 0, 0, 0.45) 9.5%,
+    rgba(0, 0, 0, 0.45) 10.5%
+  );
+}
+
+/* Screen Shake Effect */
+@keyframes ff-screen-shake-kf {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-3px, 2px); }
+  40% { transform: translate(3px, -2px); }
+  60% { transform: translate(-2px, -1px); }
+  80% { transform: translate(2px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+.ff-screen-shake {
+  animation: ff-screen-shake-kf 0.25s ease-out;
+}
+
+/* Boss Alert Siren / Warning Animation */
+@keyframes ff-boss-siren {
+  0% { opacity: 0.85; transform: translate(-50%, -50%) scale(0.96); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.03); }
+  100% { opacity: 0.85; transform: translate(-50%, -50%) scale(0.96); }
+}
+
+.ff-boss-warning-box {
+  animation: ff-boss-siren 0.6s ease-in-out infinite;
+}
+
+/* Kill Feed Item Fade Out */
+@keyframes ff-kill-fade {
+  0% { opacity: 0; transform: translateX(20px); }
+  10% { opacity: 1; transform: translateX(0); }
+  75% { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(10px); }
+}
+
+.ff-kill-feed-item {
+  animation: ff-kill-fade 2.6s ease forwards;
+}
+
+/* Combo Punch Pop */
+@keyframes ff-combo-punch {
+  0% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.ff-combo-punch {
+  animation: ff-combo-punch 0.15s ease-out;
+}
+
+/* Reduced motion overrides */
 .ff-reduced-motion *,
 .ff-reduced-motion *::before,
 .ff-reduced-motion *::after {

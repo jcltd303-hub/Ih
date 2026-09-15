@@ -12,6 +12,10 @@ import { functions } from '../../network/FirebaseClient';
 import { httpsCallable } from 'firebase/functions';
 import { PayoutEngine } from './PayoutEngine';
 import { SpriteSheetManager, TurretAnimationRig, TurretSkinId } from './SpriteSheetManager';
+import { GameEventBus } from '../core/GameEvents';
+import { ComboSystem } from './ComboSystem';
+import { TurretSystem } from './TurretSystem';
+import { BossSystem } from './BossSystem';
 
 export interface Projectile {
   id: string;
@@ -393,6 +397,12 @@ export class WeaponController {
 
   public update(deltaTime: number): void {
     const dtScale = Math.min(deltaTime * 0.06, 2.5);
+    const dtMs = deltaTime * 16.666; // Pixi delta roughly 16.6ms per tick
+
+    // Update arcade combat state machines
+    ComboSystem.getInstance().update(dtMs);
+    TurretSystem.getInstance().update(dtMs);
+    BossSystem.getInstance().update(dtMs);
 
     for (const [id, proj] of this.activeProjectiles.entries()) {
       proj.x += proj.vx * dtScale;
@@ -430,23 +440,32 @@ export class WeaponController {
         const evalHit = PayoutEngine.evaluateHit(proj.betAmount, fishType, skinBonus);
         const hitResult = this.fishManager.inflictDamage(hitEntity.id, evalHit.damage, evalHit.isInstantKill);
 
-        // Route boss damage to raid event
-        if (fishType === 'boss' && this.onBossDamage) {
-          this.onBossDamage(proj.userId, evalHit.damage, hitEntity.id);
+        // Route boss damage to raid event & BossSystem
+        if (fishType === 'boss') {
+          if (this.onBossDamage) {
+            this.onBossDamage(proj.userId, evalHit.damage, hitEntity.id);
+          }
+          BossSystem.getInstance().recordDamage(evalHit.damage);
         }
 
-        // Award XP for hit & grant chance of lucky shot turret upgrade
+        // Register hit with ComboSystem and emit FISH_HIT
+        ComboSystem.getInstance().registerHit();
+        GameEventBus.getInstance().emit('FISH_HIT', {
+          fishId: hitEntity.id,
+          fishType: fishType as 'small' | 'medium' | 'boss',
+          damage: evalHit.damage,
+          x: proj.x,
+          y: proj.y,
+          isCrit: evalHit.isCrit,
+          isSuperCrit: evalHit.isSuperCrit,
+          isInstantKill: evalHit.isInstantKill,
+          payout: evalHit.hitPayout,
+          currency: proj.currencyType
+        });
+
+        // Award XP for hit
         const hitXp = evalHit.isSuperCrit ? 35 : (evalHit.isCrit ? 18 : (evalHit.isLuckyHit ? 22 : 6));
         PlayerProgressionManager.getInstance().addXp(hitXp);
-
-        // Lucky shot upgrade trigger (instant kill, super crit, or lucky hit triggers temporary turret overcharge)
-        if (evalHit.isInstantKill || evalHit.isSuperCrit) {
-          PlayerProgressionManager.getInstance().triggerLuckyOvercharge();
-          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ LUCKY OVERCHARGE (4.5s)!', 0x00f0ff, true);
-        } else if (evalHit.isLuckyHit || (evalHit.isCrit && Math.random() < 0.25)) {
-          PlayerProgressionManager.getInstance().triggerLuckyOvercharge();
-          this.particleFX.spawnFloatingText(this.cannonX, this.cannonY - 45, '⚡ TURRET BOOST (4.5s)!', 0xffd700, true);
-        }
 
         // Pay-per-hit payout
         const hitPayout = evalHit.hitPayout;
@@ -490,17 +509,37 @@ export class WeaponController {
           const killXp = fishType === 'boss' ? 350 : (fishType === 'medium' ? 70 : 25);
           PlayerProgressionManager.getInstance().addXp(killXp);
 
-          // Lucky kill upgrade: ~14% chance on any kill, or guaranteed on jackpot/boss kill
-          if (killGamble.isJackpot || fishType === 'boss' || Math.random() < 0.14) {
-            PlayerProgressionManager.getInstance().triggerLuckyOvercharge();
+          // Register kill with ComboSystem
+          ComboSystem.getInstance().registerKill();
+
+          // Check Turret multiplier bonus eligibility
+          const triggeredTurret = TurretSystem.getInstance().onFishKilled();
+          if (triggeredTurret) {
             this.particleFX.spawnFloatingText(
               this.cannonX,
               this.cannonY - 45,
-              '⚡ LUCKY KILL TURRET OVERCHARGE (4.5s)!',
-              0xffd700,
+              '⚡ TURRET x2 ACTIVE (3.5s)!',
+              0xfbbf24,
               true
             );
           }
+
+          // Check Boss trigger eligibility / safety net
+          BossSystem.getInstance().onFishKilled();
+
+          // Emit FISH_KILLED event for Kill Feed and UI
+          const fishName = (fish as any)?.name || (fishType === 'boss' ? 'APEX LEVIATHAN' : fishType.toUpperCase());
+          GameEventBus.getInstance().emit('FISH_KILLED', {
+            fishId: hitEntity.id,
+            fishType: fishType as 'small' | 'medium' | 'boss',
+            name: fishName,
+            x: hitResult.x,
+            y: hitResult.y,
+            payout: winAmount,
+            currency: proj.currencyType,
+            multiplier: killGamble.finalMultiplier,
+            isJackpot: killGamble.isJackpot
+          });
 
           PayoutEngine.recordPayout(winAmount);
 

@@ -8,11 +8,11 @@ export const FeatureFlags = {
   multiplayer: flag('VITE_FF_MULTIPLAYER', true),
   googleAuth: flag('VITE_FF_GOOGLE_AUTH', true),
   analytics: flag('VITE_FF_ANALYTICS', true),
-  onboarding: flag('VITE_FF_ONBOARDING', true),
+  onboarding: flag('VITE_FF_ONBOARDING', false),
   economySinks: flag('VITE_FF_ECONOMY', true),
   /** SC requires configured Firebase — no offline SC spend. */
   realSc: flag('VITE_FF_REAL_SC', false),
-  ageGate: flag('VITE_FF_AGE_GATE', true),
+  ageGate: flag('VITE_FF_AGE_GATE', false),
   reducedMotion: flag('VITE_FF_REDUCED_MOTION', false),
   /**
    * Shows the "Simulate pay (stub)" button in the Store. confirmDepositStub
