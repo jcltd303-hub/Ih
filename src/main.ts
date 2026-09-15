@@ -16,6 +16,7 @@ import { showAgeGate } from './ui/AgeGate';
 import { initAppCheck } from './network/AppCheckInit';
 import { FeatureFlags, prefersReducedMotion } from './config/FeatureFlags';
 import { maybeShowOnboarding } from './ui/OnboardingTips';
+import { CombatFeedbackOverlay } from './ui/CombatFeedbackOverlay';
 
 async function bootstrap() {
   initAppCheck();
@@ -84,6 +85,7 @@ async function bootstrap() {
     postFxEnabled: perf.postFxEnabled,
     particlesEnabled: perf.particlesEnabled
   });
+  new CombatFeedbackOverlay(root);
 
   WalletService.getInstance().onChange((b) => {
     gameScene.syncWalletBalances(b.goldCoins, b.sweepstakesCoins, b.source);
