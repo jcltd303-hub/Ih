@@ -9,7 +9,10 @@ export class StreetFighterBossBar {
   private damageEl: HTMLElement | null = null;
   private nameEl: HTMLElement | null = null;
   private phaseEl: HTMLElement | null = null;
+  private multiplierEl: HTMLElement | null = null;
   private isVisible = false;
+  private lastPct = 100;
+  private unsubscribers: Array<() => void> = [];
 
   constructor(parent: HTMLElement) {
     this.render(parent);
@@ -20,49 +23,61 @@ export class StreetFighterBossBar {
     this.container = document.createElement('div');
     this.container.id = 'sf-boss-bar-widget';
     this.container.style.cssText = `
-      position: absolute;
-      top: 72px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(440px, 92vw);
-      z-index: 35;
-      display: none;
-      flex-direction: column;
-      pointer-events: none;
-      font-family: var(--font-display, 'Impact', sans-serif);
-      letter-spacing: 1px;
-      padding: 0 10px;
+      position:absolute; top:58px; left:50%; transform:translateX(-50%);
+      width:min(620px,94vw); z-index:35; display:none; flex-direction:column;
+      pointer-events:none; font-family:var(--font-display,'Impact',sans-serif);
+      padding:0 10px; filter:drop-shadow(0 5px 0 rgba(0,0,0,.65));
     `;
 
     this.container.innerHTML = `
-      <!-- Boss Header -->
-      <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:4px;">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span style="color:#ef4444; font-size:10px; font-weight:900; font-style:italic; text-shadow: 0 1px 2px #000;">TARGET</span>
-          <span id="sf-boss-name" style="color:#f8fafc; font-size:14px; font-weight:900; font-style:italic; text-shadow:0 2px 4px #000; letter-spacing:1px;">APEX LEVIATHAN</span>
+      <style>
+        #sf-boss-bar-widget .sf-boss-frame{position:relative;background:#05070f;border:2px solid #e2e8f0;padding:6px 8px 7px;box-shadow:inset 0 0 0 2px #0f172a,4px 4px 0 #020617;}
+        #sf-boss-bar-widget .sf-boss-frame:before{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0,transparent 2px,rgba(255,255,255,.035) 3px);}
+        #sf-boss-bar-widget .sf-boss-top{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px;}
+        #sf-boss-bar-widget .sf-boss-name{font-size:clamp(14px,3vw,20px);font-style:italic;font-weight:900;letter-spacing:2px;color:#fff;text-shadow:2px 2px 0 #020617;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        #sf-boss-bar-widget .sf-boss-tag{font:900 9px/1 var(--font-mono,monospace);letter-spacing:2px;color:#f87171;}
+        #sf-boss-bar-widget .sf-boss-readout{display:flex;align-items:center;gap:10px;font:900 11px/1 var(--font-mono,monospace);white-space:nowrap;}
+        #sf-boss-bar-widget .sf-boss-mult{color:#facc15;}
+        #sf-boss-bar-widget .sf-boss-time{color:#fff;min-width:32px;text-align:right;}
+        #sf-boss-bar-widget .sf-boss-bar-frame{position:relative;height:22px;background:#111827;border:2px solid #475569;overflow:hidden;box-shadow:inset 0 2px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.7);}
+        #sf-boss-bar-widget .sf-boss-segments{position:absolute;inset:0;z-index:4;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(5% - 1px),rgba(2,6,23,.65) calc(5% - 1px),rgba(2,6,23,.65) 5%);pointer-events:none;}
+        #sf-boss-bar-widget .sf-boss-trail,#sf-boss-bar-widget .sf-boss-active{position:absolute;top:0;bottom:0;left:0;width:100%;transform-origin:left center;}
+        #sf-boss-bar-widget .sf-boss-trail{background:linear-gradient(180deg,#fde68a,#b45309);opacity:.9;transition:width .38s cubic-bezier(.16,1,.3,1);}
+        #sf-boss-bar-widget .sf-boss-active{background:linear-gradient(180deg,#67e8f9 0%,#0891b2 45%,#0369a1 100%);box-shadow:inset 0 2px 0 rgba(255,255,255,.28),0 0 12px rgba(34,211,238,.35);transition:width .12s linear,filter .12s ease;}
+        #sf-boss-bar-widget .sf-boss-active.boss-enraged{background:linear-gradient(180deg,#fca5a5 0%,#dc2626 45%,#7f1d1d 100%);box-shadow:inset 0 2px 0 rgba(255,255,255,.25),0 0 16px rgba(239,68,68,.7);animation:sf-boss-pulse .52s steps(2,end) infinite;}
+        #sf-boss-bar-widget .sf-boss-bottom{position:relative;display:flex;justify-content:space-between;align-items:center;margin-top:5px;font:900 9px/1 var(--font-mono,monospace);letter-spacing:1px;color:#94a3b8;}
+        #sf-boss-bar-widget .sf-boss-phase{color:#22d3ee;text-transform:uppercase;}
+        #sf-boss-bar-widget .sf-boss-phase.enraged{color:#f87171;text-shadow:0 0 8px rgba(248,113,113,.7);}
+        #sf-boss-bar-widget .sf-boss-hp{color:#e2e8f0;}
+        @keyframes sf-boss-pulse{50%{filter:brightness(1.25);}}
+        @media (max-width:600px){#sf-boss-bar-widget{top:54px}.sf-boss-frame{padding:5px 6px!important}.sf-boss-bar-frame{height:18px!important}}
+        @media (prefers-reduced-motion:reduce){#sf-boss-bar-widget .sf-boss-active{animation:none!important;transition:none!important}#sf-boss-bar-widget .sf-boss-trail{transition:none!important}}
+      </style>
+      <div class="sf-boss-frame">
+        <div class="sf-boss-top">
+          <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+            <span class="sf-boss-tag">BOSS</span>
+            <span id="sf-boss-name" class="sf-boss-name">APEX LEVIATHAN</span>
+          </div>
+          <div class="sf-boss-readout">
+            <span id="sf-boss-multiplier" class="sf-boss-mult">x2.5</span>
+            <span id="sf-boss-timer" class="sf-boss-time">90s</span>
+          </div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px; font-size:11px; font-family:var(--font-mono, monospace);">
-          <span id="sf-boss-multiplier" style="color:#fbbf24; font-weight:900; text-shadow: 0 1px 2px #000;">x2.5</span>
-          <span id="sf-boss-timer" style="color:#ef4444; font-weight:900; text-shadow: 0 1px 2px #000;">88s</span>
+        <div class="sf-boss-bar-frame" aria-label="Boss health">
+          <div id="sf-boss-bar-trailing" class="sf-boss-trail"></div>
+          <div id="sf-boss-bar-active" class="sf-boss-active"></div>
+          <div class="sf-boss-segments"></div>
         </div>
-      </div>
-
-      <!-- Street Fighter Dual-Layer Bar (Floating) -->
-      <div class="sf-bar-frame" style="height: 10px; position: relative; background: rgba(0,0,0,0.3); overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
-        <div id="sf-boss-bar-trailing" class="sf-bar-trailing" style="position: absolute; top: 0; bottom: 0; left: 0; background: #fbbf24; opacity: 0.6; width: 100%;"></div>
-        <div id="sf-boss-bar-active" class="sf-bar-active" style="position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(180deg, #22d3ee, #0891b2); width: 100%; box-shadow: 0 0 8px #22d3ee;"></div>
-      </div>
-
-      <!-- Sub stats -->
-      <div style="display:flex; justify-content:space-between; margin-top:4px; font-size:10px; color:#cbd5e1; font-family:var(--font-mono, monospace); font-weight: 700; text-shadow: 0 1px 2px #000;">
-        <span id="sf-boss-damage">DMG: 0</span>
-        <span id="sf-boss-phase" style="color:#22d3ee; text-transform:uppercase; letter-spacing:1px;">ENGAGED</span>
-        <span id="sf-boss-hp-text">HP: 100%</span>
+        <div class="sf-boss-bottom">
+          <span id="sf-boss-damage">DAMAGE 0</span>
+          <span id="sf-boss-phase" class="sf-boss-phase">ENGAGED</span>
+          <span id="sf-boss-hp-text" class="sf-boss-hp">HP 100%</span>
+        </div>
       </div>
     `;
 
     parent.appendChild(this.container);
-
     this.activeBar = this.container.querySelector('#sf-boss-bar-active');
     this.trailingBar = this.container.querySelector('#sf-boss-bar-trailing');
     this.timerEl = this.container.querySelector('#sf-boss-timer');
@@ -70,94 +85,62 @@ export class StreetFighterBossBar {
     this.damageEl = this.container.querySelector('#sf-boss-damage');
     this.nameEl = this.container.querySelector('#sf-boss-name');
     this.phaseEl = this.container.querySelector('#sf-boss-phase');
+    this.multiplierEl = this.container.querySelector('#sf-boss-multiplier');
   }
 
   private setupListeners(): void {
     const bus = GameEventBus.getInstance();
-
-    bus.on<BossStateEvent>('BOSS_STATE', (state) => {
-      this.updateState(state);
-    });
-
-    bus.on('BOSS_INTRO', () => {
-      this.show();
-    });
-
-    bus.on('BOSS_DEFEATED', () => {
-      this.hide();
-    });
-
-    bus.on('BOSS_ESCAPED', () => {
-      this.hide();
-    });
-
-    bus.on('ROUND_END', () => {
-      this.hide();
-    });
+    this.unsubscribers.push(
+      bus.on<BossStateEvent>('BOSS_STATE', (state) => this.updateState(state)),
+      bus.on('BOSS_INTRO', () => this.show()),
+      bus.on('BOSS_DEFEATED', () => this.hide()),
+      bus.on('BOSS_ESCAPED', () => this.hide()),
+      bus.on('ROUND_END', () => this.hide())
+    );
   }
 
   public show(): void {
     this.isVisible = true;
-    if (this.container) {
-      this.container.style.display = 'flex';
-    }
+    if (this.container) this.container.style.display = 'flex';
   }
 
   public hide(): void {
     this.isVisible = false;
-    if (this.container) {
-      this.container.style.display = 'none';
-    }
+    if (this.container) this.container.style.display = 'none';
   }
 
   public updateState(state: BossStateEvent): void {
-    if (!this.isVisible && (state.phase === 'engaged' || state.phase === 'enraged')) {
-      this.show();
-    }
+    if (!this.isVisible && (state.phase === 'engaged' || state.phase === 'enraged')) this.show();
 
     const pct = Math.max(0, Math.min(100, state.hpPercent));
+    const damageChanged = Math.round(state.totalDamage) !== Math.round(this.lastPct);
+    const hpChanged = Math.abs(pct - this.lastPct) >= 0.1;
+    if (this.activeBar && hpChanged) {
+      this.activeBar.style.width = `${pct}%`;
+      this.lastPct = pct;
+    }
+
+    if (this.trailingBar && hpChanged && pct < this.lastPct) {
+      this.trailingBar.style.width = `${pct}%`;
+    }
 
     if (this.activeBar) {
-      this.activeBar.style.width = `${pct}%`;
-      if (state.phase === 'enraged') {
-        this.activeBar.classList.add('boss-enraged');
-      } else {
-        this.activeBar.classList.remove('boss-enraged');
-      }
+      this.activeBar.classList.toggle('boss-enraged', state.phase === 'enraged');
     }
-
-    if (this.trailingBar) {
-      // Add a slight delay before trailing bar matches active bar
-      setTimeout(() => {
-        if (this.trailingBar) {
-          this.trailingBar.style.width = `${pct}%`;
-        }
-      }, 300);
-    }
-
-    if (this.timerEl) {
-      this.timerEl.textContent = `${state.timeRemainingSec}s`;
-    }
-
-    if (this.hpTextEl) {
-      this.hpTextEl.textContent = `HP: ${Math.round(pct)}%`;
-    }
-
-    if (this.damageEl) {
-      this.damageEl.textContent = `DMG: ${Math.round(state.totalDamage)}`;
-    }
-
-    if (this.nameEl && state.name) {
-      this.nameEl.textContent = state.name;
-    }
-
+    if (this.timerEl) this.timerEl.textContent = `${state.timeRemainingSec}s`;
+    if (this.hpTextEl) this.hpTextEl.textContent = `HP ${Math.round(pct)}%`;
+    if (this.damageEl && damageChanged) this.damageEl.textContent = `DAMAGE ${Math.round(state.totalDamage)}`;
+    if (this.nameEl && state.name) this.nameEl.textContent = state.name;
+    if (this.multiplierEl) this.multiplierEl.textContent = `x${state.multiplier.toFixed(1)}`;
     if (this.phaseEl) {
       this.phaseEl.textContent = state.phase.toUpperCase();
-      this.phaseEl.style.color = state.phase === 'enraged' ? '#ef4444' : '#22d3ee';
+      this.phaseEl.classList.toggle('enraged', state.phase === 'enraged');
     }
   }
 
   public destroy(): void {
+    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
+    this.unsubscribers = [];
     if (this.container) {
       this.container.remove();
       this.container = null;
