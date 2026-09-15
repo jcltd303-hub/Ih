@@ -12,6 +12,7 @@ export class StreetFighterBossBar {
   private multiplierEl: HTMLElement | null = null;
   private isVisible = false;
   private lastPct = 100;
+  private lastDamage = 0;
   private unsubscribers: Array<() => void> = [];
 
   constructor(parent: HTMLElement) {
@@ -113,23 +114,26 @@ export class StreetFighterBossBar {
     if (!this.isVisible && (state.phase === 'engaged' || state.phase === 'enraged')) this.show();
 
     const pct = Math.max(0, Math.min(100, state.hpPercent));
-    const damageChanged = Math.round(state.totalDamage) !== Math.round(this.lastPct);
-    const hpChanged = Math.abs(pct - this.lastPct) >= 0.1;
+    const previousPct = this.lastPct;
+    const hpChanged = Math.abs(pct - previousPct) >= 0.1;
+    const roundedDamage = Math.round(state.totalDamage);
+    const damageChanged = roundedDamage !== this.lastDamage;
+
     if (this.activeBar && hpChanged) {
       this.activeBar.style.width = `${pct}%`;
       this.lastPct = pct;
     }
-
-    if (this.trailingBar && hpChanged && pct < this.lastPct) {
+    if (this.trailingBar && hpChanged && pct < previousPct) {
       this.trailingBar.style.width = `${pct}%`;
     }
 
-    if (this.activeBar) {
-      this.activeBar.classList.toggle('boss-enraged', state.phase === 'enraged');
-    }
+    if (this.activeBar) this.activeBar.classList.toggle('boss-enraged', state.phase === 'enraged');
     if (this.timerEl) this.timerEl.textContent = `${state.timeRemainingSec}s`;
     if (this.hpTextEl) this.hpTextEl.textContent = `HP ${Math.round(pct)}%`;
-    if (this.damageEl && damageChanged) this.damageEl.textContent = `DAMAGE ${Math.round(state.totalDamage)}`;
+    if (this.damageEl && damageChanged) {
+      this.damageEl.textContent = `DAMAGE ${roundedDamage}`;
+      this.lastDamage = roundedDamage;
+    }
     if (this.nameEl && state.name) this.nameEl.textContent = state.name;
     if (this.multiplierEl) this.multiplierEl.textContent = `x${state.multiplier.toFixed(1)}`;
     if (this.phaseEl) {
