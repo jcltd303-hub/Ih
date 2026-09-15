@@ -21,9 +21,9 @@ export const GameConfig = {
 
   /** Boss pacing */
   /** Earliest boss trigger after Play; progress still gates the actual start. */
-  bossGracePeriodMs: 12000,
+  bossGracePeriodMs: 8000,
   /** Combat progress required before another boss raid can start. */
-  bossProgressThreshold: 24,
+  bossProgressThreshold: 12,
 
   /** Small-fish school size range when a tetra wave rolls */
   schoolSizeMin: 2,
@@ -32,7 +32,7 @@ export const GameConfig = {
   /** Initial seed waves at scene construct */
   initialWaveCount: 6,
 
-  /** Extra waves injected when player hits Play */
+  /** Extra waves injected when the cabinet goes live */
   playStartExtraWaves: 4,
 
   /** Default bet tier index (1.00 SC) */
@@ -43,10 +43,10 @@ export const GameConfig = {
     minKills: 5,
     maxKills: 30,
     chancePerKill: 0.25,
-    warningDurationMs: 1800,
-    introDurationMs: 1200,
-    battleDurationMs: 60000,
-    cooldownMs: 12000
+    warningDurationMs: 1400,
+    introDurationMs: 900,
+    battleDurationMs: 45000,
+    cooldownMs: 10000
   },
 
   /** Turret pacing — rare, very short arcade power window */
