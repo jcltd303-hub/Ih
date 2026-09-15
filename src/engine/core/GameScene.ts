@@ -366,9 +366,21 @@ export class GameScene {
       this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 16);
     }
     if (raidActive) {
-      const secs = Math.ceil(this.bossRaid.getState().timeRemaining / 1000);
-      this.uiManager.setBossOverlay(true, secs);
-      SoundManager.setBossMusic(true, this.bossRaid.getState().phase === 'enraged');
+      const bossState = this.bossRaid.getState();
+      const secs = Math.ceil(bossState.timeRemaining / 1000);
+      const hpPercent = bossState.maxHp > 0
+        ? (bossState.hp / bossState.maxHp) * 100
+        : 0;
+
+      this.uiManager.setBossOverlay(
+        true,
+        secs,
+        hpPercent,
+        bossState.phase,
+        bossState.totalDamage
+      );
+
+      SoundManager.setBossMusic(true, bossState.phase === 'enraged');
     } else if (this.lastBossBashActive) {
       this.uiManager.setBossOverlay(false);
       SoundManager.setBossMusic(false, false);

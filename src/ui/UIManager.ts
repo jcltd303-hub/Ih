@@ -491,11 +491,35 @@ export class UIManager {
         </div>
       </div>
 
-      <!-- Boss red wash + corner timer -->
+      <!-- Boss combat HUD -->
       <div id="hud-boss-overlay" style="display:none; position:absolute; inset:0; z-index:15; pointer-events:none;
-        background:rgba(180,0,20,0.18);"></div>
-      <div id="hud-boss-timer" style="display:none; position:absolute; top:10px; right:12px; z-index:30; pointer-events:none;
-        font-size:18px; font-weight:900; color:#fecaca; text-shadow:0 0 12px #ff0033; font-variant-numeric:tabular-nums;">30</div>
+        background:rgba(180,0,20,0.10);"></div>
+
+      <div id="hud-boss-combat" style="display:none; position:absolute; left:50%; top:10px;
+        transform:translateX(-50%); width:min(680px,calc(100% - 28px)); z-index:31;
+        pointer-events:none; font-family:monospace;">
+
+        <div style="display:flex; align-items:center; justify-content:space-between;
+          padding:4px 8px; background:#09090b; border:2px solid #ef4444;
+          border-bottom:none; text-transform:uppercase; letter-spacing:2px;">
+          <span style="font-size:11px; font-weight:900; color:#f87171;">BOSS</span>
+          <span id="hud-boss-name" style="font-size:13px; font-weight:900; color:#f8fafc;">ABYSSAL BOSS</span>
+          <span id="hud-boss-phase" style="font-size:11px; font-weight:900; color:#fbbf24;">ENGAGED</span>
+        </div>
+
+        <div style="height:18px; padding:2px; background:#020617; border:2px solid #f8fafc;
+          box-sizing:border-box;">
+          <div id="hud-boss-hp-segments" style="display:flex; gap:2px; height:100%;"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;
+          padding:3px 6px; background:#111827; border:2px solid #374151; border-top:none;
+          font-size:10px; font-weight:900; letter-spacing:1px;">
+          <span id="hud-boss-damage">DMG 0</span>
+          <span id="hud-boss-timer">30</span>
+          <span id="hud-boss-hp-text">HP 100%</span>
+        </div>
+      </div>
 
       <!-- Brief FISH FRENZY title (boss start only) -->
       <div id="hud-boss-bash" style="display:none; position:absolute; left:50%; top:16%; transform:translateX(-50%); z-index:25; pointer-events:none; text-align:center;">
@@ -969,14 +993,56 @@ export class UIManager {
     }, 2200);
   }
 
-  public setBossOverlay(active: boolean, secondsLeft?: number): void {
+  public setBossOverlay(
+    active: boolean,
+    secondsLeft?: number,
+    hpPercent?: number,
+    phase?: string,
+    totalDamage?: number
+  ): void {
     const overlay = document.getElementById('hud-boss-overlay');
+    const combat = document.getElementById('hud-boss-combat');
     const timer = document.getElementById('hud-boss-timer');
+    const phaseEl = document.getElementById('hud-boss-phase');
+    const hpText = document.getElementById('hud-boss-hp-text');
+    const damage = document.getElementById('hud-boss-damage');
+    const segments = document.getElementById('hud-boss-hp-segments');
+
     if (overlay) overlay.style.display = active ? 'block' : 'none';
-    if (timer) {
-      timer.style.display = active ? 'block' : 'none';
-      if (active && typeof secondsLeft === 'number') {
-        timer.textContent = String(Math.max(0, secondsLeft));
+    if (combat) combat.style.display = active ? 'block' : 'none';
+
+    if (!active) return;
+
+    const hp = Math.max(0, Math.min(100, Math.round(hpPercent ?? 100)));
+
+    if (timer && typeof secondsLeft === 'number') {
+      timer.textContent = `${Math.max(0, secondsLeft)}s`;
+    }
+
+    if (phaseEl) {
+      phaseEl.textContent = String(phase ?? 'engaged').toUpperCase();
+      phaseEl.style.color =
+        phase === 'enraged' ? '#ef4444' :
+        phase === 'approaching' ? '#fbbf24' : '#22d3ee';
+    }
+
+    if (hpText) hpText.textContent = `HP ${hp}%`;
+    if (damage) damage.textContent = `DMG ${Math.max(0, Math.floor(totalDamage ?? 0))}`;
+
+    if (segments) {
+      const count = 24;
+      segments.innerHTML = '';
+      const filled = Math.ceil((hp / 100) * count);
+
+      for (let i = 0; i < count; i++) {
+        const segment = document.createElement('span');
+        segment.style.flex = '1';
+        segment.style.height = '100%';
+        segment.style.background = i < filled
+          ? (phase === 'enraged' ? '#ef4444' : '#22d3ee')
+          : '#1f2937';
+        segment.style.border = '1px solid #374151';
+        segments.appendChild(segment);
       }
     }
   }
