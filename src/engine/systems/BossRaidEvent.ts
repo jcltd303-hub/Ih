@@ -107,16 +107,16 @@ export class BossRaidEvent {
     this.bossId = boss.id;
 
     this.state.phase = 'approaching';
-    this.showAnnouncement('FISH FRENZY');
+    /* title handled by HUD */
     SoundManager.playBossWarning();
 
     setTimeout(() => {
       if (!this.state.active) return;
       this.state.phase = 'engaged';
-      this.showAnnouncement('');
+      
     }, this.ESCAPE_COUNTDOWN_MS);
 
-    this.uiContainer.visible = true;
+    this.uiContainer.visible = false; // HUD owns boss chrome
   }
 
   public recordDamage(userId: string, damage: number): void {
@@ -132,7 +132,7 @@ export class BossRaidEvent {
 
     if (this.state.hp < this.state.maxHp * 0.4 && this.state.phase === 'engaged') {
       this.state.phase = 'enraged';
-      this.showAnnouncement('⚠️ LEVIATHAN ENRAGED!');
+      
     }
 
     if (this.state.hp <= 0) {
@@ -142,7 +142,7 @@ export class BossRaidEvent {
 
   private defeatBoss(lastHitUserId: string): void {
     this.state.phase = 'defeated';
-    this.showAnnouncement('💀 LEVIATHAN DEFEATED!');
+    
 
     if (this.bossId) {
       this.fishManager.killFish(this.bossId);
@@ -155,7 +155,7 @@ export class BossRaidEvent {
 
   private escapeBoss(): void {
     this.state.phase = 'escaped';
-    this.showAnnouncement('💨 LEVIATHAN ESCAPED...');
+    
 
     if (this.bossId) {
       const fish = this.fishManager.getFish(this.bossId);
@@ -208,16 +208,10 @@ export class BossRaidEvent {
     }
   }
 
-  private showAnnouncement(text: string): void {
-    this.announceText.text = text;
-    this.announceText.alpha = 1;
-    this.particleFX.spawnFloatingText(
-      this.announceText.x,
-      this.announceText.y + 30,
-      text,
-      0xffd700,
-      true
-    );
+  private showAnnouncement(_text: string): void {
+    // HUD owns boss title/timer — no pixi banner spam
+    this.announceText.text = '';
+    this.announceText.alpha = 0;
   }
 
   public getState(): BossRaidState {

@@ -57,7 +57,9 @@ export class GameScene {
   private bossRaidTimer: ReturnType<typeof setInterval> | null = null;
   /** Combat progress toward next boss (not time-based). */
   private bossProgressScore = 0;
-  private readonly BOSS_PROGRESS_THRESHOLD = 40;
+  private readonly BOSS_PROGRESS_THRESHOLD = 120;
+  /** Earliest time boss may start after Play. */
+  private bossUnlockAtMs = 0;
 
   constructor(
     app: Application,
@@ -225,8 +227,13 @@ export class GameScene {
 
     // Boss is progress-gated (shots/bets), never on room entry or fixed timer
     this.bossProgressScore = 0;
+    this.bossUnlockAtMs = Date.now() + 90_000; // 90s grace after start
+    this.lastBossBashActive = false;
+    this.uiManager.setBossOverlay(false);
+    SoundManager.setBossMusic(false, false);
+    BossRaidManager.getInstance().stopRaid();
 
-    // Seed a few more fish for an active room
+    // Seed a few more fish for an active room (no bosses in waves)
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
       this.fishManager.spawnRandomWave();
     }
@@ -234,8 +241,10 @@ export class GameScene {
 
   private tryStartBossFromProgress(): void {
     if (this.bossRaid.isActive()) return;
+    if (Date.now() < this.bossUnlockAtMs) return;
     const table = this.tableSelection.getCurrentTable() as any;
     if (table?.isPractice || table?.mode === 'practice') return;
+    if (!TableSelectionManager.getInstance().isBossRaidAllowed()) return;
     if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) return;
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     this.bossProgressScore = 0;

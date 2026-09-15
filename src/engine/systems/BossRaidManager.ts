@@ -209,12 +209,7 @@ export class BossRaidManager {
     SoundManager.playCoinDrop('jackpot', payoutSc > 0 ? payoutSc : payoutGc);
     this.emit();
 
-    // Schedule next boss raid in 20 seconds
-    setTimeout(() => {
-      if (TableSelectionManager.getInstance().isBossRaidAllowed()) {
-        this.startTimedRaid();
-      }
-    }, 20000);
+    // Next boss is progress-gated from combat — do not auto-reschedule on a timer
   }
 
   private handleTimeout(): void {
@@ -235,13 +230,7 @@ export class BossRaidManager {
     }
 
     this.emit();
-
-    // Schedule next raid attempt in 25 seconds
-    setTimeout(() => {
-      if (TableSelectionManager.getInstance().isBossRaidAllowed()) {
-        this.startTimedRaid();
-      }
-    }, 25000);
+    // Next boss is progress-gated from combat — do not auto-reschedule on a timer
   }
 
   private stopTimer(): void {
