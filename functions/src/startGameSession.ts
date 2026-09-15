@@ -29,7 +29,16 @@ export const startGameSession = onCall(async (request) => {
 
   const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
 
-  const payoutTable = validatePayoutTable(DEFAULT_PAYOUT_TABLE);
+  const activeTableSnap = await db.collection('config').doc('payoutActive').get();
+
+  let payoutTable = DEFAULT_PAYOUT_TABLE;
+
+  if (activeTableSnap.exists) {
+    const activeData = activeTableSnap.data() || {};
+    if (activeData.table && typeof activeData.table === 'object') {
+      payoutTable = validatePayoutTable(activeData.table);
+    }
+  }
 
   await sessionRef.set({
     serverSeed, // server-only until reveal
