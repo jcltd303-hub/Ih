@@ -48,7 +48,7 @@ body, html {
   height: 100vh;
   overflow: hidden;
   background: var(--ff-ink);
-  font-family: var(--font-mono);
+  font-family: var(--ff-mono, var(--font-mono));
   color: var(--ff-white);
   touch-action: none;
 }
@@ -183,7 +183,6 @@ canvas { display: block; width: 100vw; height: 100vh; }
   clip-path: polygon(0 0, 100% 0, 94% 100%, 0 100%);
   filter: drop-shadow(3px 3px 0 #020617) drop-shadow(0 0 8px var(--ff-theme-glow));
 }
-
 #ff-combo-widget > div:first-child { border-left: 0 !important; padding-left: 2px !important; }
 #ff-combo-widget #ff-combo-count { letter-spacing: .5px; }
 #ff-combo-widget #ff-combo-bonus { padding: 2px 5px; border: 1px solid var(--ff-theme-accent); background: rgba(2,6,23,.75); }
@@ -218,6 +217,26 @@ canvas { display: block; width: 100vw; height: 100vh; }
 :root[data-ff-theme='dark'] #ff-combo-widget { border-left-color: var(--ff-theme-accent-hi); background: linear-gradient(90deg, rgba(3,3,10,.96), rgba(20,3,28,.6), transparent); }
 :root[data-ff-theme='dark'] #ff-turret-widget { border-left-color: var(--ff-theme-accent-hi); background: linear-gradient(90deg, rgba(3,3,10,.96), rgba(20,3,28,.6), transparent); }
 :root[data-ff-theme='dark'] #ff-kill-feed .ff-kill-feed-item { background: linear-gradient(90deg, transparent, rgba(8,3,14,.58) 18%, rgba(4,2,9,.96)) !important; }
+
+/* Final combat-theme pass: the cursor, boss state, and result modal follow the active combat language. */
+#ff-arcade-crosshair { filter: drop-shadow(0 0 5px var(--ff-theme-glow)) !important; }
+#ff-arcade-crosshair span:first-child { border-color: var(--ff-theme-accent-hi) !important; }
+#ff-arcade-crosshair span:nth-child(2) { background: var(--ff-white) !important; box-shadow: 0 0 7px var(--ff-theme-accent) !important; }
+#ff-arcade-crosshair i { background: var(--ff-theme-accent) !important; }
+
+#ff-boss-mini-hud { color: var(--ff-theme-accent-hi) !important; }
+#ff-boss-mini-hud[data-danger='true'] { color: var(--ff-theme-danger) !important; }
+
+#ff-boss-result-modal { background: rgba(2,6,23,.88) !important; backdrop-filter: blur(5px); }
+:root[data-ff-theme='dark'] #ff-boss-result-modal { background: rgba(0,0,0,.94) !important; }
+#ff-boss-result-modal > div { background: var(--ff-theme-panel) !important; border-color: var(--ff-theme-accent) !important; box-shadow: 7px 7px 0 #020617, 0 0 26px var(--ff-theme-glow) !important; }
+:root[data-ff-theme='dark'] #ff-boss-result-modal > div { box-shadow: 7px 7px 0 #000, 0 0 32px rgba(217,70,239,.3) !important; }
+#ff-boss-result-modal [style*='background:#0f172a'] { background: rgba(255,255,255,.035) !important; border-color: rgba(255,255,255,.16) !important; }
+#ff-boss-result-modal [style*='background:#111827'] { background: rgba(255,255,255,.055) !important; }
+
+@keyframes ff-boss-critical { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.24); } }
+#sf-boss-health[data-critical='true'] { animation: ff-boss-critical .45s steps(2,end) infinite; }
+#sf-boss-health[data-critical='true'] + * { color: var(--ff-theme-danger) !important; }
 
 @media (max-width: 600px) {
   .ff-arcade-btn { min-height: 42px; letter-spacing: .055em; box-shadow: 2px 2px 0 #020617; }
