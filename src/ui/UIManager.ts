@@ -844,7 +844,7 @@ export class UIManager {
   }
 
 
-  /** Full-screen lobby: shop, streak, ranks, audit, operator tools — off the combat HUD. */
+  /** Full-screen lobby: shop, streak, ranks, operator tools — off the combat HUD. */
   public showLobby(): void {
     SoundManager.playUiSound('modal_open');
     const rtp = PayoutEngine.getTargetRtp();
@@ -1050,7 +1050,6 @@ export class UIManager {
         if (id === 'store') void showStoreModal(this.modalCtx());
         else if (id === 'streak') this.showStreakModal();
         else if (id === 'ranks') this.showLeaderboardModal();
-        else if (id === 'audit') this.showAuditModal();
         else if (id === 'operator') this.showAdminPortalModal();
       });
     });
