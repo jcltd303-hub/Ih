@@ -42,56 +42,45 @@ export class GameScene {
   private activeTableId: string = 'table_practice';
   private lastSeenShotTs = 0;
   private aimBroadcastTimer = 0;
-
-  private spawnTimer: number = 0;
-  private autoFireActive: boolean = false;
-  private autoFireTimer: number = 0;
-  private lastTargetX: number = 0;
-  private lastTargetY: number = 0;
-  private isPlaying: boolean = false;
-  private postFxEnabled: boolean = true;
-  private particlesEnabled: boolean = true;
-
+  private spawnTimer = 0;
+  private autoFireActive = false;
+  private autoFireTimer = 0;
+  private lastTargetX = 0;
+  private lastTargetY = 0;
+  private isPlaying = false;
+  private postFxEnabled = true;
+  private particlesEnabled = true;
   private bossRaid: BossRaidEvent;
   private lastBossBashActive = false;
   private tableSelection: TableSelection;
   private bossProgressScore = 0;
   private readonly BOSS_PROGRESS_THRESHOLD = GameConfig.bossProgressThreshold;
   private bossUnlockAtMs = 0;
-
   private shakeIntensity = 0;
   private shakeDuration = 0;
   private hitStopRemainingMs = 0;
   private elapsedSeconds = 0;
+  private bossMusicEnraged = false;
 
-  constructor(
-    app: Application,
-    uiRoot: HTMLElement,
-    options?: { postFxEnabled?: boolean; particlesEnabled?: boolean }
-  ) {
+  constructor(app: Application, uiRoot: HTMLElement, options?: { postFxEnabled?: boolean; particlesEnabled?: boolean }) {
     this.postFxEnabled = options?.postFxEnabled !== false;
     this.particlesEnabled = options?.particlesEnabled !== false;
     this.app = app;
-    const width = this.app.screen.width;
-    const height = this.app.screen.height;
-
+    const width = app.screen.width;
+    const height = app.screen.height;
     this.animatedBackground = new AnimatedBackground(width, height);
-    this.app.stage.addChild(this.animatedBackground.container);
-
+    app.stage.addChild(this.animatedBackground.container);
     this.worldContainer = new Container();
-    this.app.stage.addChild(this.worldContainer);
-
+    app.stage.addChild(this.worldContainer);
     this.themeManager = new ThemeManager(app);
     this.abyssalPostProcessor = new AbyssalPostProcessor();
     this.spatialGrid = new SpatialHashGrid(128);
     this.fishManager = new FishManager(this.worldContainer, this.spatialGrid, width, height);
     this.particleFX = new ParticleFXManager(this.worldContainer, width, height);
     this.multiplayerTable = new MultiplayerTableManager();
-
     this.bossRaid = new BossRaidEvent(this.worldContainer, this.fishManager, this.particleFX);
     this.bossRaid.resize(width, height);
     this.tableSelection = TableSelection.getInstance();
-
     this.uiManager = new UIManager(uiRoot, {
       onThemeChange: (theme) => {
         this.themeManager.setTheme(theme);
@@ -99,21 +88,11 @@ export class GameScene {
         this.fishManager.setTheme(theme);
         SoundManager.setTheme(theme);
       },
-      onLoadoutChange: () => {
-        this.weaponController.refreshCannonSkin();
-      },
-      onPlay: () => {
-        this.startPlay();
-      }
+      onLoadoutChange: () => this.weaponController.refreshCannonSkin(),
+      onPlay: () => this.startPlay()
     });
-
     this.weaponController = new WeaponController(
-      this.worldContainer,
-      this.spatialGrid,
-      this.fishManager,
-      this.particleFX,
-      width,
-      height,
+      this.worldContainer, this.spatialGrid, this.fishManager, this.particleFX, width, height,
       (winAmount, currencyType) => {
         if (currencyType === 'SC') {
           this.uiManager.addBalance(0, winAmount);
@@ -125,122 +104,68 @@ export class GameScene {
         this.abyssalPostProcessor.triggerImpactGlitch(0.015);
       },
       (userId, damage, fishId) => {
-        if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) {
-          this.bossRaid.recordDamage(userId, damage);
-        }
+        if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) this.bossRaid.recordDamage(userId, damage);
       }
     );
-
     if (this.postFxEnabled) {
       const postFilter = this.abyssalPostProcessor.getFilter();
       if (postFilter) this.worldContainer.filters = [postFilter];
     }
-
     this.lastTargetX = width / 2;
     this.lastTargetY = height / 3;
-
     this.setupInputListeners();
     this.setupResizeListener();
-    this.renderCombatHUD();
-
     const events = GameEventBus.getInstance();
     this.eventUnsubs.push(
-      events.on<ScreenShakeEvent>('SCREEN_SHAKE', (data) => {
-        this.triggerShake(data.intensity, data.durationMs);
-      }),
-      events.on('FISH_HIT', (e: any) => {
-        if (e.isCrit || e.fishType === 'boss') {
-          this.hitStopRemainingMs = e.fishType === 'boss' ? 100 : 65;
-        }
-      }),
-      events.on('BOSS_HIT', () => {
-        this.hitStopRemainingMs = 90;
-      }),
-      events.on('SCREEN_DIM', (e: { intensity: number }) => {
-        this.abyssalPostProcessor.setDim(e.intensity);
-      })
+      events.on<ScreenShakeEvent>('SCREEN_SHAKE', (data) => this.triggerShake(data.intensity, data.durationMs)),
+      events.on('FISH_HIT', (e: any) => { if (e.isCrit || e.fishType === 'boss') this.hitStopRemainingMs = e.fishType === 'boss' ? 100 : 65; }),
+      events.on('BOSS_HIT', () => { this.hitStopRemainingMs = 90; }),
+      events.on('SCREEN_DIM', (e: { intensity: number }) => this.abyssalPostProcessor.setDim(e.intensity))
     );
-
     this.uiManager.showStartScreen();
-  }
-
-  private renderCombatHUD(): void {
-    // HUD is handled by UIManager and sub-components.
   }
 
   private startPlay(): void {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
-
-    void FairnessSession.getInstance().begin().then((sess) => {
-      console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…');
-    });
-
+    void FairnessSession.getInstance().begin().then((sess) => console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…'));
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
     const currentTable = this.tableSelection.getCurrentTable();
     this.multiplayerTable.joinSharedTable(currentTable.id, uid, name);
     this.tableSelection.joinPresence(uid, name);
-
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
-
     const joinTable = (table: TableInfo) => {
-      if (this.tableUnsub) {
-        this.tableUnsub();
-        this.tableUnsub = null;
-      }
+      if (this.tableUnsub) this.tableUnsub();
       this.activeTableId = table.id;
       this.multiplayerTable.joinSharedTable(table.id, uid, name);
       this.tableUnsub = this.multiplayerTable.subscribeToTableState(table.id, (state) => {
         this.presenceLayer?.syncPlayers(state?.players);
         const shots = state?.shared_shots;
-        if (shots && typeof shots === 'object') {
-          for (const shot of Object.values(shots) as any[]) {
-            if (!shot || typeof shot.timestamp !== 'number') continue;
-            if (shot.timestamp <= this.lastSeenShotTs) continue;
-            this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
-            this.presenceLayer?.showRemoteShot(shot);
-          }
+        if (shots && typeof shots === 'object') for (const shot of Object.values(shots) as any[]) {
+          if (!shot || typeof shot.timestamp !== 'number' || shot.timestamp <= this.lastSeenShotTs) continue;
+          this.lastSeenShotTs = Math.max(this.lastSeenShotTs, shot.timestamp);
+          this.presenceLayer?.showRemoteShot(shot);
         }
       });
     };
-
-    const initialTable = this.tableSelection.getCurrentTable() as any;
-    joinTable(initialTable);
-
-    if (!this.tableSelectionUnsub) {
-      this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
-        joinTable(tbl as any);
-      });
-    }
-
+    joinTable(this.tableSelection.getCurrentTable() as any);
+    if (!this.tableSelectionUnsub) this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => joinTable(tbl as any));
     this.bossProgressScore = 0;
     this.bossUnlockAtMs = Date.now() + GameConfig.bossGracePeriodMs;
     this.lastBossBashActive = false;
+    this.bossMusicEnraged = false;
     this.uiManager.setBossOverlay(false);
     SoundManager.setBossMusic(false, false);
-
-    for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
-      this.fishManager.spawnRandomWave();
-    }
+    for (let i = 0; i < GameConfig.playStartExtraWaves; i++) this.fishManager.spawnRandomWave();
   }
 
   private tryStartBossFromProgress(): void {
-    if (this.bossRaid.isActive()) return;
-    if (Date.now() < this.bossUnlockAtMs) return;
-
-    const table = this.tableSelection.getCurrentTable() as any;
-    const raidAllowed = TableSelectionManager.getInstance().isBossRaidAllowed();
-    if (table?.isPractice || table?.mode === 'practice') {
-      if (!raidAllowed) return;
-    } else if (!raidAllowed) {
-      return;
-    }
-
+    if (this.bossRaid.isActive() || Date.now() < this.bossUnlockAtMs) return;
+    if (!TableSelectionManager.getInstance().isBossRaidAllowed()) return;
     if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) return;
-
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     this.bossProgressScore = 0;
     this.bossRaid.startRaid(uid, (result) => {
@@ -251,7 +176,6 @@ export class GameScene {
 
   private setupInputListeners(): void {
     const canvas = this.app.canvas;
-
     const syncAim = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
       this.lastTargetX = clientX - rect.left;
@@ -259,7 +183,6 @@ export class GameScene {
       this.weaponController.updateAim(this.lastTargetX, this.lastTargetY);
       GameEventBus.getInstance().emit('AIM_UPDATE', { x: this.lastTargetX, y: this.lastTargetY });
     };
-
     canvas.addEventListener('pointermove', (e) => {
       if (!this.isPlaying) return;
       syncAim(e.clientX, e.clientY);
@@ -269,7 +192,6 @@ export class GameScene {
         this.multiplayerTable.updateLocalAim(this.lastTargetX, this.lastTargetY);
       }
     });
-
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.isPlaying) return;
       canvas.setPointerCapture?.(e.pointerId);
@@ -278,7 +200,6 @@ export class GameScene {
       this.autoFireTimer = 0;
       this.fireWeapon(this.lastTargetX, this.lastTargetY);
     });
-
     const endHold = (e: PointerEvent) => {
       this.autoFireActive = false;
       try { canvas.releasePointerCapture?.(e.pointerId); } catch { /* ignore */ }
@@ -303,7 +224,6 @@ export class GameScene {
 
   private fireWeapon(targetX: number, targetY: number): void {
     if (!this.weaponController.canFire()) return;
-
     const betAmount = this.uiManager.getCurrentBet();
     const currency = this.uiManager.getCurrency();
     if (currency === 'SC' && FeatureFlags.realSc && !isFirebaseConfigured) {
@@ -311,111 +231,92 @@ export class GameScene {
       return;
     }
     if (!this.uiManager.deductBet()) return;
-
     this.bossProgressScore += 1 + Math.min(4, betAmount);
     this.tryStartBossFromProgress();
-
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const barrels = this.uiManager.getBarrelCount();
-    void this.weaponController.fireCannon(
-      uid,
-      FairnessSession.getInstance().getSessionId(),
-      currency,
-      betAmount,
-      targetX,
-      targetY,
-      barrels
-    );
-
+    void this.weaponController.fireCannon(uid, FairnessSession.getInstance().getSessionId(), currency, betAmount, targetX, targetY, barrels);
     const currentTable = this.tableSelection.getCurrentTable();
     this.multiplayerTable.broadcastTableShot(currentTable.id, uid, targetX, targetY, betAmount);
   }
 
-  public syncWalletBalances(gc: number, sc: number, _source?: string): void {
-    this.uiManager.setBalances(gc, sc);
-  }
-
-  public triggerShake(intensity: number, durationMs: number): void {
-    this.shakeIntensity = intensity;
-    this.shakeDuration = durationMs;
-  }
+  public syncWalletBalances(gc: number, sc: number, _source?: string): void { this.uiManager.setBalances(gc, sc); }
+  public triggerShake(intensity: number, durationMs: number): void { this.shakeIntensity = intensity; this.shakeDuration = durationMs; }
 
   public update(deltaTime: number): void {
-    if (this.hitStopRemainingMs > 0) {
-      this.hitStopRemainingMs -= deltaTime;
-      return;
-    }
-
-    this.elapsedSeconds += deltaTime / 1000;
+    const frameMs = Math.max(0, Math.min(100, Number.isFinite(deltaTime) ? deltaTime : 0));
+    this.elapsedSeconds += frameMs / 1000;
     this.abyssalPostProcessor.update(this.elapsedSeconds);
-    this.animatedBackground.update(deltaTime);
+    this.animatedBackground.update(frameMs);
     debugOverlay.tick();
 
     if (this.shakeDuration > 0) {
-      this.shakeDuration -= deltaTime;
-      const offsetX = (Math.random() - 0.5) * this.shakeIntensity;
-      const offsetY = (Math.random() - 0.5) * this.shakeIntensity;
-      this.worldContainer.position.set(offsetX, offsetY);
-      if (this.shakeDuration <= 0) {
-        this.shakeIntensity = 0;
-        this.worldContainer.position.set(0, 0);
+      this.shakeDuration -= frameMs;
+      this.worldContainer.position.set((Math.random() - 0.5) * this.shakeIntensity, (Math.random() - 0.5) * this.shakeIntensity);
+      if (this.shakeDuration <= 0) { this.shakeIntensity = 0; this.worldContainer.position.set(0, 0); }
+    }
+
+    if (this.hitStopRemainingMs > 0) {
+      this.hitStopRemainingMs -= frameMs;
+      // Keep ambience, boss clock and HUD responsive; freeze only combat simulation below.
+      this.bossRaid.update(frameMs);
+      if (this.bossRaid.isActive()) {
+        const bossState = this.bossRaid.getState();
+        this.uiManager.setBossOverlay(true, Math.ceil(bossState.timeRemaining / 1000), bossState.maxHp > 0 ? bossState.hp / bossState.maxHp * 100 : 0, bossState.phase, bossState.totalDamage);
       }
+      return;
     }
 
     if (!this.isPlaying) {
       this.spatialGrid.clear();
-      this.fishManager.update(deltaTime);
-      this.particleFX.update(deltaTime);
+      this.fishManager.update(frameMs);
+      this.particleFX.update(frameMs);
       return;
     }
 
     this.spatialGrid.clear();
-    this.spawnTimer += deltaTime;
-    if (this.spawnTimer > GameConfig.spawnIntervalMs) {
-      this.fishManager.spawnRandomWave();
-      this.spawnTimer = 0;
-    }
-
+    this.spawnTimer += frameMs;
+    if (this.spawnTimer > GameConfig.spawnIntervalMs) { this.fishManager.spawnRandomWave(); this.spawnTimer = 0; }
     if (this.autoFireActive) {
-      this.autoFireTimer += deltaTime;
+      this.autoFireTimer += frameMs;
       if (this.autoFireTimer >= GameConfig.autoFireIntervalMs && this.weaponController.canFire()) {
         this.fireWeapon(this.lastTargetX, this.lastTargetY);
         this.autoFireTimer = 0;
       }
     }
 
-    this.bossRaid.update(deltaTime);
+    this.bossRaid.update(frameMs);
     const raidActive = this.bossRaid.isActive();
-
     if (raidActive) {
       if (!this.lastBossBashActive) {
         this.uiManager.showBossFrenzyTitle();
-        SoundManager.setBossMusic(true, false);
         SoundManager.playBossWarning();
         const cx = this.app.screen.width / 2;
         const cy = this.app.screen.height * 0.22;
         this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);
         this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 16);
       }
-
       const bossState = this.bossRaid.getState();
+      const enraged = bossState.phase === 'enraged';
+      if (!this.lastBossBashActive || enraged !== this.bossMusicEnraged) {
+        SoundManager.setBossMusic(true, enraged);
+        this.bossMusicEnraged = enraged;
+      }
       const secs = Math.ceil(bossState.timeRemaining / 1000);
-      const hpPercent = bossState.maxHp > 0 ? (bossState.hp / bossState.maxHp) * 100 : 0;
+      const hpPercent = bossState.maxHp > 0 ? bossState.hp / bossState.maxHp * 100 : 0;
       this.uiManager.setBossOverlay(true, secs, hpPercent, bossState.phase, bossState.totalDamage);
-      SoundManager.setBossMusic(true, bossState.phase === 'enraged');
     } else if (this.lastBossBashActive) {
       this.uiManager.setBossOverlay(false);
       SoundManager.setBossMusic(false, false);
+      this.bossMusicEnraged = false;
       this.bossProgressScore = 0;
     }
     this.lastBossBashActive = raidActive;
-
-    this.fishManager.update(deltaTime, this.lastTargetX, this.lastTargetY);
-    this.weaponController.update(deltaTime);
-    this.particleFX.update(deltaTime);
+    this.fishManager.update(frameMs, this.lastTargetX, this.lastTargetY);
+    this.weaponController.update(frameMs);
+    this.particleFX.update(frameMs);
   }
 
-  /** Release scene-owned subscriptions when the scene is discarded. */
   public destroy(): void {
     this.eventUnsubs.forEach((unsubscribe) => unsubscribe());
     this.eventUnsubs = [];
@@ -425,5 +326,6 @@ export class GameScene {
     this.tableSelectionUnsub = null;
     this.isPlaying = false;
     this.autoFireActive = false;
+    SoundManager.setBossMusic(false, false);
   }
 }
