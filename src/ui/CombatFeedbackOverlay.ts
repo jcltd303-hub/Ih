@@ -16,7 +16,7 @@ export class CombatFeedbackOverlay {
     this.root.id = 'ff-fighter-feedback';
     this.root.setAttribute('aria-live', 'polite');
     this.root.setAttribute('aria-atomic', 'true');
-    this.root.innerHTML = `<div class="ff-fighter-strip"><span class="ff-fighter-label">FIGHT</span><span class="ff-fighter-divider"></span><span id="ff-fighter-status">READY</span><span class="ff-fighter-divider"></span><span id="ff-fighter-kills">K.O. 00</span></div><div id="ff-fighter-score" class="ff-fighter-score">00</div><div id="ff-fighter-hit" class="ff-fighter-hit" aria-hidden="true"></div>`;
+    this.root.innerHTML = `<div class="ff-fighter-strip"><span class="ff-fighter-label">FIGHT</span><span class="ff-fighter-divider"></span><span id="ff-fighter-status">FIGHT</span><span class="ff-fighter-divider"></span><span id="ff-fighter-kills">K.O. 00</span></div><div id="ff-fighter-score" class="ff-fighter-score">00</div><div id="ff-fighter-hit" class="ff-fighter-hit" aria-hidden="true"></div>`;
     parent.appendChild(this.root);
     this.status = this.root.querySelector('#ff-fighter-status')!;
     this.score = this.root.querySelector('#ff-fighter-kills')!;
@@ -26,7 +26,7 @@ export class CombatFeedbackOverlay {
 
   private bind(): void {
     const bus = GameEventBus.getInstance();
-    this.unsubs.push(bus.on('GAME_START', () => { this.killCount = 0; this.setStatus('READY', ''); window.setTimeout(() => this.setStatus('FIGHT!', 'fight'), 650); }));
+    this.unsubs.push(bus.on('GAME_START', () => { this.killCount = 0; this.setStatus('FIGHT!', 'fight'); }));
     this.unsubs.push(bus.on('ROUND_END', () => { this.setStatus('ROUND OVER', ''); this.hideHit(); }));
     this.unsubs.push(bus.on<FishHitEvent>('FISH_HIT', (e) => this.onHit(e)));
     this.unsubs.push(bus.on<FishHitEvent>('BOSS_HIT', (e) => this.onHit(e, true)));
