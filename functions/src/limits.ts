@@ -7,6 +7,18 @@ export const MAX_BET_GC = 10;
 export const MAX_SHOTS_PER_MINUTE = 120;
 export const MAX_DAILY_SC_LOSS = 500;
 
+/**
+ * Claimed-win burst limiter: a rolling-window backstop on total payout
+ * claimed per minute, independent of the shot-count rate limit. Shot
+ * count alone doesn't catch a burst of large wins landing right at a
+ * rate-limit window boundary. These are tunable circuit-breaker values,
+ * not a precise economic model — set generously above realistic
+ * legitimate variance so normal hot streaks aren't blocked, low enough to
+ * flag abuse quickly. Revisit alongside real payout telemetry.
+ */
+export const MAX_CLAIMED_WIN_SC_PER_MINUTE = 300; // 30x MAX_BET_SC
+export const MAX_CLAIMED_WIN_GC_PER_MINUTE = 300; // 30x MAX_BET_GC
+
 export async function assertRateLimit(uid: string, action: string, maxPerMinute: number): Promise<void> {
   const db = admin.firestore();
   const ref = db.collection('users').doc(uid).collection('rateLimits').doc(action);

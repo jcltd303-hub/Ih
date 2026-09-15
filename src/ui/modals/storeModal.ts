@@ -3,6 +3,7 @@ import type { ModalContext } from './ModalContext';
 import { httpsCallable } from 'firebase/functions';
 import { functions, isFirebaseConfigured } from '../../network/FirebaseClient';
 import { WalletService } from '../../network/WalletService';
+import { FeatureFlags } from '../../config/FeatureFlags';
 
 type Tier = {
   id: string;
@@ -131,17 +132,31 @@ export async function showStoreModal(ctx: ModalContext): Promise<void> {
           });
           const data = res.data as any;
           if (status) {
-            status.innerHTML = `Pending <code>${data.depositId}</code> · ${data.gcAmount} GC${
-              data.bonusScAmount ? ` + ${data.bonusScAmount} SC` : ''
-            }. <button type="button" id="store-confirm-stub" style="margin-left:8px;cursor:pointer;">Simulate pay (stub)</button>`;
+            if (FeatureFlags.stubPayments) {
+              status.innerHTML = `Pending <code>${data.depositId}</code> · ${data.gcAmount} GC${
+                data.bonusScAmount ? ` + ${data.bonusScAmount} SC` : ''
+              }. <button type="button" id="store-confirm-stub" style="margin-left:8px;cursor:pointer;">Simulate pay (stub)</button>`;
+            } else {
+              status.textContent =
+                'Payment pending confirmation — this can take a few minutes. Your balance will update automatically once confirmed.';
+            }
           }
           document.getElementById('store-confirm-stub')?.addEventListener('click', async () => {
-            const confirm = httpsCallable(functions, 'confirmDepositStub');
-            const done = await confirm({ depositId: data.depositId });
-            const d = done.data as any;
-            WalletService.getInstance().applyServerBalances?.(d.goldCoins, d.sweepstakesCoins);
-            if (status) status.textContent = `Credited ${d.gcGranted} GC` + (d.scBonus ? ` + ${d.scBonus} SC` : '');
-            SoundManager.playUiSound('chip_up');
+            try {
+              const confirm = httpsCallable(functions, 'confirmDepositStub');
+              const done = await confirm({ depositId: data.depositId });
+              const d = done.data as any;
+              WalletService.getInstance().applyServerBalances?.(d.goldCoins, d.sweepstakesCoins);
+              if (status) status.textContent = `Credited ${d.gcGranted} GC` + (d.scBonus ? ` + ${d.scBonus} SC` : '');
+              SoundManager.playUiSound('chip_up');
+            } catch (e: any) {
+              if (status) {
+                status.textContent =
+                  e?.code === 'permission-denied'
+                    ? 'Stub confirmation is disabled outside internal QA builds.'
+                    : e?.message || 'Confirmation failed';
+              }
+            }
           });
         } catch (e: any) {
           if (status) status.textContent = e?.message || 'Purchase failed';
