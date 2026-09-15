@@ -3,6 +3,7 @@ import { functions, isFirebaseConfigured } from './FirebaseClient';
 import { AuthManager } from './AuthManager';
 import { WalletService } from './WalletService';
 import { debugOverlay } from '../ui/DebugOverlay';
+import { showStoreModal } from '../ui/modals/storeModal';
 import { OfflineTransactionQueue } from './OfflineTransactionQueue';
 
 export type SettlementRequest = {
@@ -105,6 +106,10 @@ export class ShotSettlement {
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Settlement failed';
+      const code = typeof err === 'object' && err && 'code' in err ? String((err as any).code) : '';
+      if (code.includes('failed-precondition') || /insufficient/i.test(message)) {
+        window.dispatchEvent(new CustomEvent('ff-open-store'));
+      }
       console.warn('[ShotSettlement]', message);
       try {
         await OfflineTransactionQueue.getInstance().enqueueShot({

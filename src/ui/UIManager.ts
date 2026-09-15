@@ -84,6 +84,9 @@ export class UIManager {
     window.addEventListener('ff-show-streak', () => {
       void this.showStreakModal();
     });
+    window.addEventListener('ff-open-store', () => {
+      this.openStore();
+    });
 
     // Seed lifetime deposit ledger once with starting SC (operator P&L baseline)
     try {
