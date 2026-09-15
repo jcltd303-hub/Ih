@@ -3,6 +3,7 @@ import { FishManager } from './FishManager';
 import { ParticleFXManager } from './ParticleFXManager';
 import { SoundManager } from '../../audio/SoundManager';
 import { GameEventBus, BossStateEvent, BossResultEvent } from '../core/GameEvents';
+import { GameConfig } from '../../config/GameConfig';
 
 export interface BossRaidState {
   active: boolean;
@@ -31,7 +32,7 @@ export class BossRaidEvent {
   private hpBarFill: Graphics;
   private announceText: Text;
   private onComplete?: (result: { defeated: boolean; lastHitUserId: string | null; contributors: Map<string, number> }) => void;
-  private readonly RAID_DURATION_MS = 90000;
+  private readonly RAID_DURATION_MS = GameConfig.bossPacing.battleDurationMs;
   private screenW = 0;
   private screenH = 0;
   private raidStartedAt = 0;
@@ -142,7 +143,7 @@ export class BossRaidEvent {
 
     const bus = GameEventBus.getInstance();
     bus.emit('BOSS_TRIGGER', { name: 'APEX LEVIATHAN', userId });
-    bus.emit('BOSS_WARNING', { name: 'APEX LEVIATHAN', warningMs: 1200 });
+    bus.emit('BOSS_WARNING', { name: 'APEX LEVIATHAN', warningMs: GameConfig.bossPacing.warningDurationMs });
     bus.emit('BOSS_INTRO', { name: 'APEX LEVIATHAN' });
     bus.emit('BOSS_START', { name: 'APEX LEVIATHAN', bossId: this.bossId });
     this.emitState(2.5, true);
