@@ -107,10 +107,10 @@ export class GameScene {
         if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) this.bossRaid.recordDamage(userId, damage);
       }
     );
-    if (this.postFxEnabled) {
-      const postFilter = this.abyssalPostProcessor.getFilter();
-      if (postFilter) this.worldContainer.filters = [postFilter];
-    }
+    // Keep the gameplay world on the main Pixi render path. The custom
+    // post-processing shader can fail silently on some mobile WebGL stacks;
+    // applying it to the whole world then makes fish/turret sprites vanish.
+    // Impact glitch/dim controls remain available for compatible effects.
     this.lastTargetX = width / 2;
     this.lastTargetY = height / 3;
     this.setupInputListeners();
