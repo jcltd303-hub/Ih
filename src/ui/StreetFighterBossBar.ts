@@ -23,13 +23,7 @@ export class StreetFighterBossBar {
   private render(parent: HTMLElement): void {
     this.container = document.createElement('div');
     this.container.id = 'sf-boss-bar-widget';
-    this.container.style.cssText = `
-      position:absolute; top:58px; left:50%; transform:translateX(-50%);
-      width:min(620px,94vw); z-index:35; display:none; flex-direction:column;
-      pointer-events:none; font-family:var(--font-display,'Impact',sans-serif);
-      padding:0 10px; filter:drop-shadow(0 5px 0 rgba(0,0,0,.65));
-    `;
-
+    this.container.style.cssText = `position:absolute;top:58px;left:50%;transform:translateX(-50%);width:min(620px,94vw);z-index:35;display:none;flex-direction:column;pointer-events:none;font-family:var(--font-display,'Impact',sans-serif);padding:0 10px;filter:drop-shadow(0 5px 0 rgba(0,0,0,.65));`;
     this.container.innerHTML = `
       <style>
         #sf-boss-bar-widget .sf-boss-frame{position:relative;background:#05070f;border:2px solid #e2e8f0;padding:6px 8px 7px;box-shadow:inset 0 0 0 2px #0f172a,4px 4px 0 #020617;}
@@ -55,29 +49,10 @@ export class StreetFighterBossBar {
         @media (prefers-reduced-motion:reduce){#sf-boss-bar-widget .sf-boss-active{animation:none!important;transition:none!important}#sf-boss-bar-widget .sf-boss-trail{transition:none!important}}
       </style>
       <div class="sf-boss-frame">
-        <div class="sf-boss-top">
-          <div style="display:flex;align-items:center;gap:7px;min-width:0;">
-            <span class="sf-boss-tag">BOSS</span>
-            <span id="sf-boss-name" class="sf-boss-name">APEX LEVIATHAN</span>
-          </div>
-          <div class="sf-boss-readout">
-            <span id="sf-boss-multiplier" class="sf-boss-mult">x2.5</span>
-            <span id="sf-boss-timer" class="sf-boss-time">90s</span>
-          </div>
-        </div>
-        <div class="sf-boss-bar-frame" aria-label="Boss health">
-          <div id="sf-boss-bar-trailing" class="sf-boss-trail"></div>
-          <div id="sf-boss-bar-active" class="sf-boss-active"></div>
-          <div class="sf-boss-segments"></div>
-        </div>
-        <div class="sf-boss-bottom">
-          <span id="sf-boss-damage">DAMAGE 0</span>
-          <span id="sf-boss-phase" class="sf-boss-phase">ENGAGED</span>
-          <span id="sf-boss-hp-text" class="sf-boss-hp">HP 100%</span>
-        </div>
-      </div>
-    `;
-
+        <div class="sf-boss-top"><div style="display:flex;align-items:center;gap:7px;min-width:0;"><span class="sf-boss-tag">BOSS</span><span id="sf-boss-name" class="sf-boss-name">APEX LEVIATHAN</span></div><div class="sf-boss-readout"><span id="sf-boss-multiplier" class="sf-boss-mult">x2.5</span><span id="sf-boss-timer" class="sf-boss-time">90s</span></div></div>
+        <div class="sf-boss-bar-frame" aria-label="Boss health"><div id="sf-boss-bar-trailing" class="sf-boss-trail"></div><div id="sf-boss-bar-active" class="sf-boss-active"></div><div class="sf-boss-segments"></div></div>
+        <div class="sf-boss-bottom"><span id="sf-boss-damage">DAMAGE 0</span><span id="sf-boss-phase" class="sf-boss-phase">ENGAGED</span><span id="sf-boss-hp-text" class="sf-boss-hp">HP 100%</span></div>
+      </div>`;
     parent.appendChild(this.container);
     this.activeBar = this.container.querySelector('#sf-boss-bar-active');
     this.trailingBar = this.container.querySelector('#sf-boss-bar-trailing');
@@ -91,63 +66,40 @@ export class StreetFighterBossBar {
 
   private setupListeners(): void {
     const bus = GameEventBus.getInstance();
-    this.unsubscribers.push(
-      bus.on<BossStateEvent>('BOSS_STATE', (state) => this.updateState(state)),
-      bus.on('BOSS_INTRO', () => this.show()),
-      bus.on('BOSS_DEFEATED', () => this.hide()),
-      bus.on('BOSS_ESCAPED', () => this.hide()),
-      bus.on('ROUND_END', () => this.hide())
-    );
+    this.unsubscribers.push(bus.on<BossStateEvent>('BOSS_STATE', (state) => this.updateState(state)),bus.on('BOSS_INTRO', () => this.show()),bus.on('BOSS_DEFEATED', () => this.hide()),bus.on('BOSS_ESCAPED', () => this.hide()),bus.on('ROUND_END', () => this.hide()));
   }
 
   public show(): void {
     this.isVisible = true;
+    this.lastPct = 100;
+    this.lastDamage = 0;
+    if (this.activeBar) this.activeBar.style.width = '100%';
+    if (this.trailingBar) this.trailingBar.style.width = '100%';
+    if (this.damageEl) this.damageEl.textContent = 'DAMAGE 0';
+    if (this.hpTextEl) this.hpTextEl.textContent = 'HP 100%';
+    if (this.phaseEl) { this.phaseEl.textContent = 'ENGAGED'; this.phaseEl.classList.remove('enraged'); }
     if (this.container) this.container.style.display = 'flex';
   }
 
-  public hide(): void {
-    this.isVisible = false;
-    if (this.container) this.container.style.display = 'none';
-  }
+  public hide(): void { this.isVisible = false; if (this.container) this.container.style.display = 'none'; }
 
   public updateState(state: BossStateEvent): void {
     if (!this.isVisible && (state.phase === 'engaged' || state.phase === 'enraged')) this.show();
-
     const pct = Math.max(0, Math.min(100, state.hpPercent));
     const previousPct = this.lastPct;
     const hpChanged = Math.abs(pct - previousPct) >= 0.1;
     const roundedDamage = Math.round(state.totalDamage);
     const damageChanged = roundedDamage !== this.lastDamage;
-
-    if (this.activeBar && hpChanged) {
-      this.activeBar.style.width = `${pct}%`;
-      this.lastPct = pct;
-    }
-    if (this.trailingBar && hpChanged && pct < previousPct) {
-      this.trailingBar.style.width = `${pct}%`;
-    }
-
+    if (this.activeBar && hpChanged) { this.activeBar.style.width = `${pct}%`; this.lastPct = pct; }
+    if (this.trailingBar && hpChanged && pct < previousPct) this.trailingBar.style.width = `${pct}%`;
     if (this.activeBar) this.activeBar.classList.toggle('boss-enraged', state.phase === 'enraged');
     if (this.timerEl) this.timerEl.textContent = `${state.timeRemainingSec}s`;
     if (this.hpTextEl) this.hpTextEl.textContent = `HP ${Math.round(pct)}%`;
-    if (this.damageEl && damageChanged) {
-      this.damageEl.textContent = `DAMAGE ${roundedDamage}`;
-      this.lastDamage = roundedDamage;
-    }
+    if (this.damageEl && damageChanged) { this.damageEl.textContent = `DAMAGE ${roundedDamage}`; this.lastDamage = roundedDamage; }
     if (this.nameEl && state.name) this.nameEl.textContent = state.name;
     if (this.multiplierEl) this.multiplierEl.textContent = `x${state.multiplier.toFixed(1)}`;
-    if (this.phaseEl) {
-      this.phaseEl.textContent = state.phase.toUpperCase();
-      this.phaseEl.classList.toggle('enraged', state.phase === 'enraged');
-    }
+    if (this.phaseEl) { this.phaseEl.textContent = state.phase.toUpperCase(); this.phaseEl.classList.toggle('enraged', state.phase === 'enraged'); }
   }
 
-  public destroy(): void {
-    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
-    this.unsubscribers = [];
-    if (this.container) {
-      this.container.remove();
-      this.container = null;
-    }
-  }
+  public destroy(): void { this.unsubscribers.forEach((unsubscribe) => unsubscribe()); this.unsubscribers = []; if (this.container) { this.container.remove(); this.container = null; } }
 }
