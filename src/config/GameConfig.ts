@@ -38,15 +38,15 @@ export const GameConfig = {
   /** Default bet tier index (1.00 SC) */
   defaultBetIndex: 4,
 
-  /** Boss pacing */
+  /** Boss pacing — short arcade raid, with a real reset window between fights */
   bossPacing: {
     minKills: 5,
     maxKills: 30,
     chancePerKill: 0.25,
-    warningDurationMs: 2500,
-    introDurationMs: 1500,
-    battleDurationMs: 90000,
-    cooldownMs: 5000
+    warningDurationMs: 1800,
+    introDurationMs: 1200,
+    battleDurationMs: 60000,
+    cooldownMs: 12000
   },
 
   /** Turret pacing — scarce, short arcade power window */
