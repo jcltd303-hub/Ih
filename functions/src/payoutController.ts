@@ -10,6 +10,7 @@ import {
 
 const MIN_SAMPLE_WAGER = 10_000;
 const MIN_TABLE_CHANGE_MS = 60 * 60 * 1000;
+const TELEMETRY_SHARDS = 32;
 
 export type PayoutTelemetry = {
   wagered: number;
@@ -23,6 +24,37 @@ export function realizedRtp(telemetry: PayoutTelemetry): number {
   return (telemetry.paidOut / telemetry.wagered) * 100;
 }
 
+export async function loadAggregateTelemetry(
+  db: admin.firestore.Firestore,
+  tableVersion: string
+): Promise<PayoutTelemetry> {
+  const hour = new Date().toISOString().slice(0, 13).replace('T', '');
+
+  const snapshot = await db
+    .collection('economyTelemetry')
+    .where('bucket', '==', hour)
+    .where('tableVersion', '==', tableVersion)
+    .get();
+
+  const totals: PayoutTelemetry = {
+    wagered: 0,
+    paidOut: 0,
+    shots: 0,
+    kills: 0
+  };
+
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data();
+
+    totals.wagered += Number(data.wagered) || 0;
+    totals.paidOut += Number(data.paidOut) || 0;
+    totals.shots += Number(data.shots) || 0;
+    totals.kills += Number(data.kills) || 0;
+  });
+
+  return totals;
+}
+
 export async function calibrateNextPayoutTable(
   db: admin.firestore.Firestore,
   activeTable: PayoutTable,
@@ -33,16 +65,15 @@ export async function calibrateNextPayoutTable(
   }
 
   const actualRtp = realizedRtp(telemetry);
+
   const recommendedRtp = recommendNextRtp(
     actualRtp,
     activeTable.targetRtp
   );
 
-  const monteCarlo = runPayoutMonteCarlo(
-    buildProspectiveTable(recommendedRtp),
-    100_000
-  );
+  const candidate = buildProspectiveTable(recommendedRtp);
 
+  const monteCarlo = runPayoutMonteCarlo(candidate, 100_000);
   const calibratedRtp = summarizeMonteCarlo(monteCarlo);
 
   const finalTarget = clampRtp(
@@ -78,3 +109,5 @@ export async function calibrateNextPayoutTable(
 
   return nextTable;
 }
+
+export const TELEMETRY_SHARD_COUNT = TELEMETRY_SHARDS;
