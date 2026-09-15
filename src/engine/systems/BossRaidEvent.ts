@@ -15,7 +15,7 @@ export interface BossRaidState {
 
 /**
  * Table-wide boss raid event.
- * - Timed window (90s)
+ * - Timed window (30s)
  * - Shared HP across all players at the table
  * - Last-hit vanity bounty + damage-contribution payout
  * - Escapes if not defeated in time
@@ -32,7 +32,7 @@ export class BossRaidEvent {
   private hpBarFill: Graphics;
   private announceText: Text;
   private onComplete?: (result: { defeated: boolean; lastHitUserId: string | null; contributors: Map<string, number> }) => void;
-  private readonly RAID_DURATION_MS = 90000;
+  private readonly RAID_DURATION_MS = 30000;
   private readonly ESCAPE_COUNTDOWN_MS = 15000;
   private screenW = 0;
   private screenH = 0;
@@ -107,13 +107,13 @@ export class BossRaidEvent {
     this.bossId = boss.id;
 
     this.state.phase = 'approaching';
-    this.showAnnouncement('⚠️ APEX LEVIATHAN APPROACHING');
+    this.showAnnouncement('FISH FRENZY');
     SoundManager.playBossWarning();
 
     setTimeout(() => {
       if (!this.state.active) return;
       this.state.phase = 'engaged';
-      this.showAnnouncement('🔥 BOSS ENGAGED — ALL FIRE!');
+      this.showAnnouncement('');
     }, this.ESCAPE_COUNTDOWN_MS);
 
     this.uiContainer.visible = true;
@@ -218,6 +218,13 @@ export class BossRaidEvent {
       0xffd700,
       true
     );
+  }
+
+  public getState(): BossRaidState {
+    return {
+      ...this.state,
+      contributors: new Map(this.state.contributors)
+    };
   }
 
   public isActive(): boolean {

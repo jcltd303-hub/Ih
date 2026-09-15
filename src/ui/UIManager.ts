@@ -422,40 +422,21 @@ export class UIManager {
       <div id="hud-topbar" style="display: flex; justify-content: space-between; align-items: center; width: 100%; pointer-events: auto; gap: 6px; flex-wrap: wrap;">
         <!-- Wallets & Mode & Player Level -->
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-          <!-- GC Wallet -->
-          <div id="hud-gc-wallet" style="background: rgba(15, 23, 42, 0.88); border: 1px solid #3b82f6; padding: 6px 10px; border-radius: 8px; color: #ffffff; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; background: rgba(15, 23, 42, 0.88); border: 1px solid #3b82f6; padding: 6px 10px; border-radius: 8px; color: #ffffff; align-items: center; gap: 6px;">
             <span id="hud-gc-balance" style="font-size: 13px; font-weight: 700;">${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub></span>
           </div>
-
-          <!-- SC Wallet -->
-          <div id="hud-sc-wallet" style="background: rgba(15, 23, 42, 0.88); border: 2px solid #00ffcc; padding: 6px 10px; border-radius: 8px; color: #ffffff; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,255,204,0.15);">
+          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; background: rgba(15, 23, 42, 0.88); border: 2px solid #00ffcc; padding: 6px 10px; border-radius: 8px; color: #ffffff; align-items: center; gap: 6px;">
             <span id="hud-sc-balance" style="font-size: 13px; font-weight: 700; color: #00ffcc;">${this.scBalance.toFixed(2)}<sub style="font-size:9px;color:#00ffcc;margin-left:2px;">SC</sub></span>
           </div>
-
-          <!-- Read-only stake (change in Lobby) -->
-          <div id="hud-stake-readonly" style="background: rgba(15, 23, 42, 0.88); border: 1px solid #475569; padding: 6px 10px; border-radius: 8px; color: #e2e8f0; font-size: 11px; font-weight: 700;">
-            BET <span id="hud-bet-display">${this.getCurrentBet()} ${this.activeCurrency}</span>
-          </div>
-
-          <!-- Table Badge / Switcher -->
-          <button id="hud-table-btn" title="Current Arena Table (Click to switch in Lobby)" style="background: rgba(15, 23, 42, 0.88); border: 1.5px solid ${activeTable.badgeColor}; color: ${activeTable.badgeColor}; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-            <span>🏟️</span>
-            <span id="hud-table-btn-label">${activeTable.badge}</span>
-          </button>
-
-          <!-- Player Skill Level & Turret Pill -->
-          <button id="hud-level-btn" title="Player Skill Level & Progression (Click to view)" style="background: rgba(15, 23, 42, 0.88); border: 1.5px solid #a855f7; padding: 4px 10px; border-radius: 8px; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(168,85,247,0.25);">
-            <span style="font-size: 12px;">⭐</span>
-            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
-              <div style="display: flex; gap: 4px; font-size: 10px; font-weight: 800;">
-                <span style="color: #c084fc;">LVL <span id="hud-level-val">1</span></span>
-                <span id="hud-level-name" style="color: #cbd5e1;">GUNNER</span>
-              </div>
-              <div style="width: 52px; height: 3px; background: #334155; border-radius: 2px; overflow: hidden;">
-                <div id="hud-level-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899); transition: width 0.3s ease;"></div>
-              </div>
+          ${activeTable.mode === 'tournament' ? `<div id="hud-tourney-shield" title="Tournament" style="background:rgba(15,23,42,0.9);border:1.5px solid #f59e0b;padding:6px 9px;border-radius:8px;font-size:14px;">🛡️</div>` : ''}
+          <button id="hud-level-btn" title="Level" style="background: rgba(15, 23, 42, 0.88); border: 1.5px solid #a855f7; padding: 4px 10px; border-radius: 8px; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 10px; font-weight: 800; color: #c084fc;">LVL <span id="hud-level-val">1</span></span>
+            <div style="width: 40px; height: 3px; background: #334155; border-radius: 2px; overflow: hidden;">
+              <div id="hud-level-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
             </div>
           </button>
+          <span id="hud-bet-display" style="display:none;">${this.getCurrentBet()}</span>
+          <button id="hud-table-btn" style="display:none;"></button>
         </div>
 
         <!-- Lobby + essentials only (shop/streak/admin live in Lobby) -->
@@ -469,29 +450,30 @@ export class UIManager {
         </div>
       </div>
 
-      <!-- OVERCHARGE & BOSS OVERDRIVE STATUS PILL -->
-      <div id="hud-overcharge-badge" style="display: none; width: fit-content; margin: 6px auto 0; background: linear-gradient(90deg, rgba(239,68,68,0.3), rgba(245,158,11,0.3)); border: 1.5px solid #f59e0b; padding: 4px 14px; border-radius: 9999px; font-size: 11px; font-weight: 800; color: #fbbf24; box-shadow: 0 0 16px rgba(245,158,11,0.4); pointer-events: none;">
-        <span id="hud-overcharge-text">⚡ OVERCHARGE ACTIVE</span>
-      </div>
+      <!-- Boss red wash + corner timer -->
+      <div id="hud-boss-overlay" style="display:none; position:absolute; inset:0; z-index:15; pointer-events:none;
+        background:rgba(180,0,20,0.18);"></div>
+      <div id="hud-boss-timer" style="display:none; position:absolute; top:10px; right:12px; z-index:30; pointer-events:none;
+        font-size:18px; font-weight:900; color:#fecaca; text-shadow:0 0 12px #ff0033; font-variant-numeric:tabular-nums;">30</div>
 
-      <!-- ELECTRIC RAGE: BOSS BASH -->
-      <div id="hud-boss-bash" style="display:none; position:absolute; left:50%; top:18%; transform:translateX(-50%); z-index:25; pointer-events:none; text-align:center;">
-        <div style="font-size:clamp(28px,7vw,52px); font-weight:900; letter-spacing:4px; color:#ff0033;
-          text-shadow:0 0 20px #ff0033, 0 0 40px #ff0055, 0 4px 0 #450a0a;
-          animation: bossBashPulse 0.6s ease-in-out infinite alternate;">BOSS BASH</div>
-        <div id="hud-boss-bash-sub" style="margin-top:6px; font-size:12px; color:#fecaca; font-weight:700;">DEFEAT THE LEVIATHAN</div>
+      <!-- Brief FISH FRENZY title (boss start only) -->
+      <div id="hud-boss-bash" style="display:none; position:absolute; left:50%; top:16%; transform:translateX(-50%); z-index:25; pointer-events:none; text-align:center;">
+        <div id="hud-boss-bash-title" style="font-size:clamp(30px,8vw,56px); font-weight:900; letter-spacing:6px; color:#ff0033;
+          text-shadow:0 0 18px #ff0033, 0 0 36px #22d3ee, 0 4px 0 #450a0a;
+          animation: bossFrenzyPulse 0.45s ease-in-out infinite alternate;">FISH FRENZY</div>
       </div>
       <style>
-        @keyframes bossBashPulse {
-          from { transform: scale(1); filter: brightness(1); }
-          to { transform: scale(1.06); filter: brightness(1.25); }
+        @keyframes bossFrenzyPulse {
+          from { transform: scale(1); filter: brightness(1) drop-shadow(0 0 8px #22d3ee); }
+          to { transform: scale(1.08); filter: brightness(1.35) drop-shadow(0 0 22px #ff0033); }
         }
       </style>
 
-      <!-- BOTTOM TACTICAL WEAPON HUD -->
-      <div id="hud-bottombar" style="display: flex; justify-content: center; align-items: center; width: 100%; pointer-events: none; padding-bottom: 8px;">
-        <div style="font-size: 10px; color: #64748b; letter-spacing: 0.5px;">HOLD TO FIRE · stake set in LOBBY</div>
-      </div>
+      <!-- Bet badge near turret (bottom-center, slightly right) -->
+      <div id="hud-bet-badge" style="position:absolute; left:58%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
+        padding:6px 12px; border-radius:999px; font-weight:900; letter-spacing:1px;
+        border:2px solid #22d3ee; background:rgba(8,20,36,0.85); color:#67e8f9; font-size:13px;
+        box-shadow:0 0 14px rgba(34,211,238,0.35);">×1.00</div>
     `;
 
     // Reference elements
@@ -503,6 +485,7 @@ export class UIManager {
 
     // Event listeners
     this.applyAudioModeIcon();
+    this.refreshStakeHud();
     this.soundBtn.addEventListener('click', () => this.cycleAudioMode());
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
     this.tableBadgeBtn?.addEventListener('click', () => this.showLobby());
@@ -562,23 +545,8 @@ export class UIManager {
     if (lvlName) lvlName.textContent = prog.title.split(' ')[0].toUpperCase();
     if (lvlBar) lvlBar.style.width = `${prog.progressPct}%`;
 
-    if (ocBadge && ocText) {
-      if (prog.isBossUpgradeActive) {
-        ocBadge.style.display = 'block';
-        ocBadge.style.borderColor = '#ff0055';
-        ocBadge.style.background = 'linear-gradient(90deg, rgba(255,0,85,0.35), rgba(244,63,94,0.25))';
-        ocBadge.style.boxShadow = '0 0 18px rgba(255,0,85,0.5)';
-        ocText.innerHTML = `⚡ BOSS OVERDRIVE ACTIVE <span style="color:#ffffff;font-size:10px;">(+60% DMG · 2x RICOCHET)</span>`;
-      } else if (prog.isOvercharged) {
-        ocBadge.style.display = 'block';
-        ocBadge.style.borderColor = '#f59e0b';
-        ocBadge.style.background = 'linear-gradient(90deg, rgba(245,158,11,0.35), rgba(234,179,8,0.25))';
-        ocBadge.style.boxShadow = '0 0 16px rgba(245,158,11,0.4)';
-        ocText.innerHTML = `⚡ LUCKY OVERCHARGE (${prog.overchargeRemainingSec}s) <span style="color:#ffffff;font-size:10px;">(2x FIRE RATE · +40% DMG)</span>`;
-      } else {
-        ocBadge.style.display = 'none';
-      }
-    }
+    // Overdrive/overcharge banners removed — boss uses red overlay only
+    void ocBadge; void ocText;
   }
 
   private createModalContainer(root: HTMLElement): void {
@@ -624,129 +592,54 @@ export class UIManager {
   /** Full-screen lobby: shop, streak, ranks, operator tools — off the combat HUD. */
   public showLobby(): void {
     SoundManager.playUiSound('modal_open');
-    const rtp = PayoutEngine.getTargetRtp();
-    const profit = PayoutEngine.getProfitSnapshot();
-    const activeTable = TableSelectionManager.getInstance().getActiveTable();
-    const availableTables = TableSelectionManager.getInstance().getTables();
-
+    const tables = TableSelectionManager.getInstance().getTables();
     this.modalContainer.innerHTML = `
-      <div style="background:linear-gradient(160deg,#0b1224 0%,#0f172a 40%,#081018 100%); border:2px solid #22d3ee; border-radius:18px; padding:22px; max-width:560px; width:100%; color:#e2e8f0; box-shadow:0 20px 50px rgba(0,0,0,0.75); max-height:90vh; overflow-y:auto;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="background:#0a1628; border:4px solid #22d3ee; border-radius:6px; padding:18px; max-width:420px; width:100%; max-height:90vh; overflow-y:auto; color:#fff; font-family:ui-monospace,monospace; box-shadow:0 0 0 2px #083344, 0 16px 40px rgba(0,0,0,.7);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <div>
-            <div style="font-size:11px; letter-spacing:3px; color:#22d3ee; font-weight:800;">FISH FRENZY</div>
-            <h2 style="margin:4px 0 0; font-size:22px; font-weight:900;">LOBBY</h2>
+            <div style="font-size:10px; letter-spacing:2px; color:#22d3ee;">FISH FRENZY</div>
+            <div style="font-size:20px; font-weight:900;">LOBBY</div>
           </div>
-          <button id="lobby-close-btn" style="background:transparent;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">✕</button>
+          <button id="lobby-close-btn" style="background:#1e293b;border:2px solid #475569;color:#94a3b8;width:36px;height:36px;border-radius:4px;cursor:pointer;font-size:16px;">✕</button>
         </div>
-        <p style="margin:0 0 16px; font-size:12px; color:#94a3b8; line-height:1.45;">
-          Combat HUD stays clean. Shop, rewards, tables, and operator tools live here.
-          Target RTP <strong style="color:#fbbf24;">${rtp}%</strong>
-          · House edge ~<strong>${(100 - rtp).toFixed(0)}%</strong>
-          · P&amp;L ${profit.isProfitable ? '<span style="color:#34d399">OK</span>' : '<span style="color:#f87171">REVIEW</span>'}
-        </p>
 
-        <!-- TABLE SELECTION / ARENA -->
-        <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:1px solid #334155;border-radius:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="font-size:10px;letter-spacing:2px;color:#22d3ee;font-weight:700;">ARENA SELECTION · MULTIPLAYER &amp; PRACTICE</div>
-            <div style="font-size:10px;color:#94a3b8;">ACTIVE: <strong style="color:${activeTable.badgeColor};">${activeTable.name.toUpperCase()}</strong></div>
+        <div style="margin-bottom:14px;padding:12px;background:#0f172a;border:3px solid #334155;border-radius:4px;">
+          <div style="font-size:10px;letter-spacing:2px;color:#64748b;font-weight:700;margin-bottom:8px;">CURRENCY</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button type="button" id="lobby-cur-sc" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.activeCurrency==='SC'?'#00ffcc':'#334155'};background:${this.activeCurrency==='SC'?'rgba(0,255,204,0.15)':'#1e293b'};color:${this.activeCurrency==='SC'?'#00ffcc':'#94a3b8'};">SC</button>
+            <button type="button" id="lobby-cur-gc" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.activeCurrency==='GC'?'#fbbf24':'#334155'};background:${this.activeCurrency==='GC'?'rgba(251,191,36,0.15)':'#1e293b'};color:${this.activeCurrency==='GC'?'#fbbf24':'#94a3b8'};">GC</button>
           </div>
-          <div id="lobby-table-notice" style="display:none; padding:8px 10px; margin-bottom:8px; border-radius:8px; font-size:11px; font-weight:700; background:rgba(244,63,94,0.15); border:1px solid #f43f5e; color:#fca5a5;"></div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            ${availableTables.map((tbl) => {
-              const isSelected = tbl.id === activeTable.id;
-              return `
-                <div class="lobby-table-card" data-table-id="${tbl.id}" style="
-                  padding:12px; border-radius:10px; cursor:pointer;
-                  border:1.5px solid ${isSelected ? tbl.badgeColor : '#334155'};
-                  background:${isSelected ? 'rgba(30,41,59,0.95)' : '#1e293b'};
-                  box-shadow:${isSelected ? `0 0 16px ${tbl.badgeColor}33` : 'none'};
-                  transition:all 0.15s ease;
-                ">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                      <span style="font-weight:900; font-size:13px; color:#ffffff;">${tbl.name}</span>
-                      <span style="
-                        font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;
-                        background:${tbl.badgeColor}22; color:${tbl.badgeColor}; border:1px solid ${tbl.badgeColor}66;
-                      ">${tbl.badge}</span>
-                    </div>
-                    <span style="font-size:11px; color:#94a3b8;">${tbl.activePlayersCount}/${tbl.maxPlayers} Players</span>
-                  </div>
-                  <div style="font-size:11px; color:#94a3b8; margin-bottom:8px; line-height:1.35;">${tbl.description}</div>
-                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
-                    <div style="display:flex; gap:10px; color:#cbd5e1;">
-                      <span>Stake: <strong style="color:#f8fafc;">${tbl.minStake} ${tbl.allowedCurrencies.join('/')}</strong></span>
-                      <span>${tbl.bossRaidEnabled ? '<span style="color:#f43f5e;font-weight:700;">⚡ 90s Boss Raid</span>' : '<span style="color:#64748b;">Solo Sandbox</span>'}</span>
-                    </div>
-                    <button type="button" class="lobby-table-select-btn" data-table-id="${tbl.id}" style="
-                      padding:5px 12px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer;
-                      border:${isSelected ? `1px solid ${tbl.badgeColor}` : '1px solid #475569'};
-                      background:${isSelected ? tbl.badgeColor : '#0f172a'};
-                      color:${isSelected ? '#0b1120' : '#e2e8f0'};
-                    ">${isSelected ? '✓ ACTIVE ARENA' : 'JOIN ARENA'}</button>
-                  </div>
-                </div>
-              `;
-            }).join('')}
+          <div style="font-size:10px;letter-spacing:2px;color:#64748b;font-weight:700;margin-bottom:8px;">BET · JOINS MATCHING ROOM</div>
+          <div id="lobby-bet-chips" style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${this.betTiers.map((b, i) => `
+              <button type="button" class="lobby-bet-chip" data-bet-index="${i}" style="
+                padding:10px 12px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;
+                border:3px solid ${i===this.currentBetIndex?'#00ffcc':'#334155'};
+                background:${i===this.currentBetIndex?'rgba(0,255,204,0.2)':'#1e293b'};
+                color:${i===this.currentBetIndex?'#00ffcc':'#e2e8f0'};
+              ">${b}</button>
+            `).join('')}
           </div>
         </div>
 
-        <!-- THEME (audio cycles in HUD only) -->
-        <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:3px solid #334155;border-radius:6px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-size:10px;letter-spacing:2px;color:#22d3ee;font-weight:700;">THEME</div>
-            <div style="font-size:10px;color:#94a3b8;">${this.currentTheme === 'dark' ? 'DARK' : 'LIGHT'}</div>
-          </div>
+        <div style="margin-bottom:14px;padding:12px;background:#0f172a;border:3px solid #334155;border-radius:4px;">
+          <div style="font-size:10px;letter-spacing:2px;color:#22d3ee;font-weight:700;margin-bottom:8px;">THEME</div>
           <div style="display:flex;gap:8px;">
             <button type="button" id="lobby-theme-light" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.currentTheme==='light'?'#22d3ee':'#334155'};background:${this.currentTheme==='light'?'#0e7490':'#1e293b'};color:#ecfeff;">☀ LIGHT</button>
             <button type="button" id="lobby-theme-dark" style="flex:1;padding:10px;border-radius:4px;cursor:pointer;font-weight:900;font-size:12px;border:3px solid ${this.currentTheme==='dark'?'#f43f5e':'#334155'};background:${this.currentTheme==='dark'?'#3f0a12':'#1e293b'};color:#fecaca;">☾ DARK</button>
           </div>
-          <div style="margin-top:8px;font-size:10px;color:#64748b;">Audio: use HUD speaker icon (On / Mute / SFX / No FX)</div>
         </div>
 
-        <div style="margin-bottom:16px;padding:14px;background:#0f172a;border:1px solid #334155;border-radius:12px;">
-          <div style="font-size:10px;letter-spacing:2px;color:#64748b;font-weight:700;margin-bottom:10px;">STAKE · SET BEFORE RESUME</div>
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <button type="button" id="lobby-cur-sc" style="flex:1;padding:10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:12px;border:2px solid ${this.activeCurrency==='SC'?'#00ffcc':'#334155'};background:${this.activeCurrency==='SC'?'rgba(0,255,204,0.15)':'#1e293b'};color:${this.activeCurrency==='SC'?'#00ffcc':'#94a3b8'};">SC</button>
-            <button type="button" id="lobby-cur-gc" style="flex:1;padding:10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:12px;border:2px solid ${this.activeCurrency==='GC'?'#fbbf24':'#334155'};background:${this.activeCurrency==='GC'?'rgba(251,191,36,0.15)':'#1e293b'};color:${this.activeCurrency==='GC'?'#fbbf24':'#94a3b8'};">GC</button>
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Bet amount <span style="color:#64748b">(resets to 1.00 when currency changes)</span></div>
-          <div id="lobby-bet-chips" style="display:flex;flex-wrap:wrap;gap:6px;">
-            ${this.betTiers.map((b, i) => `
-              <button type="button" class="lobby-bet-chip" data-bet-index="${i}" style="
-                padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:11px;
-                border:1px solid ${i===this.currentBetIndex?'#00ffcc':'#334155'};
-                background:${i===this.currentBetIndex?'rgba(0,255,204,0.2)':'#1e293b'};
-                color:${i===this.currentBetIndex?'#00ffcc':'#e2e8f0'};
-              ">${b} ${this.activeCurrency}</button>
-            `).join('')}
-          </div>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-          <button class="lobby-tile" data-lobby="streak" style="text-align:left; background:#1e293b; border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
-            <div style="font-size:18px; margin-bottom:4px;">⚡</div>
-            <div style="font-weight:800; color:#fbbf24;">STREAK</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Daily login rewards</div>
-          </button>
-          ${this.isTournamentSession() ? `
-          <button class="lobby-tile" data-lobby="ranks" style="text-align:left; background:#1e293b; border:1px solid #7c3aed; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
-            <div style="font-size:18px; margin-bottom:4px;">🏆</div>
-            <div style="font-weight:800; color:#c4b5fd;">RANKS</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Tournament leaderboard</div>
-          </button>` : `
-          <div style="text-align:left; background:#0f172a; border:1px dashed #334155; border-radius:12px; padding:14px; color:#64748b;">
-            <div style="font-size:18px; margin-bottom:4px;">🏆</div>
-            <div style="font-weight:800;">RANKS</div>
-            <div style="font-size:11px; margin-top:4px;">Join a tournament table to unlock</div>
-          </div>`}
-          <button class="lobby-tile" data-lobby="operator" style="grid-column:1 / -1; text-align:left; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
-            <div style="font-size:18px; margin-bottom:4px;">⚙️</div>
-            <div style="font-weight:800; color:#fbbf24;">OPERATOR · PACKAGES & P&L</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Packages, deposit ledger, session P&amp;L (RTP fixed 85%)</div>
-          </button>
-        </div>
-        <button id="lobby-resume-btn" style="margin-top:16px; width:100%; background:linear-gradient(135deg,#00ffcc,#0891b2); color:#0a0f1d; border:none; padding:12px; border-radius:10px; font-weight:900; letter-spacing:1px; cursor:pointer;">
+        <button class="lobby-tile" data-lobby="store" style="width:100%;text-align:left;background:#1e293b;border:3px solid #22d3ee;border-radius:4px;padding:12px;cursor:pointer;color:#fff;margin-bottom:8px;">
+          <div style="font-weight:900;color:#67e8f9;">STORE</div>
+          <div style="font-size:11px;color:#94a3b8;">Buy GC packages</div>
+        </button>
+        <button class="lobby-tile" data-lobby="operator" style="width:100%;text-align:left;background:rgba(245,158,11,0.12);border:3px solid #f59e0b;border-radius:4px;padding:12px;cursor:pointer;color:#fff;margin-bottom:12px;">
+          <div style="font-weight:900;color:#fbbf24;">OPERATOR</div>
+          <div style="font-size:11px;color:#94a3b8;">Packages & P&amp;L</div>
+        </button>
+
+        <button id="lobby-resume-btn" style="width:100%; background:linear-gradient(180deg,#22d3ee,#0e7490); color:#021018; border:3px solid #00ffcc; padding:14px; border-radius:4px; font-weight:900; letter-spacing:2px; cursor:pointer; font-size:14px;">
           ▶ RESUME
         </button>
       </div>
@@ -778,36 +671,26 @@ export class UIManager {
       btn.addEventListener('click', () => {
         const idx = parseInt((btn as HTMLElement).getAttribute('data-bet-index') || '0', 10);
         this.setBetIndex(idx);
-        this.showLobby();
-      });
-    });
-
-    // Table selection click handlers
-    this.modalContainer.querySelectorAll('.lobby-table-card, .lobby-table-select-btn').forEach((el) => {
-      el.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const tid = (el as HTMLElement).getAttribute('data-table-id');
-        if (!tid) return;
-        const res = await TableSelectionManager.getInstance().switchTable(tid);
-        if (res.success) {
-          SoundManager.playUiSound('click');
-          this.showLobby();
-        } else {
-          const notice = document.getElementById('lobby-table-notice');
-          if (notice) {
-            notice.textContent = res.reason || 'Could not switch table.';
-            notice.style.display = 'block';
-          }
+        // Auto-pick a table that matches stake currency / min stake
+        const bet = this.getCurrentBet();
+        const match = tables.find((t) => Math.abs(t.minStake - bet) < 0.001)
+          || tables.find((t) => t.minStake <= bet)
+          || tables[0];
+        if (match) {
+          void TableSelectionManager.getInstance().switchTable(match.id);
+        }
+        this.renderHUD();
+        this.closeModal();
+        if (match?.mode === 'tournament') {
+          this.showLeaderboardModal();
         }
       });
     });
-
     this.modalContainer.querySelectorAll('.lobby-tile').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = (btn as HTMLElement).getAttribute('data-lobby');
+        this.closeModal();
         if (id === 'store') void showStoreModal(this.modalCtx());
-        else if (id === 'streak') this.showStreakModal();
-        else if (id === 'ranks') this.showLeaderboardModal();
         else if (id === 'operator') this.showAdminPortalModal();
       });
     });
@@ -834,7 +717,36 @@ export class UIManager {
 
   private refreshStakeHud(): void {
     const el = document.getElementById('hud-bet-display');
-    if (el) el.textContent = `${this.getCurrentBet()} ${this.activeCurrency}`;
+    const bet = this.getCurrentBet();
+    if (el) el.textContent = `${bet} ${this.activeCurrency}`;
+    const badge = document.getElementById('hud-bet-badge');
+    if (badge) {
+      const scale = 0.85 + Math.min(0.55, Math.log10(bet * 20 + 1) * 0.35);
+      const colors: Array<[number, string, string]> = [
+        [0.25, '#67e8f9', '#0e7490'],
+        [1, '#22d3ee', '#155e75'],
+        [2.5, '#fbbf24', '#92400e'],
+        [5, '#f97316', '#7c2d12'],
+        [10, '#f43f5e', '#881337'],
+      ];
+      let fg = '#67e8f9';
+      let border = '#0e7490';
+      for (const [t, f, b] of colors) {
+        if (bet >= t) {
+          fg = f;
+          border = b;
+        }
+      }
+      badge.textContent = `×${bet.toFixed(2)}`;
+      badge.style.transform = `translateX(-50%) scale(${scale})`;
+      badge.style.color = fg;
+      badge.style.borderColor = border;
+      badge.style.boxShadow = `0 0 ${10 + bet * 2}px ${fg}55`;
+    }
+    const gcW = document.getElementById('hud-gc-wallet');
+    const scW = document.getElementById('hud-sc-wallet');
+    if (gcW) gcW.style.display = this.activeCurrency === 'GC' ? 'flex' : 'none';
+    if (scW) scW.style.display = this.activeCurrency === 'SC' ? 'flex' : 'none';
   }
 
   private adjustBet(direction: number): void {
@@ -941,12 +853,44 @@ export class UIManager {
     this.cycleAudioMode();
   }
 
-  /** Giant BOSS BASH title during raid (Electric Rage). */
-  public setBossBashActive(active: boolean, sub?: string): void {
+  /** @deprecated use showBossFrenzyTitle / setBossOverlay */
+  public setBossBashActive(active: boolean, _sub?: string): void {
+    if (active) this.showBossFrenzyTitle();
+    else this.setBossOverlay(false);
+  }
+
+  /** Brief pulsing FISH FRENZY title at boss start. */
+  public showBossFrenzyTitle(): void {
     const el = document.getElementById('hud-boss-bash');
-    const subEl = document.getElementById('hud-boss-bash-sub');
-    if (el) el.style.display = active ? 'block' : 'none';
-    if (subEl && sub) subEl.textContent = sub;
+    if (!el) return;
+    el.style.display = 'block';
+    // Spawn lightweight CSS “electric” flashes via title animation only
+    window.setTimeout(() => {
+      if (el) el.style.display = 'none';
+    }, 2200);
+  }
+
+  public setBossOverlay(active: boolean, secondsLeft?: number): void {
+    const overlay = document.getElementById('hud-boss-overlay');
+    const timer = document.getElementById('hud-boss-timer');
+    if (overlay) overlay.style.display = active ? 'block' : 'none';
+    if (timer) {
+      timer.style.display = active ? 'block' : 'none';
+      if (active && typeof secondsLeft === 'number') {
+        timer.textContent = String(Math.max(0, secondsLeft));
+      }
+    }
+  }
+
+  /** Barrel count from level / temporary upgrade (1–3). Multiplies stake & payout. */
+  public getBarrelCount(): number {
+    try {
+      const prog = PlayerProgressionManager.getInstance().getState();
+      if (prog.isBossUpgradeActive || prog.isOvercharged) return 3;
+      if (prog.level >= 10) return 3;
+      if (prog.level >= 5) return 2;
+    } catch { /* ignore */ }
+    return 1;
   }
 
   public openStore(): void {
@@ -981,7 +925,8 @@ export class UIManager {
   }
 
   public deductBet(): boolean {
-    const bet = this.getCurrentBet();
+    const barrels = this.getBarrelCount();
+    const bet = this.getCurrentBet() * barrels;
     if (this.activeCurrency === 'SC') {
       if (this.scBalance < bet) {
         this.openStore();
@@ -995,7 +940,9 @@ export class UIManager {
         return false;
       }
       this.gcBalance -= bet * 100;
-      this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
+      if (this.gcBalanceEl) {
+        this.gcBalanceEl.innerHTML = `${this.gcBalance.toLocaleString()}<sub style="font-size:9px;color:#60a5fa;margin-left:2px;">GC</sub>`;
+      }
     }
     return true;
   }

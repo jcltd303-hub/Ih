@@ -31,8 +31,8 @@ export class BossRaidManager {
     active: false,
     tableId: 'table_practice',
     tableMode: 'practice',
-    timeRemainingSec: 90,
-    totalDurationSec: 90,
+    timeRemainingSec: 30,
+    totalDurationSec: 30,
     sharedBossHp: 60000,
     sharedBossMaxHp: 60000,
     playerDamage: 0,
@@ -79,8 +79,11 @@ export class BossRaidManager {
       this.state.status = 'idle';
       this.emit();
     } else {
-      // Non-practice table auto-starts the timed 90s boss raid event!
-      this.startTimedRaid();
+      // Boss starts from combat progress (kills/score) — not on table entry
+      this.stopRaid();
+      this.state.active = false;
+      this.state.status = 'idle';
+      this.emit();
     }
   }
 
@@ -99,8 +102,8 @@ export class BossRaidManager {
       active: true,
       tableId: this.state.tableId,
       tableMode: this.state.tableMode,
-      timeRemainingSec: 90,
-      totalDurationSec: 90,
+      timeRemainingSec: 30,
+      totalDurationSec: 30,
       sharedBossHp: maxHp,
       sharedBossMaxHp: maxHp,
       playerDamage: 0,
