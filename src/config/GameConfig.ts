@@ -49,14 +49,14 @@ export const GameConfig = {
     cooldownMs: 12000
   },
 
-  /** Turret pacing — scarce, short arcade power window */
+  /** Turret pacing — rare, very short arcade power window */
   turretPacing: {
-    minKillsBetweenTriggers: 40,
-    baseChance: 0.0075,
-    durationMs: 1700,
-    maxDurationMs: 1900,
+    minKillsBetweenTriggers: 50,
+    baseChance: 0.005,
+    durationMs: 1250,
+    maxDurationMs: 1450,
     multiplier: 2,
-    cooldownMs: 22000
+    cooldownMs: 30000
   },
 
   /** Combo pacing — tighter than a passive dashboard-style streak. */
