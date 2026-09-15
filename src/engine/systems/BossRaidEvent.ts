@@ -2,6 +2,7 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { FishManager } from './FishManager';
 import { ParticleFXManager } from './ParticleFXManager';
 import { SoundManager } from '../../audio/SoundManager';
+import { GameEventBus, BossStateEvent, BossResultEvent } from '../core/GameEvents';
 
 export interface BossRaidState {
   active: boolean;
@@ -15,10 +16,8 @@ export interface BossRaidState {
 
 /**
  * Table-wide boss raid event.
- * - Timed window (30s)
- * - Shared HP across all players at the table
- * - Last-hit vanity bounty + damage-contribution payout
- * - Escapes if not defeated in time
+ * The gameplay state is the source of truth; the browser HUD receives
+ * explicit lifecycle/state events so the boss can never be active-but-invisible.
  */
 export class BossRaidEvent {
   private stage: Container;
@@ -33,9 +32,10 @@ export class BossRaidEvent {
   private announceText: Text;
   private onComplete?: (result: { defeated: boolean; lastHitUserId: string | null; contributors: Map<string, number> }) => void;
   private readonly RAID_DURATION_MS = 90000;
-  private readonly ESCAPE_COUNTDOWN_MS = 70000;
   private screenW = 0;
   private screenH = 0;
+  private raidStartedAt = 0;
+  private resultEmitted = false;
 
   constructor(stage: Container, fishManager: FishManager, particleFX: ParticleFXManager) {
     this.stage = stage;
@@ -71,11 +71,7 @@ export class BossRaidEvent {
       fontSize: 28,
       fontWeight: 'bold',
       fill: 0xffd700,
-      dropShadow: {
-        color: '#000000',
-        blur: 4,
-        distance: 2
-      }
+      dropShadow: { color: '#000000', blur: 4, distance: 2 }
     });
     this.announceText = new Text({ text: '', style: announceStyle });
     this.announceText.anchor.set(0.5);
@@ -89,13 +85,29 @@ export class BossRaidEvent {
     this.announceText.y = 120;
   }
 
+  private emitState(multiplier = 2.5): void {
+    const bus = GameEventBus.getInstance();
+    const hpPercent = this.state.maxHp > 0 ? (this.state.hp / this.state.maxHp) * 100 : 0;
+    const phase: BossStateEvent['phase'] = this.state.phase;
+    bus.emit<BossStateEvent>('BOSS_STATE', {
+      bossId: this.bossId ?? undefined,
+      phase,
+      name: 'APEX LEVIATHAN',
+      hp: this.state.hp,
+      maxHp: this.state.maxHp,
+      hpPercent,
+      timeRemainingSec: Math.max(0, Math.ceil(this.state.timeRemaining / 1000)),
+      totalDamage: this.state.totalDamage,
+      multiplier
+    });
+  }
+
   public startRaid(userId: string, onComplete?: typeof this.onComplete): void {
-    if (this.state.active) {
-      console.warn('[BossRaidEvent] startRaid ignored - already active');
-      return;
-    }
-    console.log('[BossRaidEvent] Starting raid for user:', userId);
+    if (this.state.active) return;
+
     this.onComplete = onComplete;
+    this.resultEmitted = false;
+    this.raidStartedAt = Date.now();
 
     const maxHp = 150 + Math.floor(Math.random() * 100);
     this.state = {
@@ -108,19 +120,23 @@ export class BossRaidEvent {
       contributors: new Map()
     };
 
-    console.log('[BossRaidEvent] Spawning boss fish with HP:', maxHp);
     const boss = this.fishManager.spawnFish('boss', maxHp);
     this.bossId = boss.id;
-    console.log('[BossRaidEvent] Boss spawned with ID:', this.bossId);
 
-    /* title handled by HUD */
+    const bus = GameEventBus.getInstance();
+    bus.emit('BOSS_TRIGGER', { name: 'APEX LEVIATHAN', userId });
+    bus.emit('BOSS_WARNING', { name: 'APEX LEVIATHAN', warningMs: 1200 });
+    bus.emit('BOSS_INTRO', { name: 'APEX LEVIATHAN' });
+    bus.emit('BOSS_START', { name: 'APEX LEVIATHAN', bossId: this.bossId });
+    this.emitState();
+
     SoundManager.playBossWarning();
-
-    this.uiContainer.visible = false; // HUD owns boss chrome
+    this.uiContainer.visible = false; // HUD owns boss chrome.
   }
 
   public recordDamage(userId: string, damage: number): void {
-    if (!this.state.active || this.state.phase === 'approaching' || this.state.phase === 'defeated') return;
+    if (!this.state.active || this.state.phase === 'defeated' || this.state.phase === 'escaped') return;
+    if (!Number.isFinite(damage) || damage <= 0) return;
 
     this.state.hp = Math.max(0, this.state.hp - damage);
     this.state.totalDamage += damage;
@@ -132,32 +148,42 @@ export class BossRaidEvent {
 
     if (this.state.hp < this.state.maxHp * 0.4 && this.state.phase === 'engaged') {
       this.state.phase = 'enraged';
-      
+      GameEventBus.getInstance().emit('BOSS_PHASE_CHANGE', { phase: 'ENRAGED' });
+      SoundManager.setBossMusic(true, true);
     }
 
-    if (this.state.hp <= 0) {
-      this.defeatBoss(userId);
-    }
+    this.emitState();
+
+    if (this.state.hp <= 0) this.defeatBoss(userId);
   }
 
   private defeatBoss(lastHitUserId: string): void {
-    console.log('[BossRaidEvent] Boss DEFEATED by:', lastHitUserId);
+    if (!this.state.active || this.state.phase === 'defeated') return;
     this.state.phase = 'defeated';
-    
+    this.emitState();
 
     if (this.bossId) {
       this.fishManager.killFish(this.bossId);
       this.bossId = null;
     }
 
+    GameEventBus.getInstance().emit<BossResultEvent>('BOSS_DEFEATED', {
+      defeated: true,
+      totalDamage: this.state.totalDamage,
+      bountyPayout: 0,
+      currency: 'SC',
+      multiplier: 2.5,
+      timeElapsedSec: Math.max(0, (Date.now() - this.raidStartedAt) / 1000)
+    });
+
     this.particleFX.emitCoinExplosion(this.screenW / 2, this.screenH / 2, 48);
     setTimeout(() => this.endRaid(true, lastHitUserId), 3000);
   }
 
   private escapeBoss(): void {
-    console.log('[BossRaidEvent] Boss ESCAPED (Time Out)');
+    if (!this.state.active || this.state.phase === 'escaped' || this.state.phase === 'defeated') return;
     this.state.phase = 'escaped';
-    
+    this.emitState();
 
     if (this.bossId) {
       const fish = this.fishManager.getFish(this.bossId);
@@ -165,15 +191,24 @@ export class BossRaidEvent {
       this.bossId = null;
     }
 
+    GameEventBus.getInstance().emit<BossResultEvent>('BOSS_ESCAPED', {
+      defeated: false,
+      totalDamage: this.state.totalDamage,
+      bountyPayout: 0,
+      currency: 'SC',
+      multiplier: 2.5,
+      timeElapsedSec: Math.max(0, (Date.now() - this.raidStartedAt) / 1000)
+    });
+
     setTimeout(() => this.endRaid(false, null), 2000);
   }
 
   private endRaid(defeated: boolean, lastHitUserId: string | null): void {
-    console.log('[BossRaidEvent] Ending raid. Defeated:', defeated);
+    if (this.resultEmitted) return;
+    this.resultEmitted = true;
+
     const contributors = new Map<string, number>();
-    for (const [uid, c] of this.state.contributors) {
-      contributors.set(uid, c.damage);
-    }
+    for (const [uid, c] of this.state.contributors) contributors.set(uid, c.damage);
 
     this.state.active = false;
     this.uiContainer.visible = false;
@@ -183,13 +218,8 @@ export class BossRaidEvent {
   public update(deltaTime: number): void {
     if (!this.state.active) return;
 
-    // Guard against uninitialized timeRemaining if active is flipped incorrectly
-    if (this.state.timeRemaining <= 0 && this.state.active && this.state.phase === 'engaged') {
-       this.state.timeRemaining = this.RAID_DURATION_MS;
-    }
-
-    this.state.timeRemaining -= deltaTime;
-    if (this.state.timeRemaining <= 0 && this.state.phase !== 'defeated') {
+    this.state.timeRemaining = Math.max(0, this.state.timeRemaining - deltaTime);
+    if (this.state.timeRemaining <= 0 && this.state.phase !== 'defeated' && this.state.phase !== 'escaped') {
       this.escapeBoss();
       return;
     }
@@ -197,7 +227,7 @@ export class BossRaidEvent {
     const seconds = Math.ceil(this.state.timeRemaining / 1000);
     this.timerText.text = `RAID: ${seconds}s | HP: ${Math.ceil(this.state.hp)}/${this.state.maxHp}`;
 
-    const hpPct = this.state.hp / this.state.maxHp;
+    const hpPct = this.state.maxHp > 0 ? this.state.hp / this.state.maxHp : 0;
     const barWidth = 300;
     const barX = 20;
     const barY = 90;
@@ -208,25 +238,13 @@ export class BossRaidEvent {
 
     this.hpBarFill.clear();
     this.hpBarFill.rect(barX + 1, barY + 1, (barWidth - 2) * hpPct, 8);
-    const hpColor = this.state.phase === 'enraged' ? 0xff3300 : 0x00ffcc;
-    this.hpBarFill.fill({ color: hpColor, alpha: 0.95 });
+    this.hpBarFill.fill({ color: this.state.phase === 'enraged' ? 0xff3300 : 0x00ffcc, alpha: 0.95 });
 
-    if (this.announceText.alpha > 0) {
-      this.announceText.alpha -= deltaTime * 0.0005;
-    }
-  }
-
-  private showAnnouncement(_text: string): void {
-    // HUD owns boss title/timer — no pixi banner spam
-    this.announceText.text = '';
-    this.announceText.alpha = 0;
+    this.emitState();
   }
 
   public getState(): BossRaidState {
-    return {
-      ...this.state,
-      contributors: new Map(this.state.contributors)
-    };
+    return { ...this.state, contributors: new Map(this.state.contributors) };
   }
 
   public isActive(): boolean {
