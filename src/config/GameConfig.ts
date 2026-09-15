@@ -8,10 +8,20 @@ export const GameConfig = {
   maxActiveFish: 18,
 
   /** ms between automatic wave spawns while playing */
-  spawnIntervalMs: 1800,
+  spawnIntervalMs: 2100,
 
   /** Auto-fire interval when HUD toggle is on */
-  autoFireIntervalMs: 160,
+  autoFireIntervalMs: 180,
+
+  /** Overcharge presentation/gameplay window */
+  overchargeDurationMs: 4500,
+  overchargeCooldownMs: 8000,
+  overchargeKillChance: 0.04,
+  overchargeLuckyHitChance: 0.08,
+
+  /** Boss pacing */
+  bossGracePeriodMs: 30000,
+  bossProgressThreshold: 120,
 
   /** Small-fish school size range when a tetra wave rolls */
   schoolSizeMin: 2,
@@ -45,8 +55,8 @@ export const GameConfig = {
   localDisplayName: 'NeonStriker'
 };
 
-
 /** Runtime override (performance presets) */
 export function setMaxActiveFish(n: number): void {
-  (GameConfig as { maxActiveFish: number }).maxActiveFish = Math.max(4, Math.min(32, n));
+  (GameConfig as { maxActiveFish: number }).maxActiveFish =
+    Math.max(4, Math.min(32, n));
 }
