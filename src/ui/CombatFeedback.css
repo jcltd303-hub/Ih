@@ -4,4 +4,36 @@
 #ff-fighter-feedback[data-state="boss"] .ff-fighter-strip { border-color: var(--ff-theme-accent, #22d3ee); }
 #ff-fighter-feedback[data-state="ko"] .ff-fighter-strip { border-color: #facc15; box-shadow: 0 0 18px rgba(250,204,21,.45); }
 :root[data-ff-theme='dark'] #ff-fighter-feedback[data-state="critical"] .ff-fighter-strip { border-color: #e879f9; box-shadow: 0 0 18px rgba(217,70,239,.55); }
-@media (prefers-reduced-motion: reduce) { #ff-fighter-feedback [data-kind="super-critical"] { transform: none; } }
+
+/* Arcade combat states: the frame changes with the fight, not just the text. */
+#ff-fighter-feedback[data-state="fight"] .ff-fighter-strip { border-color: var(--ff-theme-accent, #38bdf8); }
+#ff-fighter-feedback[data-state="combo"] .ff-fighter-strip { border-color: #f59e0b; box-shadow: 0 0 12px rgba(245,158,11,.30); }
+#ff-fighter-feedback[data-state="kill"] .ff-fighter-strip { border-color: #34d399; box-shadow: 0 0 14px rgba(52,211,153,.28); }
+#ff-fighter-feedback[data-state="turret"] .ff-fighter-strip { border-color: #facc15; box-shadow: 0 0 16px rgba(250,204,21,.38); }
+#ff-fighter-feedback[data-state="ready"] .ff-fighter-strip { border-color: #22c55e; }
+#ff-fighter-feedback[data-state="cooldown"] .ff-fighter-strip { border-color: #64748b; opacity: .82; }
+#ff-fighter-feedback[data-state="break"] .ff-fighter-strip { border-color: #64748b; }
+#ff-fighter-feedback[data-state="danger"] .ff-fighter-strip { border-color: #ef4444; box-shadow: 0 0 18px rgba(239,68,68,.42); }
+
+#ff-fighter-feedback[data-state="boss"] .ff-fighter-strip,
+#ff-fighter-feedback[data-state="danger"] .ff-fighter-strip,
+#ff-fighter-feedback[data-state="critical"] .ff-fighter-strip,
+#ff-fighter-feedback[data-state="ko"] .ff-fighter-strip {
+  animation: ff-fighter-border-pulse .38s steps(2, end) infinite;
+}
+
+@keyframes ff-fighter-border-pulse {
+  50% { filter: brightness(1.28); transform: translateY(-1px); }
+}
+
+:root[data-ff-theme='dark'] #ff-fighter-feedback[data-state="boss"] .ff-fighter-strip { border-color: #22d3ee; box-shadow: 0 0 18px rgba(34,211,238,.38); }
+:root[data-ff-theme='dark'] #ff-fighter-feedback[data-state="combo"] .ff-fighter-strip { border-color: #a855f7; box-shadow: 0 0 14px rgba(168,85,247,.34); }
+:root[data-ff-theme='dark'] #ff-fighter-feedback[data-state="turret"] .ff-fighter-strip { border-color: #f59e0b; }
+
+@media (prefers-reduced-motion: reduce) {
+  #ff-fighter-feedback [data-kind="super-critical"] { transform: none; }
+  #ff-fighter-feedback[data-state="boss"] .ff-fighter-strip,
+  #ff-fighter-feedback[data-state="danger"] .ff-fighter-strip,
+  #ff-fighter-feedback[data-state="critical"] .ff-fighter-strip,
+  #ff-fighter-feedback[data-state="ko"] .ff-fighter-strip { animation: none; }
+}
