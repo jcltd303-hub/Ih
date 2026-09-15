@@ -14,6 +14,7 @@ import { FeatureFlags } from '../../config/FeatureFlags';
 import { isFirebaseConfigured } from '../../network/FirebaseClient';
 import { SoundManager } from '../../audio/SoundManager';
 import { FairnessSession } from '../../network/FairnessSession';
+import { debugOverlay } from '../../ui/DebugOverlay';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
@@ -327,6 +328,8 @@ export class GameScene {
 
   public update(deltaTime: number): void {
     this.animatedBackground.update(deltaTime);
+    debugOverlay.ensure();
+    debugOverlay.tick();
 
     if (!this.isPlaying) {
       this.spatialGrid.clear();

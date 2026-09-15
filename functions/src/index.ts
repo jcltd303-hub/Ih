@@ -5,6 +5,7 @@ import { startGameSession, revealSessionSeed } from './startGameSession';
 import { requestDeposit, listPackages, confirmDepositStub } from './requestDeposit';
 import { requestWithdrawal } from './requestWithdrawal';
 import { updatePackages, seedDefaultPackages } from './updatePackages';
+import { getEconomyStats } from './getEconomyStats';
 
 export {
   processPlayerShot,
@@ -17,5 +18,6 @@ export {
   confirmDepositStub,
   requestWithdrawal,
   updatePackages,
-  seedDefaultPackages
+  seedDefaultPackages,
+  getEconomyStats
 };

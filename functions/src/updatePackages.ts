@@ -6,10 +6,23 @@ import { DEFAULT_PACKAGES, scBonusForPackage, type PackageTier } from './economy
  * Admin-editable package tiers. For now any authenticated user can update
  * in staging; gate with custom claim admin:true before production.
  */
-export const updatePackages = onCall(async (request) => {
+function assertAdmin(request: { auth?: { uid: string; token?: Record<string, unknown> } }) {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
   }
+  // Staging: allow if claim admin:true OR env ALLOW_PACKAGE_EDIT_ALL=1
+  const isAdmin = request.auth.token?.admin === true;
+  const allowAll = process.env.ALLOW_PACKAGE_EDIT_ALL === '1';
+  if (!isAdmin && !allowAll) {
+    throw new HttpsError(
+      'permission-denied',
+      'Admin claim required to edit packages. Set custom claim admin:true or ALLOW_PACKAGE_EDIT_ALL=1 for staging.'
+    );
+  }
+}
+
+export const updatePackages = onCall(async (request) => {
+  assertAdmin(request);
   const tiers = request.data?.tiers as PackageTier[] | undefined;
   if (!Array.isArray(tiers) || tiers.length === 0) {
     throw new HttpsError('invalid-argument', 'tiers array required.');
@@ -48,9 +61,7 @@ export const updatePackages = onCall(async (request) => {
 });
 
 export const seedDefaultPackages = onCall(async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError('unauthenticated', 'Sign in required.');
-  }
+  assertAdmin(request);
   const db = getFirestore();
   await db.collection('config').doc('packages').set({
     tiers: DEFAULT_PACKAGES,

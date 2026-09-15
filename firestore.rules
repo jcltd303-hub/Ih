@@ -1,5 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
+  // NOTE: package writes only via Admin SDK (Cloud Functions)
+
   match /databases/{database}/documents {
 
     function isSignedIn() {
@@ -68,6 +70,18 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['userId', 'timestamp'])
         && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    // Package catalog: public read; writes only via Cloud Functions (Admin SDK)
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Deposits: owner read; writes via Functions only
+    match /deposits/{depId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
     }
 
     // Default deny
