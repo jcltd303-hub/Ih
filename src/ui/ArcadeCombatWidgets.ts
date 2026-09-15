@@ -151,8 +151,9 @@ export class ArcadeCombatWidgets {
         this.crosshair.style.top = `${e.y}px`;
       }
     }));
-    this.unsubs.push(bus.on('THEME_CHANGED', (e: { theme?: 'light' | 'dark' }) => {
-      this.theme = e?.theme === 'dark' ? 'dark' : 'light';
+    this.unsubs.push(bus.on('THEME_CHANGED', (e: { id?: 'light' | 'dark' }) => {
+      this.theme = e?.id === 'dark' ? 'dark' : 'light';
+      this.parent.dataset.ffCombatTheme = this.theme;
     }));
     this.unsubs.push(bus.on<ComboEvent>('COMBO_UPDATE', (e) => this.updateCombo(e)));
     this.unsubs.push(bus.on('COMBO_BREAK', () => this.hideCombo()));
