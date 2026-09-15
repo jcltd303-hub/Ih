@@ -223,6 +223,7 @@ export class BossSystem {
   }
 
   private handleBossDefeated(): void {
+    console.log('[BossSystem] handleBossDefeated called');
     this.phase = 'BOSS_DEFEATED';
     this.remainingPhaseMs = 2000;
 
@@ -243,6 +244,7 @@ export class BossSystem {
   }
 
   private handleBossEscaped(): void {
+    console.log('[BossSystem] handleBossEscaped called (Time Out)');
     this.phase = 'BOSS_DEFEATED';
     this.remainingPhaseMs = 2000;
 
@@ -264,6 +266,7 @@ export class BossSystem {
   }
 
   public returnToNormal(): void {
+    console.log('[BossSystem] returnToNormal called - resetting to NORMAL phase');
     if (this.bossId && this.onDespawnBossCallback) {
       this.onDespawnBossCallback(this.bossId);
       this.bossId = null;

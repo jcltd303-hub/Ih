@@ -427,7 +427,7 @@ export class GameScene {
 
     // Apply shake
     if (this.shakeDuration > 0) {
-      this.shakeDuration -= deltaTime * 16.6; // Assuming 60fps, simple approximation
+      this.shakeDuration -= deltaTime; // deltaTime is already in milliseconds
       const offsetX = (Math.random() - 0.5) * this.shakeIntensity;
       const offsetY = (Math.random() - 0.5) * this.shakeIntensity;
       this.worldContainer.position.set(offsetX, offsetY);
@@ -465,6 +465,12 @@ export class GameScene {
     // Update boss raid
     this.bossRaid.update(deltaTime);
     const raidActive = this.bossRaid.isActive();
+    
+    if (raidActive && (Math.floor(Date.now() / 1000) % 5 === 0)) {
+       const state = this.bossRaid.getState();
+       console.log(`[AUDIT] BossRaid active: phase=${state.phase}, hp=${state.hp}/${state.maxHp}, time=${Math.ceil(state.timeRemaining/1000)}s`);
+    }
+
     if (raidActive && !this.lastBossBashActive) {
       this.uiManager.showBossFrenzyTitle();
       SoundManager.setBossMusic(true, false);

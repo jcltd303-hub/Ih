@@ -90,7 +90,11 @@ export class BossRaidEvent {
   }
 
   public startRaid(userId: string, onComplete?: typeof this.onComplete): void {
-    if (this.state.active) return;
+    if (this.state.active) {
+      console.warn('[BossRaidEvent] startRaid ignored - already active');
+      return;
+    }
+    console.log('[BossRaidEvent] Starting raid for user:', userId);
     this.onComplete = onComplete;
 
     const maxHp = 150 + Math.floor(Math.random() * 100);
@@ -141,6 +145,7 @@ export class BossRaidEvent {
   }
 
   private defeatBoss(lastHitUserId: string): void {
+    console.log('[BossRaidEvent] Boss DEFEATED by:', lastHitUserId);
     this.state.phase = 'defeated';
     
 
@@ -154,6 +159,7 @@ export class BossRaidEvent {
   }
 
   private escapeBoss(): void {
+    console.log('[BossRaidEvent] Boss ESCAPED (Time Out)');
     this.state.phase = 'escaped';
     
 
@@ -167,6 +173,7 @@ export class BossRaidEvent {
   }
 
   private endRaid(defeated: boolean, lastHitUserId: string | null): void {
+    console.log('[BossRaidEvent] Ending raid. Defeated:', defeated);
     const contributors = new Map<string, number>();
     for (const [uid, c] of this.state.contributors) {
       contributors.set(uid, c.damage);

@@ -397,7 +397,7 @@ export class WeaponController {
 
   public update(deltaTime: number): void {
     const dtScale = Math.min(deltaTime * 0.06, 2.5);
-    const dtMs = deltaTime * 16.666; // Pixi delta roughly 16.6ms per tick
+    const dtMs = deltaTime; // deltaTime is already in milliseconds (ticker.deltaMS)
 
     // Update arcade combat state machines
     ComboSystem.getInstance().update(dtMs);
