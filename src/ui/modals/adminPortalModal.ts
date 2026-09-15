@@ -60,6 +60,9 @@ export function showAdminPortalModal(ctx: ModalContext): void {
         </div>
       </div>
 
+      <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:8px;">DEPOSITS (FIRESTORE)</div>
+      <div id="admin-economy-stats" style="font-size:11px;color:#cbd5e1;margin-bottom:14px;background:#1e293b;padding:10px;border-radius:8px;">Loading…</div>
+
       <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:8px;">PACKAGES (GC editable · SC% auto)</div>
       <div id="admin-packages" style="font-size:11px;color:#cbd5e1;margin-bottom:8px;">Loading…</div>
       <button id="admin-pkg-save" style="width:100%;margin-bottom:8px;padding:10px;border-radius:8px;border:1px solid #22d3ee;background:#0e7490;color:#ecfeff;cursor:pointer;font-weight:800;">SAVE PACKAGE GC AMOUNTS</button>
@@ -93,6 +96,27 @@ export function showAdminPortalModal(ctx: ModalContext): void {
     dbg.addEventListener('change', () => {
       localStorage.setItem('fish_frenzy_debug', dbg.checked ? '1' : '0');
     });
+  }
+
+  
+  const ecoEl = document.getElementById('admin-economy-stats');
+  if (ecoEl && isFirebaseConfigured) {
+    httpsCallable(functions, 'getEconomyStats')()
+      .then((res) => {
+        const d = res.data as any;
+        ecoEl.innerHTML = `
+          <div>Completed deposits: <strong>${d.completed}</strong> · Pending: ${d.pending}</div>
+          <div>USD in: <strong>$${Number(d.totalDepositUsd).toFixed(2)}</strong></div>
+          <div>GC granted: <strong>${Number(d.totalGcGranted).toLocaleString()}</strong> · SC bonus: ${Number(d.totalScBonus).toFixed(2)}</div>
+          <div style="margin-top:6px;color:#64748b;">Last 14 days:</div>
+          ${(d.daily || []).slice(0, 5).map((x: any) => `<div>${x.day}: $${x.depositsUsd.toFixed(2)} · ${x.count} tx</div>`).join('') || '<div>No rows yet</div>'}
+        `;
+      })
+      .catch(() => {
+        ecoEl.textContent = 'Economy stats unavailable (deploy getEconomyStats).';
+      });
+  } else if (ecoEl) {
+    ecoEl.textContent = 'Configure Firebase to load deposit ledger.';
   }
 
   let packageTiers: any[] = [];

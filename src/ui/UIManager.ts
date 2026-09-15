@@ -973,8 +973,8 @@ export class UIManager {
           </div>`}
           <button class="lobby-tile" data-lobby="operator" style="grid-column:1 / -1; text-align:left; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; border-radius:12px; padding:14px; cursor:pointer; color:#fff;">
             <div style="font-size:18px; margin-bottom:4px;">⚙️</div>
-            <div style="font-weight:800; color:#fbbf24;">OPERATOR · PAYOUTS & MONTE CARLO</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Set RTP (90% default), run sims, deposit vs payout P&amp;L</div>
+            <div style="font-weight:800; color:#fbbf24;">OPERATOR · PACKAGES & P&L</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Packages, deposit ledger, session P&amp;L (RTP fixed 85%)</div>
           </button>
         </div>
         <button id="lobby-resume-btn" style="margin-top:16px; width:100%; background:linear-gradient(135deg,#00ffcc,#0891b2); color:#0a0f1d; border:none; padding:12px; border-radius:10px; font-weight:900; letter-spacing:1px; cursor:pointer;">

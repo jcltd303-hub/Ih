@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions, isFirebaseConfigured } from './FirebaseClient';
 import { AuthManager } from './AuthManager';
 import { WalletService } from './WalletService';
+import { debugOverlay } from '../ui/DebugOverlay';
 import { OfflineTransactionQueue } from './OfflineTransactionQueue';
 
 export type SettlementRequest = {
@@ -83,6 +84,7 @@ export class ShotSettlement {
       });
 
       const data = (response.data || {}) as Record<string, unknown>;
+      debugOverlay.setLastShotPayload(data);
       const goldCoins = Number(data.goldCoins);
       const sweepstakesCoins = Number(data.sweepstakesCoins);
       const payoutAmount = Number(data.payoutAmount) || 0;
