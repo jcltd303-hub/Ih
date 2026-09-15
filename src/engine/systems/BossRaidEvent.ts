@@ -36,6 +36,10 @@ export class BossRaidEvent {
   private screenH = 0;
   private raidStartedAt = 0;
   private resultEmitted = false;
+  private stateEmitAccumulatorMs = 0;
+  private lastStateSecond = -1;
+  private lastStateHp = -1;
+  private lastStatePhase: BossRaidState['phase'] | null = null;
 
   constructor(stage: Container, fishManager: FishManager, particleFX: ParticleFXManager) {
     this.stage = stage;
@@ -85,9 +89,15 @@ export class BossRaidEvent {
     this.announceText.y = 120;
   }
 
-  private emitState(multiplier = 2.5): void {
-    const bus = GameEventBus.getInstance();
+  private emitState(multiplier = 2.5, force = false): void {
     const hpPercent = this.state.maxHp > 0 ? (this.state.hp / this.state.maxHp) * 100 : 0;
+    const second = Math.ceil(this.state.timeRemaining / 1000);
+    const hpChanged = this.lastStateHp < 0 || Math.abs(this.state.hp - this.lastStateHp) >= 1;
+    const secondChanged = second !== this.lastStateSecond;
+    const phaseChanged = this.state.phase !== this.lastStatePhase;
+    if (!force && !hpChanged && !secondChanged && !phaseChanged) return;
+
+    const bus = GameEventBus.getInstance();
     const phase: BossStateEvent['phase'] = this.state.phase;
     bus.emit<BossStateEvent>('BOSS_STATE', {
       bossId: this.bossId ?? undefined,
@@ -96,10 +106,13 @@ export class BossRaidEvent {
       hp: this.state.hp,
       maxHp: this.state.maxHp,
       hpPercent,
-      timeRemainingSec: Math.max(0, Math.ceil(this.state.timeRemaining / 1000)),
+      timeRemainingSec: Math.max(0, second),
       totalDamage: this.state.totalDamage,
       multiplier
     });
+    this.lastStateHp = this.state.hp;
+    this.lastStateSecond = second;
+    this.lastStatePhase = this.state.phase;
   }
 
   public startRaid(userId: string, onComplete?: typeof this.onComplete): void {
@@ -108,6 +121,10 @@ export class BossRaidEvent {
     this.onComplete = onComplete;
     this.resultEmitted = false;
     this.raidStartedAt = Date.now();
+    this.stateEmitAccumulatorMs = 0;
+    this.lastStateSecond = -1;
+    this.lastStateHp = -1;
+    this.lastStatePhase = null;
 
     const maxHp = 150 + Math.floor(Math.random() * 100);
     this.state = {
@@ -128,7 +145,7 @@ export class BossRaidEvent {
     bus.emit('BOSS_WARNING', { name: 'APEX LEVIATHAN', warningMs: 1200 });
     bus.emit('BOSS_INTRO', { name: 'APEX LEVIATHAN' });
     bus.emit('BOSS_START', { name: 'APEX LEVIATHAN', bossId: this.bossId });
-    this.emitState();
+    this.emitState(2.5, true);
 
     SoundManager.playBossWarning();
     this.uiContainer.visible = false; // HUD owns boss chrome.
@@ -160,7 +177,7 @@ export class BossRaidEvent {
   private defeatBoss(lastHitUserId: string): void {
     if (!this.state.active || this.state.phase === 'defeated') return;
     this.state.phase = 'defeated';
-    this.emitState();
+    this.emitState(2.5, true);
 
     if (this.bossId) {
       this.fishManager.killFish(this.bossId);
@@ -183,7 +200,7 @@ export class BossRaidEvent {
   private escapeBoss(): void {
     if (!this.state.active || this.state.phase === 'escaped' || this.state.phase === 'defeated') return;
     this.state.phase = 'escaped';
-    this.emitState();
+    this.emitState(2.5, true);
 
     if (this.bossId) {
       const fish = this.fishManager.getFish(this.bossId);
@@ -240,7 +257,11 @@ export class BossRaidEvent {
     this.hpBarFill.rect(barX + 1, barY + 1, (barWidth - 2) * hpPct, 8);
     this.hpBarFill.fill({ color: this.state.phase === 'enraged' ? 0xff3300 : 0x00ffcc, alpha: 0.95 });
 
-    this.emitState();
+    this.stateEmitAccumulatorMs += deltaTime;
+    if (this.stateEmitAccumulatorMs >= 100) {
+      this.stateEmitAccumulatorMs = 0;
+      this.emitState();
+    }
   }
 
   public getState(): BossRaidState {
