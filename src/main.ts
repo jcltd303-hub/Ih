@@ -53,8 +53,14 @@ async function bootstrap() {
   );
 
   const app = new Application();
+  const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+  const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
   await app.init({
-    resizeTo: window,
+    // Mobile browsers can report a transient/incorrect size through the
+    // ResizeTo plugin during startup. Give Pixi a real backing size first;
+    // resize explicitly below after the canvas is mounted.
+    width: viewportWidth,
+    height: viewportHeight,
     background: '#0a0f1d',
     antialias: perf.antialias,
     resolution: perf.resolution,
@@ -65,6 +71,17 @@ async function bootstrap() {
 
   if (perf.targetFps === 30) app.ticker.maxFPS = 30;
   root.appendChild(app.canvas);
+
+  const syncPixiViewport = () => {
+    const w = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    const h = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    if (app.screen.width !== w || app.screen.height !== h) {
+      app.renderer.resize(w, h);
+    }
+  };
+  syncPixiViewport();
+  window.addEventListener('resize', syncPixiViewport, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncPixiViewport, { passive: true });
 
   // Android-safe path: avoid canvas-backed procedural textures and use native
   // Pixi Graphics for gameplay art. This keeps the renderer itself Pixi/WebGL.
@@ -97,7 +114,7 @@ async function bootstrap() {
   app.ticker.add((ticker) => gameScene.update(ticker.deltaMS));
 
   console.log(
-    `[Fish Frenzy] online @ ${perf.targetFps} FPS target, tier=${perf.tier}, maxFish=${perf.maxFish}`
+    `[Fish Frenzy] online @ ${perf.targetFps} FPS target, tier=${perf.tier}, maxFish=${perf.maxFish}, viewport=${app.screen.width}x${app.screen.height}`
   );
 
   let statusHost = document.getElementById('ff-react-root');
