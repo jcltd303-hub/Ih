@@ -56,7 +56,7 @@ export function showProgressionModal(ctx: ModalContext): void {
             <span>⚡ LUCKY SHOT OVERCHARGE &amp; BOSS OVERDRIVE</span>
           </div>
           <p style="margin: 0; color: #94a3b8;">
-            Every shot and fish kill has a lucky chance to overcharge your turret for 5 seconds (2x firing rate, +40% damage, Sovereign chassis). During boss events, your cannon receives automatic Overdrive!
+            Every shot and fish kill has a lucky chance to overcharge your turret for 4.5 seconds (2x firing rate, +40% damage, Sovereign chassis). During boss events, your cannon receives automatic Overdrive!
           </p>
         </div>
       </div>
