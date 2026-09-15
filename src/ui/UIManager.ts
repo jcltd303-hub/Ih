@@ -467,21 +467,37 @@ export class UIManager {
     const activeTable = TableSelectionManager.getInstance().getActiveTable();
     this.container.innerHTML = `
       <!-- TOP NAV — flat, no boxed chrome -->
-      <div id="hud-topbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; pointer-events:auto; gap:10px; flex-wrap:wrap; padding:2px 4px;">
+      <div id="hud-topbar" style="
+  display:flex; justify-content:space-between; align-items:center;
+  width:100%; pointer-events:auto; gap:8px; flex-wrap:wrap;
+  padding:5px 7px;
+  background:rgba(3,7,12,.88);
+  border:2px solid rgba(148,163,184,.55);
+  border-bottom:3px solid #020617;
+  box-shadow:0 3px 0 #020617, inset 0 1px 0 rgba(255,255,255,.08);
+  font-family:monospace;
+  letter-spacing:.5px;
+">
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:none; border:none; padding:0;">
+          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:rgba(15,23,42,.72); border:1px solid rgba(148,163,184,.35);
+padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
             <span id="hud-gc-balance" style="font-size:16px; font-weight:900; color:#fbbf24; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.gcBalance.toLocaleString()}<sub style="font-size:10px;color:#fcd34d;margin-left:2px;font-weight:800;">GC</sub></span>
           </div>
-          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:none; border:none; padding:0;">
+          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:rgba(15,23,42,.72); border:1px solid rgba(148,163,184,.35);
+padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
             <span id="hud-sc-balance" style="font-size:16px; font-weight:900; color:#5eead4; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.scBalance.toFixed(2)}<sub style="font-size:10px;color:#99f6e4;margin-left:2px;font-weight:800;">SC</sub></span>
           </div>
           ${activeTable.mode === 'tournament' ? `<span id="hud-tourney-shield" title="Tournament" style="font-size:18px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.8)); line-height:1;">🛡️</span>` : ''}
-          <button id="hud-level-btn" title="Level" style="background:none; border:none; padding:0; cursor:pointer; display:flex; align-items:center; gap:6px;">
-            <span style="font-size:12px; font-weight:900; color:#e9d5ff; text-shadow:0 1px 3px rgba(0,0,0,.85);">Lv <span id="hud-level-val">1</span></span>
-            <div style="width:36px; height:4px; background:rgba(0,0,0,.45); border-radius:2px; overflow:hidden;">
-              <div id="hud-level-bar" style="width:0%; height:100%; background:linear-gradient(90deg,#c084fc,#f472b6);"></div>
-            </div>
-          </button>
+          <button id="hud-level-btn" title="Level" style="
+  background:#111827; border:2px solid #64748b; padding:3px 7px;
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+  color:#f8fafc; box-shadow:0 2px 0 #020617;
+">
+  <span style="font-size:12px; font-weight:900; color:#f8fafc;">LV <span id="hud-level-val">1</span></span>
+  <div style="width:44px; height:7px; background:#020617; border:1px solid #475569; overflow:hidden;">
+    <div id="hud-level-bar" style="width:0%; height:100%; background:#22d3ee;"></div>
+  </div>
+</button>
           <span id="hud-bet-display" style="display:none;">${this.getCurrentBet()}</span>
           <button id="hud-table-btn" style="display:none;"></button>
         </div>
@@ -495,7 +511,7 @@ export class UIManager {
       <div id="hud-boss-overlay" style="display:none; position:absolute; inset:0; z-index:15; pointer-events:none;
         background:rgba(180,0,20,0.10);"></div>
 
-      <div id="hud-boss-combat" style="display:none; position:absolute; left:50%; top:10px;
+      <div id="hud-boss-combat" style="display:none; position:absolute; left:50%; top:8px;
         transform:translateX(-50%); width:min(680px,calc(100% - 28px)); z-index:31;
         pointer-events:none; font-family:monospace;">
 
@@ -503,8 +519,8 @@ export class UIManager {
           padding:4px 8px; background:#09090b; border:2px solid #ef4444;
           border-bottom:none; text-transform:uppercase; letter-spacing:2px;">
           <span style="font-size:11px; font-weight:900; color:#f87171;">BOSS</span>
-          <span id="hud-boss-name" style="font-size:13px; font-weight:900; color:#f8fafc;">ABYSSAL BOSS</span>
-          <span id="hud-boss-phase" style="font-size:11px; font-weight:900; color:#fbbf24;">ENGAGED</span>
+          <span id="hud-boss-name" style="font-size:13px; font-weight:900; letter-spacing:1.5px; color:#f8fafc; font-family:monospace;">ABYSSAL BOSS</span>
+          <span id="hud-boss-phase" style="font-size:10px; font-weight:900; letter-spacing:1px; color:#fbbf24; font-family:monospace;">ENGAGED</span>
         </div>
 
         <div style="height:18px; padding:2px; background:#020617; border:2px solid #f8fafc;
@@ -536,11 +552,11 @@ export class UIManager {
 
       <!-- Bet badge near turret (bottom-center, slightly right) -->
       <div id="hud-bet-badge" style="position:absolute; left:58%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
-        padding:4px 10px; border-radius:999px; font-weight:900; letter-spacing:1px;
+        padding:3px 8px; border:2px solid rgba(248,250,252,.55); font-weight:900; letter-spacing:1px; font-family:monospace; background:rgba(2,6,23,.88);
         border:none; background:rgba(0,0,0,0.45); color:#67e8f9; font-size:13px;
         text-shadow:0 0 8px rgba(34,211,238,0.8);">×1.00</div>
       <div id="hud-barrel-badge" style="position:absolute; left:42%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
-        padding:4px 8px; border-radius:999px; font-weight:900; font-size:12px; color:#fbbf24;
+        padding:3px 7px; border:2px solid #fbbf24; font-weight:900; font-size:12px; color:#fbbf24; font-family:monospace; background:rgba(2,6,23,.88);
         text-shadow:0 0 8px rgba(251,191,36,.7); background:rgba(0,0,0,.4);">1×</div>
     `;
 
@@ -846,7 +862,7 @@ export class UIManager {
       badge.textContent = `×${bet.toFixed(2)} ${this.activeCurrency}`;
       badge.style.transform = `translateX(-50%) scale(${scale})`;
       badge.style.color = fg;
-      badge.style.boxShadow = `0 0 ${10 + bet * 2}px ${fg}55`;
+      badge.style.boxShadow = `2px 2px 0 #020617, inset 0 0 0 1px ${fg}55`;
     }
     const barrelEl = document.getElementById('hud-barrel-badge');
     if (barrelEl) {
