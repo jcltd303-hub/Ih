@@ -20,6 +20,10 @@ export const GameConfig = {
   overchargeLuckyHitChance: 0.08,
 
   /** Boss pacing */
+  /** Earliest boss trigger after Play; progress still gates the actual start. */
+  bossGracePeriodMs: 30000,
+  /** Combat progress required before another boss raid can start. */
+  bossProgressThreshold: 120,
   bossGracePeriodMs: 30000,
   bossProgressThreshold: 120,
 
