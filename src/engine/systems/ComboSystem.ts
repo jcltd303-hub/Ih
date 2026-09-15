@@ -5,7 +5,8 @@ export class ComboSystem {
   private count = 0;
   private maxCombo = 0;
   private remainingMs = 0;
-  private readonly WINDOW_MS = 2200;
+  /** Short fighter-style chain window: keep pressure on instead of passive stacking. */
+  private readonly WINDOW_MS = 1800;
   private isActive = false;
   private emitAccumulatorMs = 0;
 
