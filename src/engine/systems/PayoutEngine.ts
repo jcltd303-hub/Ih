@@ -124,14 +124,8 @@ export class PayoutEngine {
     if (typeof rtp === 'number' && Number.isFinite(rtp)) {
       this.config.targetRtp = Math.min(90, Math.max(85, rtp));
     }
-    if (
-      typeof maxLifetimeRtpGuard === 'number' &&
-      Number.isFinite(maxLifetimeRtpGuard)
-    ) {
-      this.config.maxLifetimeRtpGuard = Math.min(
-        150,
-        Math.max(90, maxLifetimeRtpGuard)
-      );
+    if (typeof maxLifetimeRtpGuard === 'number') {
+      this.config.maxLifetimeRtpGuard = maxLifetimeRtpGuard;
     }
   }
 
@@ -353,13 +347,16 @@ export class PayoutEngine {
 
     let isInstantKill = false;
 
-    if (this.config.gambleKillEnabled) {
+    // Bosses fight through their HP pool and enrage phases only — the
+    // instant-kill gamble is a trash-fish mechanic. Left enabled here it
+    // compounds across a rapid-fire burst into a near-certain kill within
+    // the first few seconds, skipping the entire multi-phase encounter
+    // before it can get going.
+    if (this.config.gambleKillEnabled && fishType !== 'boss') {
       const baseInstantProb =
         fishType === 'small'
           ? 0.22
-          : fishType === 'medium'
-            ? 0.1
-            : 0.032;
+          : 0.1;
 
       if (
         Math.random() <

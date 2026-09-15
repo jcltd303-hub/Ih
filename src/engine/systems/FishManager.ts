@@ -40,7 +40,13 @@ export class FishManager {
     this.screenHeight = height;
   }
 
-  public spawnFish(type: 'small' | 'medium' | 'boss' = 'small'): Fish {
+  /**
+   * @param maxHpOverride Boss-only: HP pool to give the fish/BossManager
+   * instance. Callers spawning a boss for a raid MUST pass the raid's
+   * actual maxHp here so the visual/combat boss doesn't die (and vanish)
+   * long before the raid's own HP tracker reaches zero.
+   */
+  public spawnFish(type: 'small' | 'medium' | 'boss' = 'small', maxHpOverride?: number): Fish {
     this.fishIdCounter++;
     const id = `fish_${this.fishIdCounter}`;
 
@@ -48,7 +54,7 @@ export class FishManager {
     const startX = isLeftToRight ? -100 : this.screenWidth + 100;
     const startY = Math.random() * (this.screenHeight * 0.6) + 80;
 
-    const fish = new Fish(id, type, startX, startY, this.screenWidth, this.screenHeight, this.currentTheme);
+    const fish = new Fish(id, type, startX, startY, this.screenWidth, this.screenHeight, this.currentTheme, maxHpOverride);
     this.stage.addChild(fish.container);
 
     this.activeFish.set(id, fish);

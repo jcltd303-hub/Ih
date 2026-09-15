@@ -41,7 +41,8 @@ export class Fish implements Boid {
     startY: number,
     screenWidth: number,
     screenHeight: number,
-    theme: 'light' | 'dark' = 'light'
+    theme: 'light' | 'dark' = 'light',
+    maxHpOverride?: number
   ) {
     this.id = id;
     this.typeId = type;
@@ -68,8 +69,12 @@ export class Fish implements Boid {
     this.vy = Math.sin(angle) * (baseSpeed * 0.5);
     this.facing = this.vx < 0 ? 'left' : 'right';
 
-    // Reduced HP for high-impact arcade gameplay
-    this.health = isBoss ? 28 : isSmall ? 2 : 6;
+    // Reduced HP for high-impact arcade gameplay. Boss HP defaults to a
+    // small placeholder but should always be supplied by the caller
+    // (e.g. BossRaidEvent) matching the raid's actual HP pool — otherwise
+    // the boss fish dies in a handful of hits while the raid tracker
+    // still thinks the fight has barely started.
+    this.health = isBoss ? (maxHpOverride ?? 28) : isSmall ? 2 : 6;
     this.maxHealth = this.health;
     this.multiplier = isBoss ? 25 : isSmall ? 1.2 : 4;
     this.worth = this.multiplier;
@@ -85,7 +90,7 @@ export class Fish implements Boid {
     this.container = new Container();
 
     if (isBoss) {
-      this.bossInstance = new BossManager(28, theme);
+      this.bossInstance = new BossManager(this.health, theme);
       this.container.addChild(this.bossInstance);
     } else {
       // Create animated sprite sheet rig for swimming and 3D turning with species and theme fidelity
