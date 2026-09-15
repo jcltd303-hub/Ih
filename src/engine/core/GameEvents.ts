@@ -26,6 +26,7 @@ export type GameEventType =
   | 'BOSS_DEFEATED'
   | 'BOSS_ESCAPED'
   | 'ROUND_END'
+  | 'GAME_OVER'
   | 'PAYOUT'
   | 'THEME_CHANGED'
   | 'SCREEN_SHAKE';
@@ -68,6 +69,11 @@ export interface TurretMultiplierEvent {
   totalDurationMs: number;
 }
 
+export interface ScreenShakeEvent {
+  intensity: number;
+  durationMs: number;
+}
+
 export interface BossStateEvent {
   bossId?: string;
   phase: 'idle' | 'warning' | 'intro' | 'engaged' | 'enraged' | 'defeated' | 'escaped';
@@ -87,6 +93,14 @@ export interface BossResultEvent {
   currency: 'GC' | 'SC';
   multiplier: number;
   timeElapsedSec: number;
+}
+
+export interface GameOverEvent {
+  score: number;
+  kills: number;
+  accuracy: number;
+  maxCombo: number;
+  payout: number;
 }
 
 type EventCallback<T = any> = (data: T) => void;

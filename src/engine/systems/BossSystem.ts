@@ -51,9 +51,16 @@ export class BossSystem {
     this.totalKillsSinceBoss++;
     
     console.log(`[AUDIT] BossSystem: Kill registered. TotalSinceBoss=${this.totalKillsSinceBoss}, Phase=${this.phase}, Cooldown=${this.cooldownRemainingMs}ms`);
+    console.log(`[AUDIT] BossSystem: State: minKills=${this.config.minKills}, maxKills=${this.config.maxKills}`);
 
-    if (this.phase !== 'NORMAL') return false;
-    if (this.cooldownRemainingMs > 0) return false;
+    if (this.phase !== 'NORMAL') {
+      console.log(`[AUDIT] BossSystem: Blocked - Phase is not NORMAL (${this.phase})`);
+      return false;
+    }
+    if (this.cooldownRemainingMs > 0) {
+      console.log(`[AUDIT] BossSystem: Blocked - Cooldown active (${this.cooldownRemainingMs}ms)`);
+      return false;
+    }
 
     // Safety net: if player reached maxKills, guarantee boss trigger!
     const hitSafetyNet = this.totalKillsSinceBoss >= this.config.maxKills;

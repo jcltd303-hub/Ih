@@ -18,6 +18,7 @@ import { debugOverlay } from '../../ui/DebugOverlay';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
+import { GameEventBus, ScreenShakeEvent } from './GameEvents';
 import { TableSelection } from '../../network/TableSelection';
 import type { TableInfo } from '../../network/TableSelection';
 import { TableSelectionManager } from '../../network/TableSelectionManager';
@@ -59,6 +60,10 @@ export class GameScene {
   private readonly BOSS_PROGRESS_THRESHOLD = GameConfig.bossProgressThreshold;
   /** Earliest time boss may start after Play. */
   private bossUnlockAtMs = 0;
+  
+  // Screen shake
+  private shakeIntensity = 0;
+  private shakeDuration = 0;
 
   constructor(
     app: Application,
@@ -141,11 +146,12 @@ export class GameScene {
     this.setupInputListeners();
     this.setupResizeListener();
 
-    // ... (previous code)
-    this.setupResizeListener();
-
     // HUD Elements
     this.renderCombatHUD();
+
+    GameEventBus.getInstance().on<ScreenShakeEvent>('SCREEN_SHAKE', (data) => {
+      this.triggerShake(data.intensity, data.durationMs);
+    });
 
     // Show start screen; gameplay + multiplayer join after Play
     this.uiManager.showStartScreen();
@@ -271,12 +277,28 @@ export class GameScene {
   }
 
   private tryStartBossFromProgress(): void {
-    if (this.bossRaid.isActive()) return;
-    if (Date.now() < this.bossUnlockAtMs) return;
+    if (this.bossRaid.isActive()) {
+      console.log('[AUDIT] BossRaid blocked: Already active');
+      return;
+    }
+    if (Date.now() < this.bossUnlockAtMs) {
+      console.log(`[AUDIT] BossRaid blocked: Grace period active (${this.bossUnlockAtMs - Date.now()}ms remaining)`);
+      return;
+    }
     const table = this.tableSelection.getCurrentTable() as any;
-    if (table?.isPractice || table?.mode === 'practice') return;
-    if (!TableSelectionManager.getInstance().isBossRaidAllowed()) return;
-    if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) return;
+    if (table?.isPractice || table?.mode === 'practice') {
+      console.log('[AUDIT] BossRaid blocked: Practice mode');
+      return;
+    }
+    if (!TableSelectionManager.getInstance().isBossRaidAllowed()) {
+      console.log('[AUDIT] BossRaid blocked: Raid not allowed for this table');
+      return;
+    }
+    if (this.bossProgressScore < this.BOSS_PROGRESS_THRESHOLD) {
+      console.log(`[AUDIT] BossRaid blocked: Progress score too low (${this.bossProgressScore} < ${this.BOSS_PROGRESS_THRESHOLD})`);
+      return;
+    }
+    console.log('[AUDIT] BossRaid starting now!');
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     this.bossProgressScore = 0;
     this.bossRaid.startRaid(uid, (result) => {
@@ -393,10 +415,27 @@ export class GameScene {
     this.uiManager.setBalances(gc, sc);
   }
 
+  public triggerShake(intensity: number, durationMs: number): void {
+    this.shakeIntensity = intensity;
+    this.shakeDuration = durationMs;
+  }
+
   public update(deltaTime: number): void {
     this.animatedBackground.update(deltaTime);
     debugOverlay.ensure();
     debugOverlay.tick();
+
+    // Apply shake
+    if (this.shakeDuration > 0) {
+      this.shakeDuration -= deltaTime * 16.6; // Assuming 60fps, simple approximation
+      const offsetX = (Math.random() - 0.5) * this.shakeIntensity;
+      const offsetY = (Math.random() - 0.5) * this.shakeIntensity;
+      this.worldContainer.position.set(offsetX, offsetY);
+      if (this.shakeDuration <= 0) {
+        this.shakeIntensity = 0;
+        this.worldContainer.position.set(0, 0);
+      }
+    }
 
     if (!this.isPlaying) {
       this.spatialGrid.clear();

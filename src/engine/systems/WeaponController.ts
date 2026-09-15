@@ -12,7 +12,7 @@ import { functions } from '../../network/FirebaseClient';
 import { httpsCallable } from 'firebase/functions';
 import { PayoutEngine } from './PayoutEngine';
 import { SpriteSheetManager, TurretAnimationRig, TurretSkinId } from './SpriteSheetManager';
-import { GameEventBus } from '../core/GameEvents';
+import { GameEventBus, ScreenShakeEvent } from '../core/GameEvents';
 import { ComboSystem } from './ComboSystem';
 import { TurretSystem } from './TurretSystem';
 import { BossSystem } from './BossSystem';
@@ -453,6 +453,14 @@ export class WeaponController {
         
         // Enhance hit effect based on hierarchy
         const hierarchyBonus = fish?.hierarchy === 'CRITICAL' ? 1.5 : (fish?.hierarchy === 'ELITE' ? 1.2 : 1.0);
+        const isCrit = evalHit.isCrit || fish?.hierarchy === 'CRITICAL';
+        
+        if (isCrit) {
+          GameEventBus.getInstance().emit<ScreenShakeEvent>('SCREEN_SHAKE', {
+            intensity: 8,
+            durationMs: 150
+          });
+        }
         
         GameEventBus.getInstance().emit('FISH_HIT', {
           fishId: hitEntity.id,
@@ -461,7 +469,7 @@ export class WeaponController {
           damage: evalHit.damage * hierarchyBonus,
           x: proj.x,
           y: proj.y,
-          isCrit: evalHit.isCrit || fish?.hierarchy === 'CRITICAL',
+          isCrit: isCrit,
           isSuperCrit: evalHit.isSuperCrit,
           isInstantKill: evalHit.isInstantKill,
           payout: evalHit.hitPayout,

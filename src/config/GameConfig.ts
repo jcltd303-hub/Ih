@@ -23,7 +23,7 @@ export const GameConfig = {
   /** Earliest boss trigger after Play; progress still gates the actual start. */
   bossGracePeriodMs: 30000,
   /** Combat progress required before another boss raid can start. */
-  bossProgressThreshold: 120,
+  bossProgressThreshold: 30,
 
   /** Small-fish school size range when a tetra wave rolls */
   schoolSizeMin: 2,
@@ -40,13 +40,13 @@ export const GameConfig = {
 
   /** Boss pacing */
   bossPacing: {
-    minKills: 25,
-    maxKills: 60,
-    chancePerKill: 0.12, // Increased slightly for reliability
+    minKills: 5,
+    maxKills: 30,
+    chancePerKill: 0.25, // Increased significantly for testing
     warningDurationMs: 2500,
     introDurationMs: 1500,
-    battleDurationMs: 35000,
-    cooldownMs: 20000
+    battleDurationMs: 90000,
+    cooldownMs: 5000
   },
 
   /** Turret pacing */

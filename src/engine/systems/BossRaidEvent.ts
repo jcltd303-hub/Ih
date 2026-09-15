@@ -32,8 +32,8 @@ export class BossRaidEvent {
   private hpBarFill: Graphics;
   private announceText: Text;
   private onComplete?: (result: { defeated: boolean; lastHitUserId: string | null; contributors: Map<string, number> }) => void;
-  private readonly RAID_DURATION_MS = 30000;
-  private readonly ESCAPE_COUNTDOWN_MS = 15000;
+  private readonly RAID_DURATION_MS = 90000;
+  private readonly ESCAPE_COUNTDOWN_MS = 70000;
   private screenW = 0;
   private screenH = 0;
 

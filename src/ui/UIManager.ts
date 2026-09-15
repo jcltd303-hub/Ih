@@ -5,6 +5,7 @@ import { SoundManager } from '../audio/SoundManager';
 import { AudioManager } from '../audio/AudioManager';
 import { GameTheme, ThemeManager } from '../engine/systems/ThemeManager';
 import { PayoutEngine } from '../engine/systems/PayoutEngine';
+import { showGameOverModal } from './modals/gameOverModal';
 import { showStreakModal as openStreakModal } from './modals/streakModal';
 import { showLeaderboardModal as openLeaderboardModal } from './modals/leaderboardModal';
 import { showAdminPortalModal as openAdminPortalModal } from './modals/adminPortalModal';
@@ -17,7 +18,7 @@ import { showAuthModal } from './modals/authModal';
 import { showDepositModal, showWithdrawModal } from './modals/walletModal';
 import { TableSelectionManager, AVAILABLE_TABLES, TableConfig } from '../network/TableSelectionManager';
 import { PlayerProgressionManager, PlayerProgressionState } from '../engine/systems/PlayerProgressionManager';
-import { GameEventBus } from '../engine/core/GameEvents';
+import { GameEventBus, GameOverEvent } from '../engine/core/GameEvents';
 import { ARCADE } from './StyleConstants';
 import { KillFeed } from './KillFeed';
 import { StreetFighterBossBar } from './StreetFighterBossBar';
@@ -107,6 +108,10 @@ export class UIManager {
     });
     window.addEventListener('ff-open-store', () => {
       this.openStore();
+    });
+
+    GameEventBus.getInstance().on<GameOverEvent>('GAME_OVER', (data) => {
+      this.showGameOverModal(data);
     });
 
     // Seed lifetime deposit ledger once with starting SC (operator P&L baseline)
@@ -822,6 +827,15 @@ export class UIManager {
 
   private async showStreakModal(): Promise<void> {
     await openStreakModal(this.modalCtx());
+  }
+
+  public showGameOverModal(data: any): void {
+    showGameOverModal({
+      ...data,
+      onPlayAgain: () => {
+        if (this.onPlayCallback) this.onPlayCallback();
+      }
+    });
   }
 
   private showLeaderboardModal(): void {
