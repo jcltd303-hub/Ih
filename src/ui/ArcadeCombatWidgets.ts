@@ -159,7 +159,8 @@ export class ArcadeCombatWidgets {
     this.unsubs.push(bus.on('COMBO_BREAK', () => this.hideCombo()));
     this.unsubs.push(bus.on<FishHitEvent>('FISH_HIT', (e) => this.showDamageNumber(e.x, e.y, e.damage, e.isCrit)));
     this.unsubs.push(bus.on<FishHitEvent>('BOSS_HIT', (e) => this.showDamageNumber(e.x, e.y, e.damage, e.isCrit)));
-    this.unsubs.push(bus.on('GAME_START', () => this.showBanner('READY?', 650, () => this.showBanner('FIGHT!', 700))));
+    // No READY gate: the cabinet is already live when GAME_START fires.
+    this.unsubs.push(bus.on('GAME_START', () => this.showBanner('FIGHT!', 700)));
     this.unsubs.push(bus.on('BOSS_START', () => this.showBanner('BOSS BATTLE!', 1100)));
     this.unsubs.push(bus.on<any>('BOSS_PHASE_CHANGE', (e) => this.showBanner(e.phase || 'ENRAGED', 900)));
     this.unsubs.push(bus.on('BOSS_DEFEATED', () => this.showBanner('K.O.', 1200)));
