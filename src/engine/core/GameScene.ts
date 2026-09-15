@@ -129,6 +129,10 @@ export class GameScene {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
+    // PLAY is a real user gesture on web/mobile, so explicitly kick the
+    // scheduler here instead of waiting for a later audio event. This also
+    // makes BGM recover reliably after a suspended AudioContext.
+    if (SoundManager.isBgmEnabled() && SoundManager.isSoundEnabled()) SoundManager.startBgm();
     void FairnessSession.getInstance().begin().then((sess) => console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…'));
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
