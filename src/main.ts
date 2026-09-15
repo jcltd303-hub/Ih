@@ -3,6 +3,7 @@ import './ui/finalArcadePolish.css';
 import { Application } from 'pixi.js';
 import { GameScene } from './engine/core/GameScene';
 import { AssetLoader } from './engine/systems/AssetLoader';
+import { enableMobilePixiCompatibility } from './engine/systems/MobilePixiCompatibility';
 import { AuthManager } from './network/AuthManager';
 import { WalletService } from './network/WalletService';
 import {
@@ -65,16 +66,23 @@ async function bootstrap() {
   if (perf.targetFps === 30) app.ticker.maxFPS = 30;
   root.appendChild(app.canvas);
 
-  try {
-    await AssetLoader.loadGameAssets();
-  } catch (err) {
-    console.error('[Fish Frenzy] Asset load failed', err);
-    Analytics.track('asset_load_error', { message: String(err) });
-    const banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100;background:#7f1d1d;color:#fecaca;padding:10px 16px;border-radius:8px;font:12px monospace;';
-    banner.textContent = 'Asset load issue — some sprites may be missing. Game continues.';
-    document.body.appendChild(banner);
-    setTimeout(() => banner.remove(), 6000);
+  // Android-safe path: avoid canvas-backed procedural textures and use native
+  // Pixi Graphics for gameplay art. This keeps the renderer itself Pixi/WebGL.
+  const mobilePixiSafe = enableMobilePixiCompatibility();
+  if (!mobilePixiSafe) {
+    try {
+      await AssetLoader.loadGameAssets();
+    } catch (err) {
+      console.error('[Fish Frenzy] Asset load failed', err);
+      Analytics.track('asset_load_error', { message: String(err) });
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100;background:#7f1d1d;color:#fecaca;padding:10px 16px;border-radius:8px;font:12px monospace;';
+      banner.textContent = 'Asset load issue — some sprites may be missing. Game continues.';
+      document.body.appendChild(banner);
+      setTimeout(() => banner.remove(), 6000);
+    }
+  } else {
+    console.info('[Fish Frenzy] skipped canvas texture asset pipeline on mobile');
   }
 
   const gameScene = new GameScene(app, root, {
