@@ -21,9 +21,9 @@ export const GameConfig = {
 
   /** Boss pacing */
   /** Earliest boss trigger after Play; progress still gates the actual start. */
-  bossGracePeriodMs: 30000,
+  bossGracePeriodMs: 12000,
   /** Combat progress required before another boss raid can start. */
-  bossProgressThreshold: 30,
+  bossProgressThreshold: 24,
 
   /** Small-fish school size range when a tetra wave rolls */
   schoolSizeMin: 2,
@@ -49,14 +49,14 @@ export const GameConfig = {
     cooldownMs: 5000
   },
 
-  /** Turret pacing — intentionally scarce, short arcade power window */
+  /** Turret pacing — scarce, short arcade power window */
   turretPacing: {
-    minKillsBetweenTriggers: 28,
-    baseChance: 0.012,
-    durationMs: 2200,
-    maxDurationMs: 2500,
+    minKillsBetweenTriggers: 40,
+    baseChance: 0.0075,
+    durationMs: 1700,
+    maxDurationMs: 1900,
     multiplier: 2,
-    cooldownMs: 18000
+    cooldownMs: 22000
   },
 
   /** Starting balances */
