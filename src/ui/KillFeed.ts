@@ -27,15 +27,12 @@ export class KillFeed {
 
   private setupListeners(): void {
     const bus = GameEventBus.getInstance();
-    this.unsub = bus.on<FishKilledEvent>('FISH_KILLED', (event) => this.addItem(event));
-    this.unsub = (() => {
-      const first = this.unsub;
-      const roundEnd = bus.on('ROUND_END', () => this.resetStreak());
-      return () => {
-        first?.();
-        roundEnd();
-      };
-    })();
+    const killUnsub = bus.on<FishKilledEvent>('FISH_KILLED', (event) => this.addItem(event));
+    const roundUnsub = bus.on('ROUND_END', () => this.resetStreak());
+    this.unsub = () => {
+      killUnsub();
+      roundUnsub();
+    };
   }
 
   public addItem(event: FishKilledEvent): void {
@@ -72,7 +69,7 @@ export class KillFeed {
     if (isBoss) {
       this.showStreakPulse('BOSS DOWN');
     } else if (this.roundKills % 5 === 0) {
-      this.showStreakPulse(`${this.roundKills} K.O.');
+      this.showStreakPulse(`${this.roundKills} K.O.`);
     }
 
     const timeoutId = window.setTimeout(() => {
