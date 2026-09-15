@@ -677,85 +677,181 @@ padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
   public showLobby(): void {
     SoundManager.playUiSound('modal_open');
     const tables = TableSelectionManager.getInstance().getTables();
-    const chip = (active: boolean, on: string, off: string) =>
+
+    const panel = (active: boolean, accent: string) =>
       active
-        ? `background:linear-gradient(180deg,${on},#0f172a);color:#fff;box-shadow:0 4px 0 #0f172a,0 0 16px ${on}55;transform:translateY(-1px);`
-        : `background:linear-gradient(180deg,#334155,#1e293b);color:#94a3b8;box-shadow:0 3px 0 #0f172a;`;
+        ? `background:#111827;color:#f8fafc;border:2px solid ${accent};box-shadow:2px 2px 0 #020617,inset 0 0 0 1px ${accent}55;`
+        : `background:#0f172a;color:#94a3b8;border:2px solid #475569;box-shadow:2px 2px 0 #020617;`;
+
     this.modalContainer.innerHTML = `
       <style>
         .ff-arc-btn {
-          border: none; border-radius: 14px; cursor: pointer; font-weight: 900;
-          letter-spacing: 0.06em; font-family: system-ui, sans-serif;
-          transition: transform 0.08s ease, filter 0.15s ease;
+          border:2px solid #64748b;
+          border-radius:0;
+          cursor:pointer;
+          font-weight:900;
+          letter-spacing:.06em;
+          font-family:monospace;
+          transition:transform .06s ease, filter .08s ease;
         }
-        .ff-arc-btn:active { transform: translateY(2px) !important; filter: brightness(0.95); }
+
+        .ff-arc-btn:hover {
+          filter:brightness(1.12);
+        }
+
+        .ff-arc-btn:active {
+          transform:translate(2px,2px) !important;
+          filter:brightness(.92);
+        }
+
         .ff-arc-chip {
-          border: none; border-radius: 999px; cursor: pointer; font-weight: 900;
-          font-size: 13px; padding: 10px 14px; min-width: 52px;
-          box-shadow: 0 3px 0 rgba(0,0,0,0.35);
+          border:2px solid #475569;
+          border-radius:0;
+          cursor:pointer;
+          font-weight:900;
+          font-family:monospace;
+          font-size:13px;
+          padding:9px 12px;
+          min-width:52px;
+          box-shadow:2px 2px 0 #020617;
         }
-        .ff-arc-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.35); }
+
+        .ff-arc-chip:active {
+          transform:translate(2px,2px);
+          box-shadow:none;
+        }
+
+        .ff-cabinet {
+          position:relative;
+          width:min(430px,100%);
+          max-height:90vh;
+          overflow:auto;
+          box-sizing:border-box;
+          padding:0;
+          border:3px solid #94a3b8;
+          background:#080d16;
+          box-shadow:
+            5px 5px 0 #020617,
+            inset 0 0 0 2px #1e293b;
+          color:#fff;
+          font-family:monospace;
+          text-align:center;
+        }
+
+        .ff-cabinet::before {
+          content:"";
+          position:absolute;
+          inset:0;
+          pointer-events:none;
+          opacity:.09;
+          background:repeating-linear-gradient(
+            0deg,
+            transparent 0,
+            transparent 3px,
+            #fff 4px
+          );
+          z-index:5;
+        }
+
+        .ff-cabinet-content {
+          position:relative;
+          z-index:6;
+          padding:0 14px 14px;
+        }
+
+        .ff-title-strip {
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          min-height:58px;
+          padding:0 10px;
+          margin-bottom:14px;
+          box-sizing:border-box;
+          background:#111827;
+          border-bottom:3px solid #22d3ee;
+          box-shadow:inset 0 -1px 0 #020617;
+          text-align:left;
+        }
+
+        .ff-section-label {
+          font-size:11px;
+          letter-spacing:.15em;
+          color:#94a3b8;
+          font-weight:900;
+          margin-bottom:7px;
+        }
       </style>
-      <div style="
-        width:min(400px,100%); max-height:90vh; overflow:auto; box-sizing:border-box;
-        padding:18px 16px 16px; border-radius:20px;
-        background: radial-gradient(ellipse at 50% 0%, #1e3a5f 0%, #0b1220 55%, #071018 100%);
-        box-shadow: 0 0 0 4px #fbbf24, 0 0 0 8px #0ea5e9, 0 20px 50px rgba(0,0,0,.75);
-        color:#fff; font-family:system-ui,sans-serif; text-align:center;
-      ">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-          <div style="text-align:left;">
-            <div style="font-size:11px; letter-spacing:.2em; color:#67e8f9; font-weight:800;">FISH FRENZY</div>
-            <div style="font-size:22px; font-weight:900; background:linear-gradient(90deg,#67e8f9,#fbbf24,#f472b6); -webkit-background-clip:text; color:transparent;">LOBBY</div>
+
+      <div class="ff-cabinet">
+        <div class="ff-title-strip">
+          <div>
+            <div style="font-size:10px;letter-spacing:.22em;color:#22d3ee;font-weight:900;">FISH FRENZY // SYSTEM</div>
+            <div style="font-size:21px;letter-spacing:.08em;color:#f8fafc;font-weight:900;">LOBBY</div>
           </div>
-          <button id="lobby-close-btn" class="ff-arc-btn" style="width:40px;height:40px;border-radius:50%; background:linear-gradient(180deg,#64748b,#334155); color:#fff; font-size:18px; box-shadow:0 3px 0 #0f172a;">✕</button>
+
+          <button id="lobby-close-btn" class="ff-arc-btn" style="
+            width:34px;height:34px;
+            background:#1e293b;color:#f8fafc;
+            font-size:16px;border-color:#64748b;
+          ">✕</button>
         </div>
 
-        <div style="margin-bottom:14px;">
-          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">CURRENCY</div>
-          <div style="display:flex; gap:10px;">
-            <button type="button" id="lobby-cur-sc" class="ff-arc-btn" style="flex:1; padding:12px; ${this.activeCurrency==='SC' ? chip(true,'#2dd4bf','') : chip(false,'','')}">SC</button>
-            <button type="button" id="lobby-cur-gc" class="ff-arc-btn" style="flex:1; padding:12px; ${this.activeCurrency==='GC' ? chip(true,'#fbbf24','') : chip(false,'','')}">GC</button>
+        <div class="ff-cabinet-content">
+          <div style="margin-bottom:14px;">
+            <div class="ff-section-label">CURRENCY</div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" id="lobby-cur-sc" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.activeCurrency === 'SC', '#2dd4bf')}">SC</button>
+              <button type="button" id="lobby-cur-gc" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.activeCurrency === 'GC', '#fbbf24')}">GC</button>
+            </div>
           </div>
-        </div>
 
-        <div style="margin-bottom:14px;">
-          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">BET · TAP TO PLAY</div>
-          <div id="lobby-bet-chips" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
-            ${this.betTiers.map((b, i) => {
-              const on = i === this.currentBetIndex;
-              return `<button type="button" class="lobby-bet-chip ff-arc-chip" data-bet-index="${i}" style="
-                ${on
-                  ? 'background:linear-gradient(180deg,#fde047,#f59e0b); color:#422006; box-shadow:0 4px 0 #92400e, 0 0 14px rgba(251,191,36,.45);'
-                  : 'background:linear-gradient(180deg,#475569,#1e293b); color:#e2e8f0;'}
-              ">${b}</button>`;
-            }).join('')}
+          <div style="margin-bottom:14px;">
+            <div class="ff-section-label">BET // TAP TO PLAY</div>
+            <div id="lobby-bet-chips" style="display:flex;flex-wrap:wrap;gap:7px;justify-content:center;">
+              ${this.betTiers.map((b, i) => {
+                const on = i === this.currentBetIndex;
+                return `<button type="button" class="lobby-bet-chip ff-arc-chip" data-bet-index="${i}" style="
+                  ${on
+                    ? 'background:#facc15;color:#422006;border-color:#fde047;box-shadow:2px 2px 0 #92400e;'
+                    : 'background:#1e293b;color:#e2e8f0;'}
+                ">${b}</button>`;
+              }).join('')}
+            </div>
           </div>
-        </div>
 
-        <div style="margin-bottom:14px;">
-          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">THEME</div>
-          <div style="display:flex; gap:10px;">
-            <button type="button" id="lobby-theme-light" class="ff-arc-btn" style="flex:1; padding:12px; ${this.currentTheme==='light' ? 'background:linear-gradient(180deg,#38bdf8,#0284c7); color:#fff; box-shadow:0 4px 0 #0c4a6e;' : 'background:linear-gradient(180deg,#334155,#1e293b); color:#94a3b8; box-shadow:0 3px 0 #0f172a;'}">☀ LIGHT</button>
-            <button type="button" id="lobby-theme-dark" class="ff-arc-btn" style="flex:1; padding:12px; ${this.currentTheme==='dark' ? 'background:linear-gradient(180deg,#fb7185,#be123c); color:#fff; box-shadow:0 4px 0 #7f1d1d;' : 'background:linear-gradient(180deg,#334155,#1e293b); color:#94a3b8; box-shadow:0 3px 0 #0f172a;'}">☾ DARK</button>
+          <div style="margin-bottom:14px;">
+            <div class="ff-section-label">THEME</div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" id="lobby-theme-light" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.currentTheme === 'light', '#38bdf8')}">☀ LIGHT</button>
+              <button type="button" id="lobby-theme-dark" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.currentTheme === 'dark', '#fb7185')}">☾ DARK</button>
+            </div>
           </div>
-        </div>
 
-        <div style="display:flex; gap:10px; margin-bottom:12px;">
-          <button class="lobby-tile ff-arc-btn" data-lobby="store" style="flex:1; padding:14px 10px; background:linear-gradient(180deg,#34d399,#059669); color:#042f2e; box-shadow:0 4px 0 #064e3b;">
-            STORE
-          </button>
-          <button class="lobby-tile ff-arc-btn" data-lobby="operator" style="flex:1; padding:14px 10px; background:linear-gradient(180deg,#fbbf24,#d97706); color:#451a03; box-shadow:0 4px 0 #92400e;">
-            OPS
-          </button>
-        </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="lobby-tile ff-arc-btn" data-lobby="store" style="
+              flex:1;padding:12px 10px;
+              background:#064e3b;color:#a7f3d0;border-color:#10b981;
+              box-shadow:2px 2px 0 #020617;
+            ">STORE</button>
 
-        <button id="lobby-resume-btn" class="ff-arc-btn" style="
-          width:100%; padding:16px; font-size:18px; letter-spacing:.12em;
-          background:linear-gradient(180deg,#fde047 0%, #facc15 40%, #eab308 100%);
-          color:#422006; box-shadow:0 6px 0 #a16207, 0 0 24px rgba(250,204,21,.4);
-          border-radius:16px;
-        ">▶ PLAY</button>
+            <button class="lobby-tile ff-arc-btn" data-lobby="operator" style="
+              flex:1;padding:12px 10px;
+              background:#78350f;color:#fde68a;border-color:#f59e0b;
+              box-shadow:2px 2px 0 #020617;
+            ">OPS</button>
+          </div>
+
+          <button id="lobby-resume-btn" class="ff-arc-btn" style="
+            width:100%;
+            padding:13px;
+            font-size:17px;
+            letter-spacing:.12em;
+            background:#facc15;
+            color:#422006;
+            border-color:#fde047;
+            box-shadow:3px 3px 0 #92400e;
+          ">▶ PLAY</button>
+        </div>
       </div>
     `;
     this.modalContainer.style.display = 'flex';
