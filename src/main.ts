@@ -21,6 +21,14 @@ import { CombatFeedbackOverlay } from './ui/CombatFeedbackOverlay';
 
 installDarkThemeAudio();
 
+// Fish Frenzy is intentionally dark-first. Set the DOM theme before any
+// React/Pixi UI is created so there is no light-theme flash on startup.
+try {
+  document.documentElement.dataset.ffTheme = 'dark';
+  document.body?.setAttribute('data-ff-theme', 'dark');
+  localStorage.setItem('fish_frenzy_theme', 'dark');
+} catch { /* ignore */ }
+
 // If the per-frame game loop throws, Pixi's own render pass for that tick
 // can get aborted right along with it — the canvas just freezes/blanks with
 // nothing in the visible UI to explain why. That's especially bad on a phone
