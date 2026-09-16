@@ -28,13 +28,13 @@ export function maybeShowOnboarding(root: HTMLElement): void {
   let i = 0;
   const render = () => {
     el.innerHTML = `
-      <div style="max-width:440px; background:#0f172a; border:2px solid #22d3ee; border-radius:14px; padding:22px;
-        box-shadow:0 0 28px rgba(34,211,238,0.2);">
+      <div style="max-width:440px; background:#0f172a; border:2px solid #22d3ee; border-radius:0; padding:22px;
+        box-shadow:3px 3px 0 #020617;">
         <div style="font-size:11px; color:#22d3ee; letter-spacing:2px; margin-bottom:8px; font-weight:800;">ELECTRIC RAGE · TIP ${i + 1}/${TIPS.length}</div>
         <p style="margin:0 0 18px; font-size:14px; line-height:1.5;">${TIPS[i]}</p>
         <div style="display:flex; gap:10px; justify-content:flex-end;">
           <button id="ff-tip-skip" style="background:transparent;border:1px solid #475569;color:#94a3b8;padding:8px 14px;border-radius:8px;cursor:pointer;">Skip</button>
-          <button id="ff-tip-next" style="background:linear-gradient(180deg,#155e75,#0e7490);border:2px solid #22d3ee;color:#ecfeff;padding:8px 16px;border-radius:8px;font-weight:800;cursor:pointer;">
+          <button id="ff-tip-next" style="background:#0e7490;border:2px solid #22d3ee;color:#ecfeff;padding:8px 16px;border-radius:0;font-weight:800;cursor:pointer;">
             ${i === TIPS.length - 1 ? 'Play' : 'Next'}
           </button>
         </div>

@@ -18,8 +18,8 @@ import { debugOverlay } from '../../ui/DebugOverlay';
 import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
-import { BossRaidManager } from '../systems/BossRaidManager';
 import { TableSelection } from '../../network/TableSelection';
+import type { TableInfo } from '../../network/TableSelection';
 import { TableSelectionManager } from '../../network/TableSelectionManager';
 
 export class GameScene {
@@ -54,10 +54,9 @@ export class GameScene {
   private bossRaid: BossRaidEvent;
   private lastBossBashActive = false;
   private tableSelection: TableSelection;
-  private bossRaidTimer: ReturnType<typeof setInterval> | null = null;
   /** Combat progress toward next boss (not time-based). */
   private bossProgressScore = 0;
-  private readonly BOSS_PROGRESS_THRESHOLD = 120;
+  private readonly BOSS_PROGRESS_THRESHOLD = GameConfig.bossProgressThreshold;
   /** Earliest time boss may start after Play. */
   private bossUnlockAtMs = 0;
 
@@ -142,37 +141,6 @@ export class GameScene {
     this.setupInputListeners();
     this.setupResizeListener();
 
-    // Hook boss events directly to immersive backdrop darkening & audio atmosphere
-    BossRaidManager.getInstance().subscribe((raid) => {
-      const isRaidActive = raid.active && raid.status !== 'victory' && raid.status !== 'failed' && raid.status !== 'idle';
-      const isEnraged = isRaidActive && (raid.enraged || raid.status === 'enraged');
-      this.animatedBackground.setBossActive(isRaidActive, isEnraged);
-      const hpPct = raid.sharedBossMaxHp > 0
-        ? Math.round((raid.sharedBossHp / raid.sharedBossMaxHp) * 100)
-        : 0;
-      // Title is brief "FISH FRENZY" only; timer lives in HUD corner
-      if (isRaidActive && !this.lastBossBashActive) {
-        this.uiManager.showBossFrenzyTitle();
-        const cx = this.app.screen.width / 2;
-        const cy = this.app.screen.height * 0.22;
-        this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);
-        this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 18);
-        this.particleFX.spawnExplosion(cx + 40, cy + 20, 0xfbbf24, 18);
-        SoundManager.setBossMusic(true, isEnraged);
-        SoundManager.playBossWarning();
-      }
-      if (!isRaidActive && this.lastBossBashActive) {
-        SoundManager.setBossMusic(false, false);
-        this.uiManager.setBossOverlay(false);
-        this.bossProgressScore = 0;
-      }
-      if (isRaidActive) {
-        this.uiManager.setBossOverlay(true, Math.ceil(raid.timeRemainingSec));
-        SoundManager.setBossMusic(true, isEnraged);
-      }
-      this.lastBossBashActive = isRaidActive;
-    });
-
     // Show start screen; gameplay + multiplayer join after Play
     this.uiManager.showStartScreen();
   }
@@ -197,7 +165,7 @@ export class GameScene {
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
 
-    const joinTable = (table: TableConfig) => {
+    const joinTable = (table: TableInfo) => {
       if (this.tableUnsub) {
         this.tableUnsub();
         this.tableUnsub = null;
@@ -227,11 +195,10 @@ export class GameScene {
 
     // Boss is progress-gated (shots/bets), never on room entry or fixed timer
     this.bossProgressScore = 0;
-    this.bossUnlockAtMs = Date.now() + 90_000; // 90s grace after start
+    this.bossUnlockAtMs = Date.now() + GameConfig.bossGracePeriodMs;
     this.lastBossBashActive = false;
     this.uiManager.setBossOverlay(false);
     SoundManager.setBossMusic(false, false);
-    BossRaidManager.getInstance().stopRaid();
 
     // Seed a few more fish for an active room (no bosses in waves)
     for (let i = 0; i < GameConfig.playStartExtraWaves; i++) {
@@ -345,7 +312,6 @@ export class GameScene {
     const currentTable = this.tableSelection.getCurrentTable();
     this.multiplayerTable.broadcastTableShot(
       currentTable.id,
-      this.activeTableId,
       uid,
       targetX,
       targetY,
@@ -400,9 +366,21 @@ export class GameScene {
       this.particleFX.spawnExplosion(cx - 40, cy + 20, 0x22d3ee, 16);
     }
     if (raidActive) {
-      const secs = Math.ceil(this.bossRaid.getState().timeRemaining / 1000);
-      this.uiManager.setBossOverlay(true, secs);
-      SoundManager.setBossMusic(true, this.bossRaid.getState().phase === 'enraged');
+      const bossState = this.bossRaid.getState();
+      const secs = Math.ceil(bossState.timeRemaining / 1000);
+      const hpPercent = bossState.maxHp > 0
+        ? (bossState.hp / bossState.maxHp) * 100
+        : 0;
+
+      this.uiManager.setBossOverlay(
+        true,
+        secs,
+        hpPercent,
+        bossState.phase,
+        bossState.totalDamage
+      );
+
+      SoundManager.setBossMusic(true, bossState.phase === 'enraged');
     } else if (this.lastBossBashActive) {
       this.uiManager.setBossOverlay(false);
       SoundManager.setBossMusic(false, false);

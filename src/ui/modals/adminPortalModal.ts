@@ -11,7 +11,7 @@ export function showAdminPortalModal(ctx: ModalContext): void {
   const rtp = 85; // fixed server policy
 
   ctx.modalContainer.innerHTML = `
-    <div style="background:#0b1120;border:2px solid #f59e0b;border-radius:16px;padding:22px;max-width:560px;width:100%;color:#e2e8f0;max-height:90vh;overflow-y:auto;font-family:ui-monospace,monospace;">
+    <div style="background:#0b1120;border:2px solid #f59e0b;border-radius:0;padding:22px;max-width:560px;width:100%;color:#e2e8f0;max-height:90vh;overflow-y:auto;font-family:ui-monospace,monospace;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <div>
           <h2 style="margin:0;font-size:16px;color:#fbbf24;">OPERATOR</h2>
@@ -20,7 +20,7 @@ export function showAdminPortalModal(ctx: ModalContext): void {
         <button id="modal-close-btn" style="background:transparent;border:none;color:#94a3b8;font-size:20px;cursor:pointer;">✕</button>
       </div>
 
-      <div style="background:#052e16;border:1px solid #166534;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:#86efac;">
+      <div style="background:#052e16;border:1px solid #166534;border-radius:0;padding:12px;margin-bottom:14px;font-size:12px;color:#86efac;">
         Target RTP is <strong>85%</strong> (server). Client cannot change payout policy.
       </div>
 

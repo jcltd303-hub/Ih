@@ -17,15 +17,15 @@ export const ER = {
     opts?: { id?: string; fullWidth?: boolean; danger?: boolean }
   ) => {
     const bg = opts?.danger
-      ? 'linear-gradient(180deg,#9f1239,#be123c)'
-      : 'linear-gradient(180deg,#155e75,#0e7490)';
+      ? '#9f1239'
+      : '#155e75';
     const border = opts?.danger ? '#fb7185' : '#22d3ee';
     return `<button type="button" ${opts?.id ? `id="${opts.id}"` : ''} style="
       ${opts?.fullWidth ? 'width:100%;' : ''}
       background:${bg}; color:#ecfeff; border:2px solid ${border};
-      padding:12px 18px; border-radius:10px; font-weight:900; letter-spacing:1px;
+      padding:12px 18px; border-radius:0; font-weight:900; letter-spacing:1px;
       cursor:pointer; font-family:ui-monospace,monospace; font-size:13px;
-      box-shadow:0 4px 0 #083344, 0 0 16px rgba(34,211,238,0.25);
+      box-shadow:3px 3px 0 #020617;
     ">${label}</button>`;
   }
 } as const;

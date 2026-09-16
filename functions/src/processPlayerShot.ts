@@ -9,6 +9,11 @@ import {
   MAX_CLAIMED_WIN_SC_PER_MINUTE,
   MAX_CLAIMED_WIN_GC_PER_MINUTE
 } from './limits';
+import {
+  DEFAULT_PAYOUT_TABLE,
+  validatePayoutTable,
+  type PayoutTable
+} from './payoutTable';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -39,27 +44,37 @@ function makeSessionRng(serverSeed: string, clientSeed: string, startNonce: numb
   };
 }
 
+function rtpTelemetryShard(userId: string): number {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i += 1) {
+    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 32;
+}
+
 function evaluateServerHit(
   betAmount: number,
   fishType: FishType,
   skinBonus: number,
-  targetRtp: number,
+  payoutTable: PayoutTable,
   rng: () => number
 ) {
-  const looseness = targetRtp / 85;
-  const baseHitRate = 0.24 * looseness;
-  const isLuckyHit = rng() < 0.06 * looseness;
+  const { hit } = payoutTable;
+
+  const baseHitRate = hit.baseHitRate;
+  const isLuckyHit = rng() < hit.luckyHitChance;
   const hitPayout = isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate;
 
   const critRoll = rng();
-  const isSuperCrit = critRoll < 0.04 * looseness;
-  const isCrit = !isSuperCrit && critRoll < 0.16 * looseness;
+  const isSuperCrit = critRoll < hit.superCritChance;
+  const isCrit = !isSuperCrit && critRoll < hit.critChance;
   const critMultiplier = isSuperCrit ? 3.5 : isCrit ? 2.0 : 1.0;
+
   const randomJitter = 0.9 + rng() * 0.3;
   const damage = 1.0 * skinBonus * critMultiplier * randomJitter;
 
-  const baseInstant = fishType === 'small' ? 0.22 : fishType === 'medium' ? 0.1 : 0.032;
-  const isInstantKill = rng() < baseInstant * looseness;
+  const baseInstant = hit.instantKillChance[fishType];
+  const isInstantKill = rng() < baseInstant;
 
   return { hitPayout, isLuckyHit, damage, isCrit, isSuperCrit, isInstantKill };
 }
@@ -67,21 +82,38 @@ function evaluateServerHit(
 function evaluateServerKill(
   baseMultiplier: number,
   fishType: FishType,
-  targetRtp: number,
+  payoutTable: PayoutTable,
   rng: () => number
 ) {
-  const looseness = targetRtp / 85;
+  const { kill } = payoutTable;
   const roll = rng();
-  if (roll < 0.02 * looseness) {
-    return { finalMultiplier: baseMultiplier * 10, bonusLabel: '10X JACKPOT', isJackpot: true };
+
+  if (roll < kill.jackpotChance) {
+    return {
+      finalMultiplier: baseMultiplier * kill.jackpotMultiplier,
+      bonusLabel: '10X JACKPOT',
+      isJackpot: true
+    };
   }
-  if (roll < 0.08 * looseness) {
-    return { finalMultiplier: baseMultiplier * 3, bonusLabel: 'TRIPLE BOUNTY', isJackpot: false };
+
+  if (roll < kill.tripleChance) {
+    return {
+      finalMultiplier: baseMultiplier * kill.tripleMultiplier,
+      bonusLabel: 'TRIPLE BOUNTY',
+      isJackpot: false
+    };
   }
-  if (roll < 0.2 * looseness) {
-    return { finalMultiplier: baseMultiplier * 1.5, bonusLabel: 'BONUS', isJackpot: false };
+
+  if (roll < kill.bonusChance) {
+    return {
+      finalMultiplier: baseMultiplier * kill.bonusMultiplier,
+      bonusLabel: 'BONUS',
+      isJackpot: false
+    };
   }
-  const typeBoost = fishType === 'boss' ? 1.2 : 1.0;
+
+  const typeBoost = fishType === 'boss' ? kill.bossTypeBoost : 1.0;
+
   return {
     finalMultiplier: baseMultiplier * typeBoost,
     bonusLabel: 'STANDARD WIN',
@@ -139,9 +171,12 @@ export const processPlayerShot = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Request timestamp expired.');
   }
 
-  const fishType: FishType =
-    rawFishType === 'boss' || rawFishType === 'medium' || rawFishType === 'small'
-      ? rawFishType
+  // Fish tier is server-authoritative. The client may report its visual tier,
+// but it cannot promote an arbitrary target to boss economics. Boss targets
+// will be enabled later through a server-issued target authorization path.
+const fishType: FishType =
+    rawFishType === 'medium'
+      ? 'medium'
       : 'small';
   const skinBonus = typeof rawSkinBonus === 'number' && rawSkinBonus > 0 ? Math.min(rawSkinBonus, 3) : 1;
 
@@ -175,7 +210,21 @@ export const processPlayerShot = onCall(async (request) => {
     const session = sessionSnap.data()!;
     const serverSeed: string = session.serverSeed;
     const clientSeed: string = session.clientSeed;
-    const targetRtp: number = Number(session.targetRtp) || 85;
+
+    // Lock settlement to the payout table captured when the session started.
+    // Older sessions without a snapshot retain the original 85% behavior.
+    let payoutTable: PayoutTable = DEFAULT_PAYOUT_TABLE;
+    if (session.payoutTable && typeof session.payoutTable === 'object') {
+      try {
+        payoutTable = validatePayoutTable(session.payoutTable as PayoutTable);
+      } catch {
+        throw new HttpsError(
+          'failed-precondition',
+          'Invalid payout table attached to session.'
+        );
+      }
+    }
+
     const startNonce: number = Number(session.nonce) || 0;
 
     const walletDoc = await transaction.get(userWalletRef);
@@ -230,6 +279,22 @@ export const processPlayerShot = onCall(async (request) => {
       .doc(`winAmount_${currencyType}`);
     const winRateSnap = await transaction.get(winRateRef);
 
+    // Aggregate, sharded RTP telemetry. This is intentionally independent
+    // of player identity for payout decisions: it only records realized
+    // economic totals for later calibration/auditing.
+    const telemetryHour = new Date(timestamp).toISOString().slice(0, 13).replace('T', '');
+    const telemetryShard = rtpTelemetryShard(userId);
+    const telemetryRef = db
+      .collection('economyTelemetry')
+      .doc(`${telemetryHour}_${currencyType}_${telemetryShard}`);
+
+    const telemetrySnap = await transaction.get(telemetryRef);
+    const telemetryData = telemetrySnap.exists ? telemetrySnap.data()! : {};
+    const previousWager = Number(telemetryData.wagered) || 0;
+    const previousPayout = Number(telemetryData.paidOut) || 0;
+    const previousShots = Number(telemetryData.shots) || 0;
+    const previousKills = Number(telemetryData.kills) || 0;
+
     const rng = makeSessionRng(serverSeed, clientSeed, startNonce);
 
     let payoutAmount = 0;
@@ -238,13 +303,16 @@ export const processPlayerShot = onCall(async (request) => {
     let killed = false;
 
     if (isCollision) {
-      hitResult = evaluateServerHit(betAmount, fishType, skinBonus, targetRtp, rng.next);
+      hitResult = evaluateServerHit(betAmount, fishType, skinBonus, payoutTable, rng.next);
       payoutAmount += hitResult.hitPayout;
 
-      const killClaimed = hitResult.isInstantKill || data.clientKillConfirmed === true;
+      // Kill payout is server-authoritative. The client may report a visual
+      // kill, but that report can never create a payout by itself.
+      // Instant-kill is the authoritative kill condition for this settlement.
+      const killClaimed = hitResult.isInstantKill;
       if (killClaimed && !targetAlreadyKilled) {
         killed = true;
-        killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, targetRtp, rng.next);
+        killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, payoutTable, rng.next);
         payoutAmount += betAmount * killResult.finalMultiplier * 0.7;
       }
     }
@@ -279,6 +347,19 @@ export const processPlayerShot = onCall(async (request) => {
       ts: timestamp,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    transaction.set(telemetryRef, {
+      bucket: telemetryHour,
+      currencyType,
+      shard: telemetryShard,
+      tableVersion: payoutTable.version,
+      wagered: previousWager + betAmount,
+      paidOut: previousPayout + payoutAmount,
+      shots: previousShots + 1,
+      kills: previousKills + (killed ? 1 : 0),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
     transaction.update(sessionRef, { nonce: startNonce + rng.consumed() });
     transaction.update(userWalletRef, {
       [balanceKey]: finalBalance,

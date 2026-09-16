@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { DEFAULT_PAYOUT_TABLE, validatePayoutTable } from './payoutTable';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -27,13 +28,34 @@ export const startGameSession = onCall(async (request) => {
   const sessionId = `sess_${userId.slice(0, 8)}_${Date.now()}`;
 
   const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
+
+  const activeTableSnap = await db.collection('config').doc('payoutActive').get();
+
+  let payoutTable = DEFAULT_PAYOUT_TABLE;
+
+  if (activeTableSnap.exists) {
+    const activeData = activeTableSnap.data() || {};
+    if (activeData.table && typeof activeData.table === 'object') {
+      payoutTable = validatePayoutTable(activeData.table);
+    }
+  }
+
   await sessionRef.set({
     serverSeed, // server-only until reveal
     serverSeedHash,
     clientSeed,
     nonce: 0,
     status: 'active',
-    targetRtp: 85,
+
+    // Server-authoritative boss progression. The client may render its
+    // own boss event, but cannot grant itself boss economics.
+    bossProgress: 0,
+    bossActiveUntil: 0,
+    bossCooldownUntil: 0,
+
+    targetRtp: payoutTable.targetRtp,
+    payoutTableVersion: payoutTable.version,
+    payoutTable,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     revealedAt: null
   });
@@ -42,7 +64,8 @@ export const startGameSession = onCall(async (request) => {
     sessionId,
     serverSeedHash,
     clientSeed,
-    targetRtp: 85,
+    targetRtp: payoutTable.targetRtp,
+    payoutTableVersion: payoutTable.version,
     message: 'Server seed committed. Verify hash after reveal.'
   };
 });

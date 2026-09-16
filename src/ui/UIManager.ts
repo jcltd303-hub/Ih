@@ -118,7 +118,7 @@ export class UIManager {
       padding: '20px',
       boxSizing: 'border-box',
       background:
-        'radial-gradient(ellipse at 50% 20%, rgba(0,80,120,.55), rgba(2,6,14,.98) 70%)',
+        '#02060e',
       color: '#fff',
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     });
@@ -143,10 +143,9 @@ export class UIManager {
           overflow: auto;
           box-sizing: border-box;
           padding: 20px 16px 16px;
-          border-radius: 22px;
+          border-radius: 0;
           background:
-            radial-gradient(ellipse at 50% 0%, rgba(56,189,248,.25), transparent 55%),
-            linear-gradient(180deg, #0c4a6e 0%, #082f49 40%, #0a1628 100%);
+            #082f49;
           box-shadow:
             0 0 0 5px #fbbf24,
             0 0 0 10px #0ea5e9,
@@ -156,7 +155,7 @@ export class UIManager {
         }
         #fish-frenzy-start .ff-btn {
           border: none;
-          border-radius: 16px;
+          border-radius: 0;
           cursor: pointer;
           font-weight: 900;
           letter-spacing: 0.04em;
@@ -170,33 +169,33 @@ export class UIManager {
           filter: brightness(.96);
         }
         #fish-frenzy-start .ff-btn-cyan {
-          background: linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 55%, #0284c7 100%);
+          background: #0ea5e9;
           color: #0c4a6e;
           text-shadow: 0 1px 0 rgba(255,255,255,.35);
         }
         #fish-frenzy-start .ff-btn-pink {
-          background: linear-gradient(180deg, #f9a8d4 0%, #ec4899 55%, #db2777 100%);
+          background: #ec4899;
           color: #831843;
           text-shadow: 0 1px 0 rgba(255,255,255,.3);
         }
         #fish-frenzy-start .ff-btn-green {
-          background: linear-gradient(180deg, #6ee7b7 0%, #10b981 55%, #059669 100%);
+          background: #10b981;
           color: #064e3b;
         }
         #fish-frenzy-start .ff-btn-slate {
-          background: linear-gradient(180deg, #94a3b8 0%, #475569 60%, #334155 100%);
+          background: #475569;
           color: #f8fafc;
         }
         #fish-frenzy-start .ff-btn-purple {
-          background: linear-gradient(180deg, #c4b5fd 0%, #8b5cf6 55%, #7c3aed 100%);
+          background: #8b5cf6;
           color: #2e1065;
         }
         #fish-frenzy-start .ff-play {
           width: 100%;
           padding: 18px 14px;
           border: none;
-          border-radius: 18px;
-          background: linear-gradient(180deg, #fef08a 0%, #facc15 40%, #eab308 100%);
+          border-radius: 0;
+          background: #facc15;
           color: #713f12;
           font-size: 20px;
           font-weight: 900;
@@ -217,7 +216,7 @@ export class UIManager {
           font-weight: 900;
           letter-spacing: 0.02em;
           margin-bottom: 4px;
-          background: linear-gradient(180deg, #67e8f9, #22d3ee 30%, #fbbf24 70%, #f472b6);
+          background: #22d3ee;
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
@@ -467,21 +466,37 @@ export class UIManager {
     const activeTable = TableSelectionManager.getInstance().getActiveTable();
     this.container.innerHTML = `
       <!-- TOP NAV — flat, no boxed chrome -->
-      <div id="hud-topbar" style="display:flex; justify-content:space-between; align-items:center; width:100%; pointer-events:auto; gap:10px; flex-wrap:wrap; padding:2px 4px;">
+      <div id="hud-topbar" style="
+  display:flex; justify-content:space-between; align-items:center;
+  width:100%; pointer-events:auto; gap:8px; flex-wrap:wrap;
+  padding:5px 7px;
+  background:rgba(3,7,12,.88);
+  border:2px solid rgba(148,163,184,.55);
+  border-bottom:3px solid #020617;
+  box-shadow:0 3px 0 #020617, inset 0 1px 0 rgba(255,255,255,.08);
+  font-family:monospace;
+  letter-spacing:.5px;
+">
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:none; border:none; padding:0;">
+          <div id="hud-gc-wallet" style="display:${this.activeCurrency === 'GC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:rgba(15,23,42,.72); border:1px solid rgba(148,163,184,.35);
+padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
             <span id="hud-gc-balance" style="font-size:16px; font-weight:900; color:#fbbf24; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.gcBalance.toLocaleString()}<sub style="font-size:10px;color:#fcd34d;margin-left:2px;font-weight:800;">GC</sub></span>
           </div>
-          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:none; border:none; padding:0;">
+          <div id="hud-sc-wallet" style="display:${this.activeCurrency === 'SC' ? 'flex' : 'none'}; align-items:baseline; gap:3px; background:rgba(15,23,42,.72); border:1px solid rgba(148,163,184,.35);
+padding:3px 7px; box-shadow:inset 0 -2px 0 rgba(0,0,0,.45);">
             <span id="hud-sc-balance" style="font-size:16px; font-weight:900; color:#5eead4; text-shadow:0 1px 3px rgba(0,0,0,.85);">${this.scBalance.toFixed(2)}<sub style="font-size:10px;color:#99f6e4;margin-left:2px;font-weight:800;">SC</sub></span>
           </div>
           ${activeTable.mode === 'tournament' ? `<span id="hud-tourney-shield" title="Tournament" style="font-size:18px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.8)); line-height:1;">🛡️</span>` : ''}
-          <button id="hud-level-btn" title="Level" style="background:none; border:none; padding:0; cursor:pointer; display:flex; align-items:center; gap:6px;">
-            <span style="font-size:12px; font-weight:900; color:#e9d5ff; text-shadow:0 1px 3px rgba(0,0,0,.85);">Lv <span id="hud-level-val">1</span></span>
-            <div style="width:36px; height:4px; background:rgba(0,0,0,.45); border-radius:2px; overflow:hidden;">
-              <div id="hud-level-bar" style="width:0%; height:100%; background:linear-gradient(90deg,#c084fc,#f472b6);"></div>
-            </div>
-          </button>
+          <button id="hud-level-btn" title="Level" style="
+  background:#111827; border:2px solid #64748b; padding:3px 7px;
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+  color:#f8fafc; box-shadow:0 2px 0 #020617;
+">
+  <span style="font-size:12px; font-weight:900; color:#f8fafc;">LV <span id="hud-level-val">1</span></span>
+  <div style="width:44px; height:7px; background:#020617; border:1px solid #475569; overflow:hidden;">
+    <div id="hud-level-bar" style="width:0%; height:100%; background:#22d3ee;"></div>
+  </div>
+</button>
           <span id="hud-bet-display" style="display:none;">${this.getCurrentBet()}</span>
           <button id="hud-table-btn" style="display:none;"></button>
         </div>
@@ -491,11 +506,35 @@ export class UIManager {
         </div>
       </div>
 
-      <!-- Boss red wash + corner timer -->
+      <!-- Boss combat HUD -->
       <div id="hud-boss-overlay" style="display:none; position:absolute; inset:0; z-index:15; pointer-events:none;
-        background:rgba(180,0,20,0.18);"></div>
-      <div id="hud-boss-timer" style="display:none; position:absolute; top:10px; right:12px; z-index:30; pointer-events:none;
-        font-size:18px; font-weight:900; color:#fecaca; text-shadow:0 0 12px #ff0033; font-variant-numeric:tabular-nums;">30</div>
+        background:rgba(180,0,20,0.10);"></div>
+
+      <div id="hud-boss-combat" style="display:none; position:absolute; left:50%; top:8px;
+        transform:translateX(-50%); width:min(680px,calc(100% - 28px)); z-index:31;
+        pointer-events:none; font-family:monospace;">
+
+        <div style="display:flex; align-items:center; justify-content:space-between;
+          padding:4px 8px; background:#09090b; border:2px solid #ef4444;
+          border-bottom:none; text-transform:uppercase; letter-spacing:2px;">
+          <span style="font-size:11px; font-weight:900; color:#f87171;">BOSS</span>
+          <span id="hud-boss-name" style="font-size:13px; font-weight:900; letter-spacing:1.5px; color:#f8fafc; font-family:monospace;">ABYSSAL BOSS</span>
+          <span id="hud-boss-phase" style="font-size:10px; font-weight:900; letter-spacing:1px; color:#fbbf24; font-family:monospace;">ENGAGED</span>
+        </div>
+
+        <div style="height:18px; padding:2px; background:#020617; border:2px solid #f8fafc;
+          box-sizing:border-box;">
+          <div id="hud-boss-hp-segments" style="display:flex; gap:2px; height:100%;"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;
+          padding:3px 6px; background:#111827; border:2px solid #374151; border-top:none;
+          font-size:10px; font-weight:900; letter-spacing:1px;">
+          <span id="hud-boss-damage">DMG 0</span>
+          <span id="hud-boss-timer">30</span>
+          <span id="hud-boss-hp-text">HP 100%</span>
+        </div>
+      </div>
 
       <!-- Brief FISH FRENZY title (boss start only) -->
       <div id="hud-boss-bash" style="display:none; position:absolute; left:50%; top:16%; transform:translateX(-50%); z-index:25; pointer-events:none; text-align:center;">
@@ -505,18 +544,18 @@ export class UIManager {
       </div>
       <style>
         @keyframes bossFrenzyPulse {
-          from { transform: scale(1); filter: brightness(1) drop-shadow(0 0 8px #22d3ee); }
-          to { transform: scale(1.08); filter: brightness(1.35) drop-shadow(0 0 22px #ff0033); }
+          from { opacity: .92; }
+          to { opacity: 1; }
         }
       </style>
 
       <!-- Bet badge near turret (bottom-center, slightly right) -->
       <div id="hud-bet-badge" style="position:absolute; left:58%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
-        padding:4px 10px; border-radius:999px; font-weight:900; letter-spacing:1px;
+        padding:3px 8px; border:2px solid rgba(248,250,252,.55); font-weight:900; letter-spacing:1px; font-family:monospace; background:rgba(2,6,23,.88);
         border:none; background:rgba(0,0,0,0.45); color:#67e8f9; font-size:13px;
         text-shadow:0 0 8px rgba(34,211,238,0.8);">×1.00</div>
       <div id="hud-barrel-badge" style="position:absolute; left:42%; bottom:72px; transform:translateX(-50%); z-index:20; pointer-events:none;
-        padding:4px 8px; border-radius:999px; font-weight:900; font-size:12px; color:#fbbf24;
+        padding:3px 7px; border:2px solid #fbbf24; font-weight:900; font-size:12px; color:#fbbf24; font-family:monospace; background:rgba(2,6,23,.88);
         text-shadow:0 0 8px rgba(251,191,36,.7); background:rgba(0,0,0,.4);">1×</div>
     `;
 
@@ -533,7 +572,7 @@ export class UIManager {
     this.soundBtn.addEventListener('click', () => this.cycleAudioMode());
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
     this.tableBadgeBtn?.addEventListener('click', () => this.showLobby());
-    document.getElementById('hud-level-btn')?.addEventListener('click', () => this.showProgressionModal());
+    document.getElementById('hud-level-btn')?.addEventListener('click', () => showProgressionModal(this.modalCtx()));
 
     // Subscribe to player progression updates
     if (!this.progressionUnsub) {
@@ -637,85 +676,181 @@ export class UIManager {
   public showLobby(): void {
     SoundManager.playUiSound('modal_open');
     const tables = TableSelectionManager.getInstance().getTables();
-    const chip = (active: boolean, on: string, off: string) =>
+
+    const panel = (active: boolean, accent: string) =>
       active
-        ? `background:linear-gradient(180deg,${on},#0f172a);color:#fff;box-shadow:0 4px 0 #0f172a,0 0 16px ${on}55;transform:translateY(-1px);`
-        : `background:linear-gradient(180deg,#334155,#1e293b);color:#94a3b8;box-shadow:0 3px 0 #0f172a;`;
+        ? `background:#111827;color:#f8fafc;border:2px solid ${accent};box-shadow:2px 2px 0 #020617,inset 0 0 0 1px ${accent}55;`
+        : `background:#0f172a;color:#94a3b8;border:2px solid #475569;box-shadow:2px 2px 0 #020617;`;
+
     this.modalContainer.innerHTML = `
       <style>
         .ff-arc-btn {
-          border: none; border-radius: 14px; cursor: pointer; font-weight: 900;
-          letter-spacing: 0.06em; font-family: system-ui, sans-serif;
-          transition: transform 0.08s ease, filter 0.15s ease;
+          border:2px solid #64748b;
+          border-radius:0;
+          cursor:pointer;
+          font-weight:900;
+          letter-spacing:.06em;
+          font-family:monospace;
+          transition:transform .06s ease, filter .08s ease;
         }
-        .ff-arc-btn:active { transform: translateY(2px) !important; filter: brightness(0.95); }
+
+        .ff-arc-btn:hover {
+          filter:brightness(1.12);
+        }
+
+        .ff-arc-btn:active {
+          transform:translate(2px,2px) !important;
+          filter:brightness(.92);
+        }
+
         .ff-arc-chip {
-          border: none; border-radius: 999px; cursor: pointer; font-weight: 900;
-          font-size: 13px; padding: 10px 14px; min-width: 52px;
-          box-shadow: 0 3px 0 rgba(0,0,0,0.35);
+          border:2px solid #475569;
+          border-radius:0;
+          cursor:pointer;
+          font-weight:900;
+          font-family:monospace;
+          font-size:13px;
+          padding:9px 12px;
+          min-width:52px;
+          box-shadow:2px 2px 0 #020617;
         }
-        .ff-arc-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.35); }
+
+        .ff-arc-chip:active {
+          transform:translate(2px,2px);
+          box-shadow:none;
+        }
+
+        .ff-cabinet {
+          position:relative;
+          width:min(430px,100%);
+          max-height:90vh;
+          overflow:auto;
+          box-sizing:border-box;
+          padding:0;
+          border:3px solid #94a3b8;
+          background:#080d16;
+          box-shadow:
+            5px 5px 0 #020617,
+            inset 0 0 0 2px #1e293b;
+          color:#fff;
+          font-family:monospace;
+          text-align:center;
+        }
+
+        .ff-cabinet::before {
+          content:"";
+          position:absolute;
+          inset:0;
+          pointer-events:none;
+          opacity:.09;
+          background:repeating-linear-gradient(
+            0deg,
+            transparent 0,
+            transparent 3px,
+            #fff 4px
+          );
+          z-index:5;
+        }
+
+        .ff-cabinet-content {
+          position:relative;
+          z-index:6;
+          padding:0 14px 14px;
+        }
+
+        .ff-title-strip {
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          min-height:58px;
+          padding:0 10px;
+          margin-bottom:14px;
+          box-sizing:border-box;
+          background:#111827;
+          border-bottom:3px solid #22d3ee;
+          box-shadow:inset 0 -1px 0 #020617;
+          text-align:left;
+        }
+
+        .ff-section-label {
+          font-size:11px;
+          letter-spacing:.15em;
+          color:#94a3b8;
+          font-weight:900;
+          margin-bottom:7px;
+        }
       </style>
-      <div style="
-        width:min(400px,100%); max-height:90vh; overflow:auto; box-sizing:border-box;
-        padding:18px 16px 16px; border-radius:20px;
-        background: radial-gradient(ellipse at 50% 0%, #1e3a5f 0%, #0b1220 55%, #071018 100%);
-        box-shadow: 0 0 0 4px #fbbf24, 0 0 0 8px #0ea5e9, 0 20px 50px rgba(0,0,0,.75);
-        color:#fff; font-family:system-ui,sans-serif; text-align:center;
-      ">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-          <div style="text-align:left;">
-            <div style="font-size:11px; letter-spacing:.2em; color:#67e8f9; font-weight:800;">FISH FRENZY</div>
-            <div style="font-size:22px; font-weight:900; background:linear-gradient(90deg,#67e8f9,#fbbf24,#f472b6); -webkit-background-clip:text; color:transparent;">LOBBY</div>
+
+      <div class="ff-cabinet">
+        <div class="ff-title-strip">
+          <div>
+            <div style="font-size:10px;letter-spacing:.22em;color:#22d3ee;font-weight:900;">FISH FRENZY // SYSTEM</div>
+            <div style="font-size:21px;letter-spacing:.08em;color:#f8fafc;font-weight:900;">LOBBY</div>
           </div>
-          <button id="lobby-close-btn" class="ff-arc-btn" style="width:40px;height:40px;border-radius:50%; background:linear-gradient(180deg,#64748b,#334155); color:#fff; font-size:18px; box-shadow:0 3px 0 #0f172a;">✕</button>
+
+          <button id="lobby-close-btn" class="ff-arc-btn" style="
+            width:34px;height:34px;
+            background:#1e293b;color:#f8fafc;
+            font-size:16px;border-color:#64748b;
+          ">✕</button>
         </div>
 
-        <div style="margin-bottom:14px;">
-          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">CURRENCY</div>
-          <div style="display:flex; gap:10px;">
-            <button type="button" id="lobby-cur-sc" class="ff-arc-btn" style="flex:1; padding:12px; ${this.activeCurrency==='SC' ? chip(true,'#2dd4bf','') : chip(false,'','')}">SC</button>
-            <button type="button" id="lobby-cur-gc" class="ff-arc-btn" style="flex:1; padding:12px; ${this.activeCurrency==='GC' ? chip(true,'#fbbf24','') : chip(false,'','')}">GC</button>
+        <div class="ff-cabinet-content">
+          <div style="margin-bottom:14px;">
+            <div class="ff-section-label">CURRENCY</div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" id="lobby-cur-sc" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.activeCurrency === 'SC', '#2dd4bf')}">SC</button>
+              <button type="button" id="lobby-cur-gc" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.activeCurrency === 'GC', '#fbbf24')}">GC</button>
+            </div>
           </div>
-        </div>
 
-        <div style="margin-bottom:14px;">
-          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">BET · TAP TO PLAY</div>
-          <div id="lobby-bet-chips" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
-            ${this.betTiers.map((b, i) => {
-              const on = i === this.currentBetIndex;
-              return `<button type="button" class="lobby-bet-chip ff-arc-chip" data-bet-index="${i}" style="
-                ${on
-                  ? 'background:linear-gradient(180deg,#fde047,#f59e0b); color:#422006; box-shadow:0 4px 0 #92400e, 0 0 14px rgba(251,191,36,.45);'
-                  : 'background:linear-gradient(180deg,#475569,#1e293b); color:#e2e8f0;'}
-              ">${b}</button>`;
-            }).join('')}
+          <div style="margin-bottom:14px;">
+            <div class="ff-section-label">BET // TAP TO PLAY</div>
+            <div id="lobby-bet-chips" style="display:flex;flex-wrap:wrap;gap:7px;justify-content:center;">
+              ${this.betTiers.map((b, i) => {
+                const on = i === this.currentBetIndex;
+                return `<button type="button" class="lobby-bet-chip ff-arc-chip" data-bet-index="${i}" style="
+                  ${on
+                    ? 'background:#facc15;color:#422006;border-color:#fde047;box-shadow:2px 2px 0 #92400e;'
+                    : 'background:#1e293b;color:#e2e8f0;'}
+                ">${b}</button>`;
+              }).join('')}
+            </div>
           </div>
-        </div>
 
-        <div style="margin-bottom:14px;">
-          <div style="font-size:11px; letter-spacing:.15em; color:#94a3b8; font-weight:800; margin-bottom:8px;">THEME</div>
-          <div style="display:flex; gap:10px;">
-            <button type="button" id="lobby-theme-light" class="ff-arc-btn" style="flex:1; padding:12px; ${this.currentTheme==='light' ? 'background:linear-gradient(180deg,#38bdf8,#0284c7); color:#fff; box-shadow:0 4px 0 #0c4a6e;' : 'background:linear-gradient(180deg,#334155,#1e293b); color:#94a3b8; box-shadow:0 3px 0 #0f172a;'}">☀ LIGHT</button>
-            <button type="button" id="lobby-theme-dark" class="ff-arc-btn" style="flex:1; padding:12px; ${this.currentTheme==='dark' ? 'background:linear-gradient(180deg,#fb7185,#be123c); color:#fff; box-shadow:0 4px 0 #7f1d1d;' : 'background:linear-gradient(180deg,#334155,#1e293b); color:#94a3b8; box-shadow:0 3px 0 #0f172a;'}">☾ DARK</button>
+          <div style="margin-bottom:14px;">
+            <div class="ff-section-label">THEME</div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" id="lobby-theme-light" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.currentTheme === 'light', '#38bdf8')}">☀ LIGHT</button>
+              <button type="button" id="lobby-theme-dark" class="ff-arc-btn" style="flex:1;padding:10px;${panel(this.currentTheme === 'dark', '#fb7185')}">☾ DARK</button>
+            </div>
           </div>
-        </div>
 
-        <div style="display:flex; gap:10px; margin-bottom:12px;">
-          <button class="lobby-tile ff-arc-btn" data-lobby="store" style="flex:1; padding:14px 10px; background:linear-gradient(180deg,#34d399,#059669); color:#042f2e; box-shadow:0 4px 0 #064e3b;">
-            STORE
-          </button>
-          <button class="lobby-tile ff-arc-btn" data-lobby="operator" style="flex:1; padding:14px 10px; background:linear-gradient(180deg,#fbbf24,#d97706); color:#451a03; box-shadow:0 4px 0 #92400e;">
-            OPS
-          </button>
-        </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="lobby-tile ff-arc-btn" data-lobby="store" style="
+              flex:1;padding:12px 10px;
+              background:#064e3b;color:#a7f3d0;border-color:#10b981;
+              box-shadow:2px 2px 0 #020617;
+            ">STORE</button>
 
-        <button id="lobby-resume-btn" class="ff-arc-btn" style="
-          width:100%; padding:16px; font-size:18px; letter-spacing:.12em;
-          background:linear-gradient(180deg,#fde047 0%, #facc15 40%, #eab308 100%);
-          color:#422006; box-shadow:0 6px 0 #a16207, 0 0 24px rgba(250,204,21,.4);
-          border-radius:16px;
-        ">▶ PLAY</button>
+            <button class="lobby-tile ff-arc-btn" data-lobby="operator" style="
+              flex:1;padding:12px 10px;
+              background:#78350f;color:#fde68a;border-color:#f59e0b;
+              box-shadow:2px 2px 0 #020617;
+            ">OPS</button>
+          </div>
+
+          <button id="lobby-resume-btn" class="ff-arc-btn" style="
+            width:100%;
+            padding:13px;
+            font-size:17px;
+            letter-spacing:.12em;
+            background:#facc15;
+            color:#422006;
+            border-color:#fde047;
+            box-shadow:3px 3px 0 #92400e;
+          ">▶ PLAY</button>
+        </div>
       </div>
     `;
     this.modalContainer.style.display = 'flex';
@@ -822,7 +957,7 @@ export class UIManager {
       badge.textContent = `×${bet.toFixed(2)} ${this.activeCurrency}`;
       badge.style.transform = `translateX(-50%) scale(${scale})`;
       badge.style.color = fg;
-      badge.style.boxShadow = `0 0 ${10 + bet * 2}px ${fg}55`;
+      badge.style.boxShadow = `2px 2px 0 #020617, inset 0 0 0 1px ${fg}55`;
     }
     const barrelEl = document.getElementById('hud-barrel-badge');
     if (barrelEl) {
@@ -969,14 +1104,56 @@ export class UIManager {
     }, 2200);
   }
 
-  public setBossOverlay(active: boolean, secondsLeft?: number): void {
+  public setBossOverlay(
+    active: boolean,
+    secondsLeft?: number,
+    hpPercent?: number,
+    phase?: string,
+    totalDamage?: number
+  ): void {
     const overlay = document.getElementById('hud-boss-overlay');
+    const combat = document.getElementById('hud-boss-combat');
     const timer = document.getElementById('hud-boss-timer');
+    const phaseEl = document.getElementById('hud-boss-phase');
+    const hpText = document.getElementById('hud-boss-hp-text');
+    const damage = document.getElementById('hud-boss-damage');
+    const segments = document.getElementById('hud-boss-hp-segments');
+
     if (overlay) overlay.style.display = active ? 'block' : 'none';
-    if (timer) {
-      timer.style.display = active ? 'block' : 'none';
-      if (active && typeof secondsLeft === 'number') {
-        timer.textContent = String(Math.max(0, secondsLeft));
+    if (combat) combat.style.display = active ? 'block' : 'none';
+
+    if (!active) return;
+
+    const hp = Math.max(0, Math.min(100, Math.round(hpPercent ?? 100)));
+
+    if (timer && typeof secondsLeft === 'number') {
+      timer.textContent = `${Math.max(0, secondsLeft)}s`;
+    }
+
+    if (phaseEl) {
+      phaseEl.textContent = String(phase ?? 'engaged').toUpperCase();
+      phaseEl.style.color =
+        phase === 'enraged' ? '#ef4444' :
+        phase === 'approaching' ? '#fbbf24' : '#22d3ee';
+    }
+
+    if (hpText) hpText.textContent = `HP ${hp}%`;
+    if (damage) damage.textContent = `DMG ${Math.max(0, Math.floor(totalDamage ?? 0))}`;
+
+    if (segments) {
+      const count = 24;
+      segments.innerHTML = '';
+      const filled = Math.ceil((hp / 100) * count);
+
+      for (let i = 0; i < count; i++) {
+        const segment = document.createElement('span');
+        segment.style.flex = '1';
+        segment.style.height = '100%';
+        segment.style.background = i < filled
+          ? (phase === 'enraged' ? '#ef4444' : '#22d3ee')
+          : '#1f2937';
+        segment.style.border = '1px solid #374151';
+        segments.appendChild(segment);
       }
     }
   }
