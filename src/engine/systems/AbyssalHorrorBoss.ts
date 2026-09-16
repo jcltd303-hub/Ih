@@ -12,26 +12,9 @@ export interface BossTextures {
   tailFin: Texture;
 }
 
-type Region = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  area: number;
-  centerX: number;
-  centerY: number;
-};
+type Region = { x: number; y: number; width: number; height: number; area: number; centerX: number; centerY: number };
 
-type Part = { sprite: Sprite; restX: number; restY: number; phase: number; speed: number; amp: number };
-
-/**
- * Abyssal Horror cutout puppet.
- *
- * The PNG is source artwork only. It is never rendered as one square sprite.
- * Its disconnected transparent regions are extracted into individual textures,
- * then mounted into a hierarchical Pixi scene graph so joints can move
- * independently like a 2-D cutout puppet.
- */
+/** PixiJS v8 cutout-puppet boss. The source PNG is never rendered directly. */
 export class AbyssalHorrorBoss extends Container {
   public maxHp: number;
   public currentHp: number;
@@ -49,8 +32,6 @@ export class AbyssalHorrorBoss extends Container {
   private readonly armRightRoot = new Container();
   private readonly armRightLower = new Container();
   private readonly tailRoot = new Container();
-
-  private parts: Part[] = [];
   private elapsed = 0;
   private facingSign = 1;
   private loaded = false;
@@ -61,7 +42,6 @@ export class AbyssalHorrorBoss extends Container {
     this.currentHp = maxHp;
     this.theme = initialTheme;
     this.artworkUrl = new URL('../../assets/images/abyssal_horror_boss_sheet.png', import.meta.url).href;
-
     this.addChild(this.bodyRoot);
     void this.loadAndBuildRig();
   }
@@ -70,7 +50,6 @@ export class AbyssalHorrorBoss extends Container {
     try {
       const texture = await Assets.load(this.artworkUrl);
       if (this.destroyed) return;
-
       const source = texture.source?.resource as CanvasImageSource | undefined;
       if (!source || !texture.width || !texture.height) throw new Error('Invalid boss sheet');
 
@@ -87,35 +66,18 @@ export class AbyssalHorrorBoss extends Container {
       const centerX = texture.width / 2;
       const centerY = texture.height / 2;
       const scale = 260 / Math.max(texture.width, texture.height);
-      const sprites = regions.slice(0, 18).map((r) => {
-        const c = document.createElement('canvas');
-        c.width = r.width;
-        c.height = r.height;
-        const pc = c.getContext('2d');
-        if (!pc) throw new Error('Unable to create boss part canvas');
-        pc.drawImage(sheet, r.x, r.y, r.width, r.height, 0, 0, r.width, r.height);
-        const sprite = new Sprite(Texture.from(c));
-        sprite.anchor.set(0.5);
-        sprite.position.set((r.centerX - centerX) * scale, (r.centerY - centerY) * scale);
-        sprite.scale.set(scale);
-        return { sprite, region: r };
-      });
+      const sprites = regions.slice(0, 18).map((r) => ({ region: r, sprite: this.makePartSprite(sheet, r) }));
 
-      const core = sprites
-        .filter((p) => Math.abs(p.region.centerX - centerX) < texture.width * 0.24)
-        .sort((a, b) => b.region.area - a.region.area);
+      const core = sprites.filter((p) => Math.abs(p.region.centerX - centerX) < texture.width * 0.24).sort((a, b) => b.region.area - a.region.area);
       const upperCore = core[0] ?? sprites[0];
       const lowerCore = core.find((p) => p !== upperCore && p.region.centerY > upperCore.region.centerY) ?? core[1] ?? sprites[1];
-
       const above = sprites.filter((p) => p !== upperCore && p.region.centerY < centerY).sort((a, b) => b.region.area - a.region.area);
-      const belowHead = sprites.filter((p) => p !== upperCore && p.region.centerY >= centerY).sort((a, b) => b.region.area - a.region.area);
+      const below = sprites.filter((p) => p !== upperCore && p.region.centerY >= centerY).sort((a, b) => b.region.area - a.region.area);
       const head = above[0] ?? sprites[0];
-      const jaw = belowHead.find((p) => p !== lowerCore && Math.abs(p.region.centerX - head.region.centerX) < texture.width * 0.18) ?? belowHead[0] ?? lowerCore;
-
-      const left = sprites.filter((p) => p !== upperCore && p !== lowerCore && p !== head && p !== jaw && p.region.centerX < centerX).sort((a, b) => a.region.centerX - b.region.centerX);
-      const right = sprites.filter((p) => p !== upperCore && p !== lowerCore && p !== head && p !== jaw && p.region.centerX >= centerX).sort((a, b) => b.region.centerX - a.region.centerX);
+      const jaw = below.find((p) => p !== lowerCore && Math.abs(p.region.centerX - head.region.centerX) < texture.width * 0.18) ?? below[0] ?? lowerCore;
+      const left = sprites.filter((p) => ![upperCore, lowerCore, head, jaw].includes(p) && p.region.centerX < centerX).sort((a, b) => a.region.centerX - b.region.centerX);
+      const right = sprites.filter((p) => ![upperCore, lowerCore, head, jaw].includes(p) && p.region.centerX >= centerX).sort((a, b) => b.region.centerX - a.region.centerX);
       const tail = right.find((p) => p.region.centerX > centerX + texture.width * 0.2) ?? right[0] ?? sprites[sprites.length - 1];
-
       const leftUpper = left[0] ?? upperCore;
       const leftLower = left.find((p) => p !== leftUpper && p.region.centerY >= leftUpper.region.centerY) ?? left[1] ?? leftUpper;
       const rightUpper = right.find((p) => p !== tail) ?? right[0] ?? upperCore;
@@ -132,11 +94,22 @@ export class AbyssalHorrorBoss extends Container {
         armRightLower: rightLower.sprite,
         tailFin: tail.sprite,
       }, centerX, centerY, scale);
-
       this.loaded = true;
     } catch (error) {
       console.error('[AbyssalHorrorBoss] Failed to build cutout puppet', error);
     }
+  }
+
+  private makePartSprite(sheet: HTMLCanvasElement, r: Region): Sprite {
+    const c = document.createElement('canvas');
+    c.width = r.width;
+    c.height = r.height;
+    const pc = c.getContext('2d');
+    if (!pc) throw new Error('Unable to create boss part canvas');
+    pc.drawImage(sheet, r.x, r.y, r.width, r.height, 0, 0, r.width, r.height);
+    const sprite = new Sprite(Texture.from(c));
+    sprite.anchor.set(0.5);
+    return sprite;
   }
 
   private findRegions(width: number, height: number, source: CanvasImageSource): Region[] {
@@ -148,41 +121,29 @@ export class AbyssalHorrorBoss extends Container {
     ctx.drawImage(source, 0, 0, width, height);
     const data = ctx.getImageData(0, 0, width, height).data;
     const step = Math.max(1, Math.ceil(Math.max(width, height) / 1200));
-    const sw = Math.ceil(width / step);
-    const sh = Math.ceil(height / step);
+    const sw = Math.ceil(width / step), sh = Math.ceil(height / step);
     const seen = new Uint8Array(sw * sh);
     const regions: Region[] = [];
     const solid = (x: number, y: number) => data[(Math.min(height - 1, y * step) * width + Math.min(width - 1, x * step)) * 4 + 3] > 24;
 
-    for (let y = 0; y < sh; y++) {
-      for (let x = 0; x < sw; x++) {
-        const seed = y * sw + x;
-        if (seen[seed] || !solid(x, y)) continue;
-        const queue = [seed];
-        seen[seed] = 1;
-        let q = 0;
-        let minX = x, maxX = x, minY = y, maxY = y, count = 0;
-        while (q < queue.length) {
-          const n = queue[q++];
-          const nx = n % sw;
-          const ny = Math.floor(n / sw);
-          count++;
-          minX = Math.min(minX, nx); maxX = Math.max(maxX, nx);
-          minY = Math.min(minY, ny); maxY = Math.max(maxY, ny);
-          for (const next of [n - 1, n + 1, n - sw, n + sw]) {
-            if (next < 0 || next >= seen.length || seen[next]) continue;
-            const xx = next % sw;
-            const yy = Math.floor(next / sw);
-            if (Math.abs(xx - nx) + Math.abs(yy - ny) !== 1 || !solid(xx, yy)) continue;
-            seen[next] = 1;
-            queue.push(next);
-          }
+    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+      const seed = y * sw + x;
+      if (seen[seed] || !solid(x, y)) continue;
+      const queue = [seed]; seen[seed] = 1; let q = 0;
+      let minX = x, maxX = x, minY = y, maxY = y, count = 0;
+      while (q < queue.length) {
+        const n = queue[q++], nx = n % sw, ny = Math.floor(n / sw);
+        count++; minX = Math.min(minX, nx); maxX = Math.max(maxX, nx); minY = Math.min(minY, ny); maxY = Math.max(maxY, ny);
+        for (const next of [n - 1, n + 1, n - sw, n + sw]) {
+          if (next < 0 || next >= seen.length || seen[next]) continue;
+          const xx = next % sw, yy = Math.floor(next / sw);
+          if (Math.abs(xx - nx) + Math.abs(yy - ny) !== 1 || !solid(xx, yy)) continue;
+          seen[next] = 1; queue.push(next);
         }
-        if (count < 25) continue;
-        const rx = minX * step;
-        const ry = minY * step;
-        const rw = Math.min(width - rx, (maxX - minX + 1) * step);
-        const rh = Math.min(height - ry, (maxY - minY + 1) * step);
+      }
+      if (count >= 25) {
+        const rx = minX * step, ry = minY * step;
+        const rw = Math.min(width - rx, (maxX - minX + 1) * step), rh = Math.min(height - ry, (maxY - minY + 1) * step);
         regions.push({ x: rx, y: ry, width: rw, height: rh, area: count, centerX: rx + rw / 2, centerY: ry + rh / 2 });
       }
     }
@@ -190,57 +151,36 @@ export class AbyssalHorrorBoss extends Container {
   }
 
   private mountRig(tex: BossTextures, centerX: number, centerY: number, scale: number): void {
-    const attach = (container: Container, sprite: Sprite, parent: Container, jointX: number, jointY: number) => {
+    const place = (container: Container, sprite: Sprite, parent: Container, x: number, y: number) => {
       parent.addChild(container);
-      container.position.set((jointX - centerX) * scale, (jointY - centerY) * scale);
+      container.position.set((x - centerX) * scale, (y - centerY) * scale);
       container.addChild(sprite);
       sprite.position.set(0, 0);
-      sprite.anchor.set(0.5);
-      sprite.scale.set(scale);
+      sprite.scale.set(1);
     };
 
-    this.bodyRoot.position.set(0, 0);
-
-    // Back/under layers first.
-    attach(this.torsoLower, tex.torsoLower, this.bodyRoot, centerX + 10, centerY + 40);
-    attach(this.armRightRoot, tex.armRightUpper, this.bodyRoot, centerX + 40, centerY - 10);
-    attach(this.armRightLower, tex.armRightLower, this.armRightRoot, centerX + 40, centerY + 55);
+    // Joint containers are the rig. The numbers are joint centers in the source
+    // sheet's coordinate space; sprites themselves remain unscaled cutouts.
+    place(this.torsoLower, tex.torsoLower, this.bodyRoot, centerX + 10, centerY + 40);
+    place(this.armRightRoot, tex.armRightUpper, this.bodyRoot, centerX + 40, centerY - 10);
+    place(this.armRightLower, tex.armRightLower, this.armRightRoot, 0, 55 / scale);
     this.armRightRoot.rotation = -0.2;
-    this.armRightRoot.addChild(this.armRightLower);
 
-    attach(this.torsoUpper, tex.torsoUpper, this.bodyRoot, centerX - 30, centerY - 20);
-    attach(this.head, tex.head, this.torsoUpper, centerX - 160, centerY - 70);
-    attach(this.jaw, tex.jaw, this.head, centerX - 195, centerY - 25);
+    place(this.torsoUpper, tex.torsoUpper, this.bodyRoot, centerX - 30, centerY - 20);
+    place(this.head, tex.head, this.torsoUpper, -160 / scale, -70 / scale);
+    place(this.jaw, tex.jaw, this.head, -35 / scale, 45 / scale);
 
-    attach(this.armLeftRoot, tex.armLeftUpper, this.bodyRoot, centerX + 60, centerY + 20);
-    attach(this.armLeftLower, tex.armLeftLower, this.armLeftRoot, centerX + 60, centerY + 105);
+    place(this.armLeftRoot, tex.armLeftUpper, this.bodyRoot, centerX + 60, centerY + 20);
+    place(this.armLeftLower, tex.armLeftLower, this.armLeftRoot, 0, 85 / scale);
     this.armLeftRoot.rotation = 0.1;
-    this.armLeftRoot.addChild(this.armLeftLower);
 
-    attach(this.tailRoot, tex.tailFin, this.bodyRoot, centerX + 180, centerY + 20);
-
-    // The extracted sprite positions are retained by their containers, while
-    // these transforms become the actual animation joints.
-    this.parts = [
-      { sprite: tex.torsoUpper, restX: 0, restY: 0, phase: 0, speed: 2.1, amp: 0.02 },
-      { sprite: tex.torsoLower, restX: 0, restY: 0, phase: 0.6, speed: 1.9, amp: 0.012 },
-      { sprite: tex.head, restX: 0, restY: 0, phase: 1.1, speed: 2.2, amp: 0.018 },
-      { sprite: tex.jaw, restX: 0, restY: 0, phase: 0, speed: 2.0, amp: 0.08 },
-      { sprite: tex.armLeftUpper, restX: 0, restY: 0, phase: 0.4, speed: 1.8, amp: 0.045 },
-      { sprite: tex.armLeftLower, restX: 0, restY: 0, phase: 1.0, speed: 2.1, amp: 0.07 },
-      { sprite: tex.armRightUpper, restX: 0, restY: 0, phase: 1.4, speed: 1.7, amp: 0.04 },
-      { sprite: tex.armRightLower, restX: 0, restY: 0, phase: 0.8, speed: 2.0, amp: 0.065 },
-      { sprite: tex.tailFin, restX: 0, restY: 0, phase: 1.8, speed: 2.5, amp: 0.055 },
-    ];
+    place(this.tailRoot, tex.tailFin, this.bodyRoot, centerX + 180, centerY + 20);
   }
 
-  public setTheme(theme: 'light' | 'dark'): void {
-    this.theme = theme;
-  }
+  public setTheme(theme: 'light' | 'dark'): void { this.theme = theme; }
 
   public takeDamage(damage: number): boolean {
-    const amount = Math.max(0, damage);
-    this.currentHp = Math.max(0, this.currentHp - amount);
+    this.currentHp = Math.max(0, this.currentHp - Math.max(0, damage));
     if (this.currentHp <= this.maxHp * 0.35) this.isEnraged = true;
     return this.currentHp <= 0;
   }
@@ -249,7 +189,6 @@ export class AbyssalHorrorBoss extends Container {
     if (Math.abs(vx) > 0.15) this.facingSign = vx < 0 ? -1 : 1;
     this.elapsed += dtScale / 60;
     if (!this.loaded) return;
-
     this.bodyRoot.scale.x = this.facingSign;
     const breath = Math.sin(this.elapsed * 3) * 0.02;
     this.torsoUpper.scale.set(1 + breath);
