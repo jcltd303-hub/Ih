@@ -32,7 +32,8 @@ export class BossRaidEvent {
   private hpBarBg: Graphics;
   private hpBarFill: Graphics;
   private announceText: Text;
-  private onComplete?: (result: { defeated: boolean; lastHitUserId: string | null; contributors: Map<string, number> }) => void;
+  private onComplete?: (result: { defeated: boolean; lastHitUserId: string | null; contributors: Map<string, number>; bountyPayout: number }) => void;
+  private currentBountyPayout = 0;
   private readonly RAID_DURATION_MS = GameConfig.bossPacing.battleDurationMs;
   private screenW = 0;
   private screenH = 0;
@@ -122,6 +123,7 @@ export class BossRaidEvent {
     if (this.state.active) return;
 
     this.onComplete = onComplete;
+    this.currentBountyPayout = 0;
     this.resultEmitted = false;
     this.raidStartedAt = Date.now();
     this.stateEmitAccumulatorMs = 0;
@@ -189,8 +191,10 @@ export class BossRaidEvent {
 
     const myUid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const myDamage = this.state.contributors.get(myUid)?.damage || 0;
-    const killBonus = lastHitUserId === myUid ? 500 : 0;
-    const totalBounty = myDamage > 0 ? (myDamage * 5) + killBonus : 0;
+    const killBonus = lastHitUserId === myUid ? (myDamage * 0.10) : 0; // Last hit gets +10% bonus
+    // myDamage is strictly 1:1 with betAmount wagered (mean). Pay exactly 65% of wager back as bounty, preserving 85% total RTP.
+    const totalBounty = myDamage > 0 ? (myDamage * 0.65) + killBonus : 0;
+    this.currentBountyPayout = totalBounty;
 
     GameEventBus.getInstance().emit<BossResultEvent>('BOSS_DEFEATED', {
       defeated: true,
@@ -237,7 +241,7 @@ export class BossRaidEvent {
 
     this.state.active = false;
     this.uiContainer.visible = false;
-    this.onComplete?.({ defeated, lastHitUserId, contributors });
+    this.onComplete?.({ defeated, lastHitUserId, contributors, bountyPayout: this.currentBountyPayout });
   }
 
   public update(deltaTime: number): void {

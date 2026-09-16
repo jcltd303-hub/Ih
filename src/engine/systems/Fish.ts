@@ -3,7 +3,7 @@ import { AbyssalHorrorBoss } from './AbyssalHorrorBoss';
 import { MutantCutoutPuppet } from './MutantCutoutPuppet';
 import { Tetra } from './Tetra';
 import { BoidSwarmManager, Boid } from './BoidSwarmManager';
-import { EntityBounds } from './SpatialHashGrid';
+import { EntityBounds, SpatialHashGrid } from './SpatialHashGrid';
 
 export class Fish implements Boid {
   public id: string;
@@ -82,7 +82,15 @@ export class Fish implements Boid {
     }
   }
 
-  public updateSteering(neighbors: Fish[], screenWidth: number, screenHeight: number, threatX?: number, threatY?: number, dtScale = 1): void {
+  public updateSteering(
+    spatialGrid: SpatialHashGrid,
+    activeFishMap: Map<string, Fish>,
+    screenWidth: number,
+    screenHeight: number,
+    threatX?: number,
+    threatY?: number,
+    dtScale = 1
+  ): void {
     if (!this.isAlive) return;
     if (this.typeId === 'boss') {
       const targetSpeed = 1.25, targetVx = this.facing === 'left' ? -targetSpeed : targetSpeed;
@@ -100,7 +108,24 @@ export class Fish implements Boid {
     this.lodCounter++;
     let ax = this.cachedAx, ay = this.cachedAy;
     if (this.typeId !== 'small' || (this.lodCounter & 1) === 0 || threatX !== undefined) {
-      const steering = BoidSwarmManager.computeSteering(this, neighbors, threatX, threatY); ax = steering.ax; ay = steering.ay; this.cachedAx = ax; this.cachedAy = ay;
+      // Query spatial hash grid around this fish's current position (sensing radius ~160px)
+      const radius = 160;
+      const queryResults = spatialGrid.query(this.x - radius, this.y - radius, radius * 2, radius * 2);
+      
+      // Resolve bounds to neighbor Fish objects
+      const neighbors: Fish[] = [];
+      for (let i = 0; i < queryResults.length; i++) {
+        const nf = activeFishMap.get(queryResults[i].id);
+        if (nf && nf !== this && nf.isAlive) {
+          neighbors.push(nf);
+        }
+      }
+
+      const steering = BoidSwarmManager.computeSteering(this, neighbors, threatX, threatY); 
+      ax = steering.ax; 
+      ay = steering.ay; 
+      this.cachedAx = ax; 
+      this.cachedAy = ay;
     }
     if (threatX !== undefined && threatY !== undefined) {
       const dx = this.x - threatX, dy = this.y - threatY, ds = dx * dx + dy * dy, r = this.typeId === 'medium' ? 170 : 180;
@@ -138,7 +163,8 @@ export class Fish implements Boid {
     if (this.typeId === 'boss') { const dead = this.abyssalBoss?.takeDamage(amount) ?? false; if (dead) this.health = 0; return dead; }
     if (this.typeId === 'medium') { this.mutantPuppet?.takeDamage(amount); }
     if (this.typeId === 'small') { this.tetraPuppet?.takeDamage(amount); }
-    return this.health <= 0;
+    // Trash fish are purely RNG-killed in the new Payout Engine to enforce strict RTP bounds.
+    return false;
   }
 
   public inflictDamage(damage: number, forceInstantKill = false): { killed: boolean; multiplier: number; x: number; y: number } {

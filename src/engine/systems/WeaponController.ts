@@ -53,7 +53,7 @@ export class WeaponController {
   private upgradeOverlay: Graphics;
   private upgradeCountdown: Text;
   private onWinCallback?: (winAmount: number, currencyType: 'GC' | 'SC') => void;
-  private onBossDamage?: (userId: string, damage: number, fishId: string) => void;
+  private onBossDamage?: (userId: string, damage: number, fishId: string, betAmount: number) => void;
 
   private static readonly WEAPON_STATS: Record<
     TurretSkinId,
@@ -96,7 +96,7 @@ export class WeaponController {
     screenWidth: number,
     screenHeight: number,
     onWin?: (winAmount: number, currencyType: 'GC' | 'SC') => void,
-    onBossDamage?: (userId: string, damage: number, fishId: string) => void
+    onBossDamage?: (userId: string, damage: number, fishId: string, betAmount: number) => void
   ) {
     this.stage = stage;
     this.spatialGrid = spatialGrid;
@@ -443,7 +443,7 @@ export class WeaponController {
         // Route boss damage to raid event
         if (fishType === 'boss') {
           if (this.onBossDamage) {
-            this.onBossDamage(proj.userId, evalHit.damage, hitEntity.id);
+            this.onBossDamage(proj.userId, evalHit.damage, hitEntity.id, proj.betAmount);
           }
         }
 

@@ -183,20 +183,17 @@ export class GameScene {
       this.bossUnlockAtMs = Date.now() + GameConfig.bossPacing.cooldownMs;
       
       if (result.defeated) {
-        const myUid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
-        const myDamage = result.contributors.get(myUid) || 0;
+        const auth = AuthManager.getInstance().getState();
+        const isOffline = !isFirebaseConfigured || !auth.user || auth.uid.startsWith('player_');
         
-        if (myDamage > 0) {
-          // Calculate a massive bounty based on contribution (e.g. 5x total damage + bonus)
-          const baseBounty = myDamage * 5;
-          const killBonus = result.lastHitUserId === myUid ? 500 : 0;
-          const totalBounty = baseBounty + killBonus;
-          
-          this.uiManager.addBalance(0, totalBounty); // Pay out in SC
+        if (result.bountyPayout > 0) {
+          if (isOffline) {
+            this.uiManager.addBalance(0, result.bountyPayout); // Pay out in SC offline
+          }
           this.particleFX.spawnFloatingText(
             this.app.screen.width / 2, 
             this.app.screen.height / 2 - 100, 
-            `BOSS BOUNTY: +${totalBounty.toFixed(2)} SC!`, 
+            `BOSS BOUNTY: +${result.bountyPayout.toFixed(2)} SC!`, 
             0xffd700, 
             true
           );

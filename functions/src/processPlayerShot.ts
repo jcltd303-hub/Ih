@@ -171,13 +171,13 @@ export const processPlayerShot = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Request timestamp expired.');
   }
 
-  // Fish tier is server-authoritative. The client may report its visual tier,
-// but it cannot promote an arbitrary target to boss economics. Boss targets
-// will be enabled later through a server-issued target authorization path.
-const fishType: FishType =
-    rawFishType === 'medium'
-      ? 'medium'
-      : 'small';
+  // Fish tier is server-authoritative.
+  const fishType: FishType =
+      rawFishType === 'boss'
+        ? 'boss'
+        : rawFishType === 'medium'
+        ? 'medium'
+        : 'small';
   const skinBonus = typeof rawSkinBonus === 'number' && rawSkinBonus > 0 ? Math.min(rawSkinBonus, 3) : 1;
 
   // Idempotency key: prevents a retried/duplicated call from paying out
@@ -308,8 +308,9 @@ const fishType: FishType =
 
       // Kill payout is server-authoritative. The client may report a visual
       // kill, but that report can never create a payout by itself.
-      // Instant-kill is the authoritative kill condition for this settlement.
-      const killClaimed = hitResult.isInstantKill;
+      // For standard fish, instant-kill is the authoritative kill condition.
+      // For boss, client-side HP depletion determines the kill.
+      const killClaimed = fishType === 'boss' ? (clientKillConfirmed === true) : hitResult.isInstantKill;
       if (killClaimed && !targetAlreadyKilled) {
         killed = true;
         killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, payoutTable, rng.next);

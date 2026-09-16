@@ -109,13 +109,28 @@ export class FishManager {
     const dtScale = Math.min(deltaTime * 0.06, 2.5);
     const list = this.activeFishList;
 
+    // 1. Populate spatial grid with all alive fish first so that steering can query it
+    for (let i = 0; i < list.length; i++) {
+      const fish = list[i];
+      if (fish.isAlive) {
+        this.spatialGrid.insert(fish.bounds);
+      }
+    }
+
+    // 2. Perform steering and position updates querying the spatial grid
     for (let i = 0; i < list.length; i++) {
       const fish = list[i];
       if (!fish.isAlive) continue;
 
-      // Pass cached active list for steering/flocking behaviors with zero allocations
-      fish.updateSteering(list, this.screenWidth, this.screenHeight, threatX, threatY, dtScale);
-      this.spatialGrid.insert(fish.bounds);
+      fish.updateSteering(
+        this.spatialGrid,
+        this.activeFish,
+        this.screenWidth,
+        this.screenHeight,
+        threatX,
+        threatY,
+        dtScale
+      );
     }
   }
 
