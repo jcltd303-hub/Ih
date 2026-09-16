@@ -1,6 +1,7 @@
 /**
  * Generated Paper Cutout Skeletal Rig Metadata for Mutant Fish.
  * Sliced with convex joint overlap caps for 100% gapless fluid rotation.
+ * Source artwork: abyssal amphibious mutant fish (regenerated 2026-09).
  */
 
 export interface PartFrame {
@@ -20,26 +21,26 @@ export interface PartRigDef {
   rotationRange: [number, number];
 }
 
-export const MUTANT_RIG_ATLAS_SIZE = { width: 2048, height: 1536 };
+export const MUTANT_RIG_ATLAS_SIZE = { width: 1272, height: 559 };
 
 export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "dorsal_fin": {
     "name": "Dorsal Fin",
     "frame": {
-      "x": 16,
-      "y": 16,
-      "w": 468,
-      "h": 340
+      "x": 860,
+      "y": 10,
+      "w": 186,
+      "h": 87
     },
     "anchor": {
-      "x": 0.485,
-      "y": 0.6441
+      "x": 0.4667,
+      "y": 0.75
     },
     "zOrder": 1,
     "parent": "torso",
     "attachOffset": {
-      "x": 10,
-      "y": -140
+      "x": -43.5,
+      "y": -77.6
     },
     "rotationRange": [
       -0.18,
@@ -49,20 +50,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "tail_fin": {
     "name": "Tail Fin",
     "frame": {
-      "x": 500,
-      "y": 16,
-      "w": 298,
-      "h": 549
+      "x": 10,
+      "y": 268,
+      "w": 141,
+      "h": 255
     },
     "anchor": {
-      "x": 0.2013,
-      "y": 0.4353
+      "x": 0.1322,
+      "y": 0.4146
     },
     "zOrder": 2,
     "parent": "tail_peduncle",
     "attachOffset": {
-      "x": 160,
-      "y": 0
+      "x": 80.7,
+      "y": 0.0
     },
     "rotationRange": [
       -0.35,
@@ -72,20 +73,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "tail_peduncle": {
     "name": "Tail Peduncle",
     "frame": {
-      "x": 814,
-      "y": 16,
-      "w": 246,
-      "h": 419
+      "x": 1056,
+      "y": 10,
+      "w": 99,
+      "h": 143
     },
     "anchor": {
-      "x": 0.2642,
-      "y": 0.4749
+      "x": 0.0625,
+      "y": 0.3478
     },
     "zOrder": 3,
     "parent": "torso",
     "attachOffset": {
-      "x": 220,
-      "y": 10
+      "x": 149.1,
+      "y": 0.0
     },
     "rotationRange": [
       -0.25,
@@ -95,20 +96,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "leg_rear_lower": {
     "name": "Rear Lower Leg & Clawed Foot",
     "frame": {
-      "x": 1076,
-      "y": 16,
-      "w": 159,
-      "h": 218
+      "x": 551,
+      "y": 268,
+      "w": 124,
+      "h": 108
     },
     "anchor": {
-      "x": 0.2516,
-      "y": 0.1835
+      "x": 0.325,
+      "y": 0.1149
     },
     "zOrder": 4,
     "parent": "leg_rear_upper",
     "attachOffset": {
-      "x": 25,
-      "y": 120
+      "x": 9.3,
+      "y": 52.8
     },
     "rotationRange": [
       -0.3,
@@ -118,20 +119,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "leg_rear_upper": {
     "name": "Rear Upper Thigh",
     "frame": {
-      "x": 1251,
-      "y": 16,
-      "w": 126,
-      "h": 155
+      "x": 435,
+      "y": 268,
+      "w": 81,
+      "h": 65
     },
     "anchor": {
-      "x": 0.3571,
-      "y": 0.2903
+      "x": 0.3077,
+      "y": 0.0952
     },
     "zOrder": 5,
     "parent": "torso",
     "attachOffset": {
-      "x": 160,
-      "y": 140
+      "x": 55.9,
+      "y": 102.5
     },
     "rotationRange": [
       -0.2,
@@ -141,20 +142,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "arm_front_lower": {
     "name": "Front Forearm & Claws",
     "frame": {
-      "x": 1393,
-      "y": 16,
-      "w": 124,
-      "h": 183
+      "x": 264,
+      "y": 268,
+      "w": 118,
+      "h": 108
     },
     "anchor": {
-      "x": 0.3065,
-      "y": 0.2077
+      "x": 0.3947,
+      "y": 0.0575
     },
     "zOrder": 9,
     "parent": "arm_front_upper",
     "attachOffset": {
-      "x": 35,
-      "y": 130
+      "x": 12.4,
+      "y": 43.5
     },
     "rotationRange": [
       -0.35,
@@ -164,20 +165,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "arm_front_upper": {
     "name": "Front Upper Arm",
     "frame": {
-      "x": 1533,
-      "y": 16,
-      "w": 146,
-      "h": 170
+      "x": 161,
+      "y": 268,
+      "w": 87,
+      "h": 62
     },
     "anchor": {
-      "x": 0.3082,
-      "y": 0.2647
+      "x": 0.25,
+      "y": 0.1
     },
     "zOrder": 8,
     "parent": "torso",
     "attachOffset": {
-      "x": -70,
-      "y": 130
+      "x": -65.2,
+      "y": 105.6
     },
     "rotationRange": [
       -0.25,
@@ -187,20 +188,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "ventral_finlet": {
     "name": "Ventral Finlet",
     "frame": {
-      "x": 1695,
-      "y": 16,
-      "w": 90,
-      "h": 136
+      "x": 698,
+      "y": 268,
+      "w": 81,
+      "h": 84
     },
     "anchor": {
-      "x": 0.4333,
-      "y": 0.2574
+      "x": 0.4615,
+      "y": 0.1111
     },
     "zOrder": 7,
     "parent": "torso",
     "attachOffset": {
-      "x": -110,
-      "y": 160
+      "x": -130.4,
+      "y": 108.7
     },
     "rotationRange": [
       -0.2,
@@ -210,20 +211,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "jaw_lower": {
     "name": "Articulated Lower Jaw",
     "frame": {
-      "x": 16,
-      "y": 581,
-      "w": 453,
-      "h": 340
+      "x": 670,
+      "y": 10,
+      "w": 180,
+      "h": 137
     },
     "anchor": {
-      "x": 0.8764,
-      "y": 0.1618
+      "x": 0.8276,
+      "y": 0.1364
     },
     "zOrder": 10,
     "parent": "head_upper",
     "attachOffset": {
-      "x": -40,
-      "y": 85
+      "x": -21.7,
+      "y": 62.1
     },
     "rotationRange": [
       -0.05,
@@ -233,20 +234,20 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "head_upper": {
     "name": "Head & Upper Cranium",
     "frame": {
-      "x": 485,
-      "y": 581,
-      "w": 398,
-      "h": 260
+      "x": 480,
+      "y": 10,
+      "w": 180,
+      "h": 174
     },
     "anchor": {
-      "x": 0.8719,
-      "y": 0.6885
+      "x": 0.9483,
+      "y": 0.4643
     },
     "zOrder": 6,
     "parent": "torso",
     "attachOffset": {
-      "x": -190,
-      "y": -10
+      "x": -177.0,
+      "y": -24.8
     },
     "rotationRange": [
       -0.12,
@@ -256,14 +257,14 @@ export const MUTANT_RIG_PARTS: Record<string, PartRigDef> = {
   "torso": {
     "name": "Main Torso Body",
     "frame": {
-      "x": 899,
-      "y": 581,
-      "w": 420,
-      "h": 400
+      "x": 10,
+      "y": 10,
+      "w": 460,
+      "h": 248
     },
     "anchor": {
-      "x": 0.5214,
-      "y": 0.5475
+      "x": 0.5676,
+      "y": 0.475
     },
     "zOrder": 0,
     "parent": null,
