@@ -198,6 +198,29 @@ export class UIManager {
       </style>
 
       <div class="ff-arcade-cabinet">
+        <!-- Theme Toggle Button -->
+        <button id="lobby-theme-toggle" type="button" title="Toggle Theme" style="
+          position: absolute;
+          top: 14px;
+          right: 14px;
+          background: rgba(15, 23, 42, 0.7);
+          border: 1px solid #334155;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: ${this.currentTheme === 'light' ? '#fde047' : '#a855f7'};
+          font-size: 14px;
+          transition: all 0.2s ease;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+          z-index: 10;
+        ">
+          ${this.currentTheme === 'light' ? '☀️' : '🌙'}
+        </button>
+
         <div style="font-size:10px; letter-spacing:4px; color:#fbbf24; font-weight:900; margin-bottom:2px;">SYS.ONLINE // COMBAT SIMULATOR</div>
         <div class="ff-cabinet-title">FISH FRENZY</div>
         <div class="ff-cabinet-sub">ARCADE COMBAT // PREDATOR TRENCH</div>
@@ -352,10 +375,15 @@ export class UIManager {
       showHowToPlayModal(this.modalCtx());
     });
 
+    root.querySelector('#lobby-theme-toggle')?.addEventListener('click', () => {
+      this.toggleTheme();
+    });
+
     root.querySelector('#ff-start-options')?.addEventListener('click', () => {
       showOptionsModal(this.modalCtx(), (theme) => {
         this.currentTheme = theme;
         this.onThemeChangeCallback?.(theme);
+        this.updateThemeToggleUI();
       });
     });
 
@@ -473,6 +501,24 @@ export class UIManager {
           ">
             STORE
           </button>
+
+          <button id="hud-theme-toggle" type="button" title="Toggle Theme" style="
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid #334155;
+            color: ${this.currentTheme === 'light' ? '#fde047' : '#a855f7'};
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+          ">
+            ${this.currentTheme === 'light' ? '☀️' : '🌙'}
+          </button>
           
           <!-- Hidden compatibility buttons -->
           <button id="hud-table-btn" style="display:none;"></button>
@@ -554,10 +600,14 @@ export class UIManager {
       });
     });
     document.getElementById('hud-store-btn')?.addEventListener('click', () => this.openStore());
+    document.getElementById('hud-theme-toggle')?.addEventListener('click', () => {
+      this.toggleTheme();
+    });
     document.getElementById('hud-options-btn')?.addEventListener('click', () => {
       showOptionsModal(this.modalCtx(), (theme) => {
         this.currentTheme = theme;
         this.onThemeChangeCallback?.(theme);
+        this.updateThemeToggleUI();
       });
     });
     document.getElementById('hud-diag-btn')?.addEventListener('click', () => {
@@ -1050,5 +1100,40 @@ export class UIManager {
     this.gcBalance = b.goldCoins;
     this.scBalance = b.sweepstakesCoins;
     this.paintBalances();
+  }
+
+  private toggleTheme(): void {
+    const nextTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+    this.currentTheme = nextTheme;
+    this.onThemeChangeCallback?.(nextTheme);
+    this.updateThemeToggleUI();
+  }
+
+  private updateThemeToggleUI(): void {
+    const lobbyToggle = document.getElementById('lobby-theme-toggle');
+    if (lobbyToggle) {
+      lobbyToggle.textContent = this.currentTheme === 'light' ? '☀️' : '🌙';
+      lobbyToggle.title = `Switch to ${this.currentTheme === 'light' ? 'Dark' : 'Light'} Mode`;
+      if (this.currentTheme === 'light') {
+        lobbyToggle.style.color = '#fde047';
+        lobbyToggle.style.borderColor = '#e2e8f0';
+      } else {
+        lobbyToggle.style.color = '#a855f7';
+        lobbyToggle.style.borderColor = '#c084fc';
+      }
+    }
+
+    const hudToggle = document.getElementById('hud-theme-toggle');
+    if (hudToggle) {
+      hudToggle.textContent = this.currentTheme === 'light' ? '☀️' : '🌙';
+      hudToggle.title = `Switch to ${this.currentTheme === 'light' ? 'Dark' : 'Light'} Mode`;
+      if (this.currentTheme === 'light') {
+        hudToggle.style.color = '#fde047';
+        hudToggle.style.borderColor = '#e2e8f0';
+      } else {
+        hudToggle.style.color = '#a855f7';
+        hudToggle.style.borderColor = '#c084fc';
+      }
+    }
   }
 }

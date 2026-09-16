@@ -184,7 +184,7 @@ export class PayoutEngine {
        else if (roll < 0.10) { finalMultiplier *= 5; bonusLabel = '🔥 5X MULTIPLIER!'; }
        else if (roll < 0.25) { finalMultiplier *= 2.5; bonusLabel = 'BONUS WIN!'; }
     } else {
-       finalMultiplier = 25; // Boss uses Bounty system, not raw multiplier
+       finalMultiplier = 15; // Boss uses Bounty system, not raw multiplier
     }
 
     return { finalMultiplier, bonusLabel, isJackpot };

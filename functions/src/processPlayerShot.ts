@@ -1,6 +1,5 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
-import * as crypto from 'crypto';
 import {
   assertRateLimit,
   assertBetAmount,
@@ -14,6 +13,7 @@ import {
   validatePayoutTable,
   type PayoutTable
 } from './payoutTable';
+import { deriveRoll } from './provablyFair';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -21,19 +21,6 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 type FishType = 'small' | 'medium' | 'boss';
-
-/**
- * Deterministic, provably-fair roll derived from the session's committed
- * server seed + client seed + a sequential nonce — same SHA-256
- * construction as ProvablyFairAuditor.verifyOutcome() on the client, so any
- * roll used to settle a shot can be independently recomputed once the
- * server seed is revealed.
- */
-function deriveRoll(serverSeed: string, clientSeed: string, nonce: number): number {
-  const hashHex = crypto.createHash('sha256').update(`${serverSeed}:${clientSeed}:${nonce}`).digest('hex');
-  const intVal = parseInt(hashHex.substring(0, 8), 16);
-  return intVal / 0xffffffff; // [0, 1)
-}
 
 /** Sequential RNG bound to a session; each call consumes the next nonce. */
 function makeSessionRng(serverSeed: string, clientSeed: string, startNonce: number) {
@@ -86,6 +73,15 @@ function evaluateServerKill(
   rng: () => number
 ) {
   const { kill } = payoutTable;
+
+  if (fishType === 'boss') {
+    return {
+      finalMultiplier: baseMultiplier, // Balanced flat bounty
+      bonusLabel: 'BOSS BOUNTY CLAIMED',
+      isJackpot: false
+    };
+  }
+
   const roll = rng();
 
   if (roll < kill.jackpotChance) {
@@ -112,7 +108,7 @@ function evaluateServerKill(
     };
   }
 
-  const typeBoost = fishType === 'boss' ? kill.bossTypeBoost : 1.0;
+  const typeBoost = 1.0;
 
   return {
     finalMultiplier: baseMultiplier * typeBoost,
@@ -122,7 +118,7 @@ function evaluateServerKill(
 }
 
 function baseMultiplierFor(fishType: FishType): number {
-  if (fishType === 'boss') return 25;
+  if (fishType === 'boss') return 15;
   if (fishType === 'medium') return 4;
   return 1.2;
 }

@@ -3,8 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.revealSessionSeed = exports.startGameSession = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
-const crypto = require("crypto");
 const payoutTable_1 = require("./payoutTable");
+const provablyFair_1 = require("./provablyFair");
 if (!admin.apps.length) {
     admin.initializeApp();
 }
@@ -20,9 +20,9 @@ exports.startGameSession = (0, https_1.onCall)(async (request) => {
     }
     const clientSeed = typeof request.data?.clientSeed === 'string' && request.data.clientSeed.length > 0
         ? String(request.data.clientSeed).slice(0, 128)
-        : crypto.randomBytes(16).toString('hex');
-    const serverSeed = crypto.randomBytes(32).toString('hex');
-    const serverSeedHash = crypto.createHash('sha256').update(serverSeed).digest('hex');
+        : (0, provablyFair_1.generateClientSeed)();
+    const serverSeed = (0, provablyFair_1.generateServerSeed)();
+    const serverSeedHash = (0, provablyFair_1.hashServerSeed)(serverSeed);
     const sessionId = `sess_${userId.slice(0, 8)}_${Date.now()}`;
     const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
     const activeTableSnap = await db.collection('config').doc('payoutActive').get();

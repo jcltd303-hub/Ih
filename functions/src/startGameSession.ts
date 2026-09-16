@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
-import * as crypto from 'crypto';
 import { DEFAULT_PAYOUT_TABLE, validatePayoutTable } from './payoutTable';
+import { generateServerSeed, hashServerSeed, generateClientSeed } from './provablyFair';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -21,10 +21,10 @@ export const startGameSession = onCall(async (request) => {
   const clientSeed =
     typeof request.data?.clientSeed === 'string' && request.data.clientSeed.length > 0
       ? String(request.data.clientSeed).slice(0, 128)
-      : crypto.randomBytes(16).toString('hex');
+      : generateClientSeed();
 
-  const serverSeed = crypto.randomBytes(32).toString('hex');
-  const serverSeedHash = crypto.createHash('sha256').update(serverSeed).digest('hex');
+  const serverSeed = generateServerSeed();
+  const serverSeedHash = hashServerSeed(serverSeed);
   const sessionId = `sess_${userId.slice(0, 8)}_${Date.now()}`;
 
   const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);

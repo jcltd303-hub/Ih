@@ -25,11 +25,11 @@ export interface FlockWeights {
 
 const DEFAULT_WEIGHTS: Record<'small' | 'medium' | 'boss', FlockWeights> = {
   small: {
-    separation: 1.6,
+    separation: 2.4,
     alignment: 1.1,
-    cohesion: 0.85,
-    separationRadius: 42,
-    neighborRadius: 95,
+    cohesion: 0.65,
+    separationRadius: 65,
+    neighborRadius: 125,
     maxSpeed: 3.6,
     maxForce: 0.28
   },

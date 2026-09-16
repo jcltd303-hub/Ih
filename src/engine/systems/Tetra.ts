@@ -148,7 +148,7 @@ export class Tetra extends Container {
     this.sTailFin.position.set(cw, ch);
 
     this.bodyRoot.position.set(0, 0);
-    this.bodyRoot.scale.set(0.08 * this.facingSign, 0.08);
+    this.bodyRoot.scale.set(0.115 * this.facingSign, 0.115);
   }
 
   public setTheme(theme: Theme): void {
@@ -162,21 +162,19 @@ export class Tetra extends Container {
 
   public setFacing(facing: 'left' | 'right'): void {
     this.facingSign = facing === 'left' ? -1 : 1;
-    this.bodyRoot.scale.x = 0.08 * this.facingSign;
+    this.bodyRoot.scale.x = 0.115 * this.facingSign;
   }
 
   public applyTheme(theme: Theme): void {
     this.setTheme(theme);
   }
 
-  public update(dtScale = 1, vx = 1): void {
+  public update(dtScale = 1): void {
     // Fish.ts supplies a frame-time scale (currently milliseconds-per-frame).
     // Convert it to seconds so the cycle speed is stable instead of frame-rate dependent.
     const dt = Math.min(0.05, Math.max(0, dtScale) / 1000);
     this.elapsed += dt;
-    if (vx < -0.05) this.facingSign = -1;
-    else if (vx > 0.05) this.facingSign = 1;
-    this.bodyRoot.scale.x = 0.08 * this.facingSign;
+    this.bodyRoot.scale.x = 0.115 * this.facingSign;
 
     const t = this.elapsed;
     const swim = Math.sin(t * 5.2);

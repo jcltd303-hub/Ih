@@ -67,11 +67,14 @@ export class AssetLoader {
 
     // Authored mutant fish artwork
     const mutantArtworkUrl = new URL('../../assets/images/mutant_cutout_atlas.png', import.meta.url).href;
+    const abyssalHorrorUrl = new URL('../../assets/images/abyssal_horror_boss.png', import.meta.url).href;
     try {
       await Assets.load(mutantArtworkUrl);
+      const abyssalTex = await Assets.load(abyssalHorrorUrl) as Texture;
+      Assets.cache.set('abyssal_horror_boss', abyssalTex);
       await Tetra.prepare();
     } catch (err) {
-      console.error('[AssetLoader] Failed to load mutant/tetra artwork', err);
+      console.error('[AssetLoader] Failed to load mutant/tetra/abyssal artwork', err);
     }
     reportStep();
 

@@ -3,30 +3,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.processPlayerShot = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
-const crypto = require("crypto");
 const limits_1 = require("./limits");
 const payoutTable_1 = require("./payoutTable");
+const provablyFair_1 = require("./provablyFair");
 if (!admin.apps.length) {
     admin.initializeApp();
 }
 const db = admin.firestore();
-/**
- * Deterministic, provably-fair roll derived from the session's committed
- * server seed + client seed + a sequential nonce — same SHA-256
- * construction as ProvablyFairAuditor.verifyOutcome() on the client, so any
- * roll used to settle a shot can be independently recomputed once the
- * server seed is revealed.
- */
-function deriveRoll(serverSeed, clientSeed, nonce) {
-    const hashHex = crypto.createHash('sha256').update(`${serverSeed}:${clientSeed}:${nonce}`).digest('hex');
-    const intVal = parseInt(hashHex.substring(0, 8), 16);
-    return intVal / 0xffffffff; // [0, 1)
-}
 /** Sequential RNG bound to a session; each call consumes the next nonce. */
 function makeSessionRng(serverSeed, clientSeed, startNonce) {
     let n = startNonce;
     return {
-        next: () => deriveRoll(serverSeed, clientSeed, n++),
+        next: () => (0, provablyFair_1.deriveRoll)(serverSeed, clientSeed, n++),
         consumed: () => n - startNonce
     };
 }
@@ -54,6 +42,13 @@ function evaluateServerHit(betAmount, fishType, skinBonus, payoutTable, rng) {
 }
 function evaluateServerKill(baseMultiplier, fishType, payoutTable, rng) {
     const { kill } = payoutTable;
+    if (fishType === 'boss') {
+        return {
+            finalMultiplier: baseMultiplier, // Balanced flat bounty
+            bonusLabel: 'BOSS BOUNTY CLAIMED',
+            isJackpot: false
+        };
+    }
     const roll = rng();
     if (roll < kill.jackpotChance) {
         return {
@@ -76,7 +71,7 @@ function evaluateServerKill(baseMultiplier, fishType, payoutTable, rng) {
             isJackpot: false
         };
     }
-    const typeBoost = fishType === 'boss' ? kill.bossTypeBoost : 1.0;
+    const typeBoost = 1.0;
     return {
         finalMultiplier: baseMultiplier * typeBoost,
         bonusLabel: 'STANDARD WIN',
@@ -85,7 +80,7 @@ function evaluateServerKill(baseMultiplier, fishType, payoutTable, rng) {
 }
 function baseMultiplierFor(fishType) {
     if (fishType === 'boss')
-        return 25;
+        return 15;
     if (fishType === 'medium')
         return 4;
     return 1.2;
