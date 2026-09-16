@@ -23,7 +23,7 @@ export class BossSystem {
 
   // Active Boss combat data
   private bossId: string | null = null;
-  private bossName = 'APEX LEVIATHAN';
+  private bossName = 'ABYSSAL HORROR BOSS';
   private currentHp = 200;
   private maxHp = 200;
   private totalDamage = 0;

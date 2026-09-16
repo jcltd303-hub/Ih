@@ -121,7 +121,10 @@ export class GameScene {
       events.on<ScreenShakeEvent>('SCREEN_SHAKE', (data) => this.triggerShake(data.intensity, data.durationMs)),
       events.on('FISH_HIT', (e: any) => { if (e.isCrit || e.fishType === 'boss') this.hitStopRemainingMs = e.fishType === 'boss' ? 100 : 65; }),
       events.on('BOSS_HIT', () => { this.hitStopRemainingMs = 90; }),
-      events.on('SCREEN_DIM', (e: { intensity: number }) => this.abyssalPostProcessor.setDim(e.intensity))
+      events.on('SCREEN_DIM', (e: { intensity: number }) => this.abyssalPostProcessor.setDim(e.intensity)),
+      events.on('SPAWN_CUTOUT_FISH', () => {
+        this.fishManager.spawnAt('medium', this.app.screen.width / 2, this.app.screen.height / 2);
+      })
     );
     // The arcade cabinet is live immediately. There is intentionally no
     // blocking PLAY/start screen; browsers will unlock WebAudio on the first
@@ -343,7 +346,11 @@ export class GameScene {
     this.safeStep('fishManager.update', () => this.fishManager.update(frameMs));
     this.safeStep('weaponController.update', () => this.weaponController.update(frameMs));
     this.safeStep('particleFX.update', () => this.particleFX.update(frameMs));
-    this.safeStep('multiplayerTable.tick', () => this.multiplayerTable.tick(frameMs));
+    this.safeStep('multiplayerTable.tick', () => {
+      if (typeof this.multiplayerTable?.tick === 'function') {
+        this.multiplayerTable.tick(frameMs);
+      }
+    });
   }
 
   private async onDestroy(): Promise<void> {

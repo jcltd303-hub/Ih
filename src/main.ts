@@ -18,8 +18,10 @@ import { initAppCheck } from './network/AppCheckInit';
 import { FeatureFlags, prefersReducedMotion } from './config/FeatureFlags';
 import { maybeShowOnboarding } from './ui/OnboardingTips';
 import { CombatFeedbackOverlay } from './ui/CombatFeedbackOverlay';
+import { SoundManager } from './audio/SoundManager';
 
 installDarkThemeAudio();
+SoundManager.loadAiAudioFromCache().catch(() => {});
 
 // If the per-frame game loop throws, Pixi's own render pass for that tick
 // can get aborted right along with it — the canvas just freezes/blanks with
@@ -120,16 +122,6 @@ async function bootstrap() {
     showCrashBanner('GameScene constructor', err);
     throw err;
   }
-
-  // Reinstate the existing arcade intro/start screen. GameScene currently
-  // auto-starts for legacy compatibility, so immediately put it back into
-  // its idle state and let the intro's PLAY callback own the real start.
-  const sceneRuntime = gameScene as GameScene & {
-    isPlaying: boolean;
-    uiManager: { showStartScreen: () => void };
-  };
-  sceneRuntime.isPlaying = false;
-  sceneRuntime.uiManager.showStartScreen();
 
   new CombatFeedbackOverlay(root);
 

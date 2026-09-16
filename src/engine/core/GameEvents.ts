@@ -33,7 +33,8 @@ export type GameEventType =
   | 'SCREEN_DIM'
   | 'BOSS_PHASE_CHANGE'
   | 'TURRET_READY'
-  | 'AIM_UPDATE';
+  | 'AIM_UPDATE'
+  | 'SPAWN_CUTOUT_FISH';
 
 export interface FishHitEvent {
   fishId: string;
@@ -81,7 +82,7 @@ export interface ScreenShakeEvent {
 
 export interface BossStateEvent {
   bossId?: string;
-  phase: 'idle' | 'warning' | 'intro' | 'engaged' | 'enraged' | 'defeated' | 'escaped';
+  phase: 'idle' | 'warning' | 'intro' | 'approaching' | 'engaged' | 'enraged' | 'defeated' | 'escaped';
   name: string;
   hp: number;
   maxHp: number;

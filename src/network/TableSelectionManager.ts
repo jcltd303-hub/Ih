@@ -41,7 +41,7 @@ export const AVAILABLE_TABLES: TableConfig[] = [
     name: 'Abyssal Trench 01',
     mode: 'public',
     tagline: 'Live Multiplayer & Co-op Raids',
-    description: 'Real-time multiplayer trench with shared player presence, ricochet tracers, and automated 90s Leviathan Boss Raids.',
+    description: 'Real-time multiplayer trench with shared player presence, ricochet tracers, and automated 90s Abyssal Horror Boss Raids.',
     badge: 'PUBLIC LIVE',
     badgeColor: '#00ffcc',
     allowedCurrencies: ['GC', 'SC'],

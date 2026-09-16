@@ -316,11 +316,11 @@ export class ArcadeCombatWidgets {
   }
 
   private showVictory(res: BossResultEvent): void {
-    this.showResult('VICTORY', 'APEX LEVIATHAN // K.O.', res, '#facc15');
+    this.showResult('VICTORY', 'ABYSSAL HORROR BOSS // K.O.', res, '#facc15');
   }
 
   private showDefeat(res: BossResultEvent): void {
-    this.showResult('TIME UP', 'APEX LEVIATHAN ESCAPED', res, '#ef4444');
+    this.showResult('TIME UP', 'ABYSSAL HORROR BOSS ESCAPED', res, '#ef4444');
   }
 
   private showResult(title: string, subtitle: string, res: BossResultEvent, accent: string): void {

@@ -75,8 +75,9 @@ export class BossRaidEvent {
       fontFamily: 'monospace',
       fontSize: 28,
       fontWeight: 'bold',
-      fill: 0xffd700,
-      dropShadow: { color: '#000000', blur: 4, distance: 2 }
+      fill: 0x00f0ff,
+      stroke: { color: '#ff0055', width: 3 },
+      dropShadow: { color: '#000000', blur: 6, distance: 2 }
     });
     this.announceText = new Text({ text: '', style: announceStyle });
     this.announceText.anchor.set(0.5);
@@ -103,7 +104,7 @@ export class BossRaidEvent {
     bus.emit<BossStateEvent>('BOSS_STATE', {
       bossId: this.bossId ?? undefined,
       phase,
-      name: 'APEX LEVIATHAN',
+      name: 'ABYSSAL HORROR BOSS',
       hp: this.state.hp,
       maxHp: this.state.maxHp,
       hpPercent,
@@ -142,10 +143,10 @@ export class BossRaidEvent {
     this.bossId = boss.id;
 
     const bus = GameEventBus.getInstance();
-    bus.emit('BOSS_TRIGGER', { name: 'APEX LEVIATHAN', userId });
-    bus.emit('BOSS_WARNING', { name: 'APEX LEVIATHAN', warningMs: GameConfig.bossPacing.warningDurationMs });
-    bus.emit('BOSS_INTRO', { name: 'APEX LEVIATHAN' });
-    bus.emit('BOSS_START', { name: 'APEX LEVIATHAN', bossId: this.bossId });
+    bus.emit('BOSS_TRIGGER', { name: 'ABYSSAL HORROR BOSS', userId });
+    bus.emit('BOSS_WARNING', { name: 'ABYSSAL HORROR BOSS', warningMs: GameConfig.bossPacing.warningDurationMs });
+    bus.emit('BOSS_INTRO', { name: 'ABYSSAL HORROR BOSS' });
+    bus.emit('BOSS_START', { name: 'ABYSSAL HORROR BOSS', bossId: this.bossId });
     this.emitState(2.5, true);
 
     SoundManager.playBossWarning();

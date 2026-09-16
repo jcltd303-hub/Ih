@@ -541,7 +541,7 @@ export class WeaponController {
           BossSystem.getInstance().onFishKilled();
 
           // Emit FISH_KILLED event for Kill Feed and UI
-          const fishName = (fish as any)?.name || (fishType === 'boss' ? 'APEX LEVIATHAN' : fishType.toUpperCase());
+          const fishName = (fish as any)?.name || (fishType === 'boss' ? 'ABYSSAL HORROR BOSS' : fishType === 'medium' ? 'MUTANT FISH' : 'NEON TETRA');
           GameEventBus.getInstance().emit('FISH_KILLED', {
             fishId: hitEntity.id,
             fishType: fishType as 'small' | 'medium' | 'boss',

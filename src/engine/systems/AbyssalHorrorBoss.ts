@@ -1,208 +1,340 @@
-import { Assets, Container, Sprite, Texture } from 'pixi.js';
+import { Assets, Container, Sprite, Texture, Rectangle, Graphics } from 'pixi.js';
 
-export interface BossTextures {
-  torsoUpper: Texture;
-  torsoLower: Texture;
-  head: Texture;
+export interface PuppetPartTextures {
+  torso: Texture;
+  dorsalFin: Texture;
   jaw: Texture;
-  armLeftUpper: Texture;
-  armLeftLower: Texture;
-  armRightUpper: Texture;
-  armRightLower: Texture;
   tailFin: Texture;
+  armUpperFront: Texture;
+  armLowerFront: Texture;
 }
 
-type Region = { x: number; y: number; width: number; height: number; area: number; centerX: number; centerY: number };
+interface PartRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
-/** PixiJS v8 cutout-puppet boss. The source PNG is never rendered directly. */
+/**
+ * Articulated Paper Cutout Rigged Puppet Boss (Abyssal Horror Boss).
+ * Implemented with streamlined anatomical parts, aggressive jaw-chomping physics,
+ * natural lagging caudal fin wave, and paper-cutout turn-squash.
+ */
 export class AbyssalHorrorBoss extends Container {
   public maxHp: number;
   public currentHp: number;
   public theme: 'light' | 'dark';
   public isEnraged = false;
+  public targetSize: number;
 
-  private readonly artworkUrl: string;
+  private static cachedTextures: PuppetPartTextures | null = null;
+  private static loadingPromise: Promise<PuppetPartTextures> | null = null;
+
+  // Rig container hierarchy
   private readonly bodyRoot = new Container();
-  private readonly torsoUpper = new Container();
-  private readonly torsoLower = new Container();
-  private readonly head = new Container();
-  private readonly jaw = new Container();
-  private readonly armLeftRoot = new Container();
-  private readonly armLeftLower = new Container();
-  private readonly armRightRoot = new Container();
-  private readonly armRightLower = new Container();
-  private readonly tailRoot = new Container();
-  private elapsed = 0;
-  private facingSign = 1;
-  private loaded = false;
+  private readonly dorsalFinContainer = new Container();
+  private readonly tailContainer = new Container();
+  private readonly torsoContainer = new Container();
+  private readonly headContainer = new Container();
+  private readonly jawContainer = new Container();
+  private readonly armFrontRoot = new Container();
+  private readonly armFrontLower = new Container();
 
-  constructor(maxHp = 28, initialTheme: 'light' | 'dark' = 'dark') {
+  // Sprites for parts (only essential, high-impact anatomy)
+  private torsoSprite?: Sprite;
+  private dorsalSprite?: Sprite;
+  private tailSprite?: Sprite;
+  private jawSprite?: Sprite;
+  private armFrontUpperSprite?: Sprite;
+  private armFrontLowerSprite?: Sprite;
+
+  // Damage overlay flash
+  private damageFlashTimer = 0;
+  private shudderOffset = 0;
+
+  // Animation state
+  private elapsed = Math.random() * 10;
+  private facingSign = 1;
+  private currentScaleX = 1;
+  private loaded = false;
+  private isDestroyed = false;
+
+  constructor(maxHp = 28, initialTheme: 'light' | 'dark' = 'dark', targetSize = 300) {
     super();
     this.maxHp = maxHp;
     this.currentHp = maxHp;
     this.theme = initialTheme;
-    this.artworkUrl = new URL('../../assets/images/abyssal_horror_boss_sheet.png', import.meta.url).href;
+    // 20% larger default target size
+    this.targetSize = targetSize;
+
     this.addChild(this.bodyRoot);
-    void this.loadAndBuildRig();
+    void this.initializePuppet();
   }
 
-  private async loadAndBuildRig(): Promise<void> {
+  private static readonly CANONICAL_REGIONS: Record<keyof PuppetPartTextures, PartRegion> = {
+    torso: { x: 22, y: 10, width: 854, height: 1054 },
+    dorsalFin: { x: 650, y: 20, width: 234, height: 454 },
+    jaw: { x: 922, y: 18, width: 226, height: 222 },
+    tailFin: { x: 1186, y: 858, width: 248, height: 162 },
+    armUpperFront: { x: 996, y: 614, width: 84, height: 270 },
+    armLowerFront: { x: 1164, y: 614, width: 78, height: 268 }
+  };
+
+  public static async loadPartTextures(): Promise<PuppetPartTextures> {
+    if (AbyssalHorrorBoss.cachedTextures) return AbyssalHorrorBoss.cachedTextures;
+    if (AbyssalHorrorBoss.loadingPromise) return AbyssalHorrorBoss.loadingPromise;
+
+    AbyssalHorrorBoss.loadingPromise = (async () => {
+      const artworkUrl = new URL('../../assets/images/abyssal_horror_boss_sheet.png', import.meta.url).href;
+      const baseTex = await Assets.load(artworkUrl);
+      const source = baseTex.source;
+      const w = baseTex.width || 1456;
+      const h = baseTex.height || 1088;
+
+      const makeSlice = (reg: PartRegion): Texture => {
+        const rx = Math.max(0, Math.min(w - 2, reg.x));
+        const ry = Math.max(0, Math.min(h - 2, reg.y));
+        const rw = Math.max(2, Math.min(w - rx, reg.width));
+        const rh = Math.max(2, Math.min(h - ry, reg.height));
+        return new Texture({
+          source,
+          frame: new Rectangle(rx, ry, rw, rh)
+        });
+      };
+
+      const textures: PuppetPartTextures = {
+        torso: makeSlice(AbyssalHorrorBoss.CANONICAL_REGIONS.torso),
+        dorsalFin: makeSlice(AbyssalHorrorBoss.CANONICAL_REGIONS.dorsalFin),
+        jaw: makeSlice(AbyssalHorrorBoss.CANONICAL_REGIONS.jaw),
+        tailFin: makeSlice(AbyssalHorrorBoss.CANONICAL_REGIONS.tailFin),
+        armUpperFront: makeSlice(AbyssalHorrorBoss.CANONICAL_REGIONS.armUpperFront),
+        armLowerFront: makeSlice(AbyssalHorrorBoss.CANONICAL_REGIONS.armLowerFront)
+      };
+
+      AbyssalHorrorBoss.cachedTextures = textures;
+      return textures;
+    })();
+
+    return AbyssalHorrorBoss.loadingPromise;
+  }
+
+  private async initializePuppet(): Promise<void> {
     try {
-      const texture = await Assets.load(this.artworkUrl);
-      if (this.destroyed) return;
-      const source = texture.source?.resource as CanvasImageSource | undefined;
-      if (!source || !texture.width || !texture.height) throw new Error('Invalid boss sheet');
+      const tex = await AbyssalHorrorBoss.loadPartTextures();
+      if (this.isDestroyed) return;
 
-      const regions = this.findRegions(texture.width, texture.height, source);
-      if (regions.length < 5) throw new Error(`Only ${regions.length} boss cutout regions found`);
-
-      const sheet = document.createElement('canvas');
-      sheet.width = texture.width;
-      sheet.height = texture.height;
-      const ctx = sheet.getContext('2d', { willReadFrequently: true });
-      if (!ctx) throw new Error('Unable to create boss-sheet canvas');
-      ctx.drawImage(source, 0, 0, texture.width, texture.height);
-
-      const centerX = texture.width / 2;
-      const centerY = texture.height / 2;
-      const scale = 260 / Math.max(texture.width, texture.height);
-      const sprites = regions.slice(0, 18).map((r) => ({ region: r, sprite: this.makePartSprite(sheet, r) }));
-
-      const core = sprites.filter((p) => Math.abs(p.region.centerX - centerX) < texture.width * 0.24).sort((a, b) => b.region.area - a.region.area);
-      const upperCore = core[0] ?? sprites[0];
-      const lowerCore = core.find((p) => p !== upperCore && p.region.centerY > upperCore.region.centerY) ?? core[1] ?? sprites[1];
-      const above = sprites.filter((p) => p !== upperCore && p.region.centerY < centerY).sort((a, b) => b.region.area - a.region.area);
-      const below = sprites.filter((p) => p !== upperCore && p.region.centerY >= centerY).sort((a, b) => b.region.area - a.region.area);
-      const head = above[0] ?? sprites[0];
-      const jaw = below.find((p) => p !== lowerCore && Math.abs(p.region.centerX - head.region.centerX) < texture.width * 0.18) ?? below[0] ?? lowerCore;
-      const left = sprites.filter((p) => ![upperCore, lowerCore, head, jaw].includes(p) && p.region.centerX < centerX).sort((a, b) => a.region.centerX - b.region.centerX);
-      const right = sprites.filter((p) => ![upperCore, lowerCore, head, jaw].includes(p) && p.region.centerX >= centerX).sort((a, b) => b.region.centerX - a.region.centerX);
-      const tail = right.find((p) => p.region.centerX > centerX + texture.width * 0.2) ?? right[0] ?? sprites[sprites.length - 1];
-      const leftUpper = left[0] ?? upperCore;
-      const leftLower = left.find((p) => p !== leftUpper && p.region.centerY >= leftUpper.region.centerY) ?? left[1] ?? leftUpper;
-      const rightUpper = right.find((p) => p !== tail) ?? right[0] ?? upperCore;
-      const rightLower = right.find((p) => p !== tail && p !== rightUpper && p.region.centerY >= rightUpper.region.centerY) ?? right[1] ?? rightUpper;
-
-      this.mountRig({
-        torsoUpper: upperCore.sprite,
-        torsoLower: lowerCore.sprite,
-        head: head.sprite,
-        jaw: jaw.sprite,
-        armLeftUpper: leftUpper.sprite,
-        armLeftLower: leftLower.sprite,
-        armRightUpper: rightUpper.sprite,
-        armRightLower: rightLower.sprite,
-        tailFin: tail.sprite,
-      }, centerX, centerY, scale);
+      this.buildRig(tex);
+      this.applyThemeTint();
       this.loaded = true;
-    } catch (error) {
-      console.error('[AbyssalHorrorBoss] Failed to build cutout puppet', error);
+    } catch (err) {
+      console.error('[AbyssalHorrorBoss] Puppet rig initialization fallback:', err);
+      this.buildFallbackGeometry();
     }
   }
 
-  private makePartSprite(sheet: HTMLCanvasElement, r: Region): Sprite {
-    const c = document.createElement('canvas');
-    c.width = r.width;
-    c.height = r.height;
-    const pc = c.getContext('2d');
-    if (!pc) throw new Error('Unable to create boss part canvas');
-    pc.drawImage(sheet, r.x, r.y, r.width, r.height, 0, 0, r.width, r.height);
-    const sprite = new Sprite(Texture.from(c));
-    sprite.anchor.set(0.5);
-    return sprite;
-  }
+  private buildRig(tex: PuppetPartTextures): void {
+    const scale = this.targetSize / 800;
 
-  private findRegions(width: number, height: number, source: CanvasImageSource): Region[] {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return [];
-    ctx.drawImage(source, 0, 0, width, height);
-    const data = ctx.getImageData(0, 0, width, height).data;
-    const step = Math.max(1, Math.ceil(Math.max(width, height) / 1200));
-    const sw = Math.ceil(width / step), sh = Math.ceil(height / step);
-    const seen = new Uint8Array(sw * sh);
-    const regions: Region[] = [];
-    const solid = (x: number, y: number) => data[(Math.min(height - 1, y * step) * width + Math.min(width - 1, x * step)) * 4 + 3] > 24;
-
-    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
-      const seed = y * sw + x;
-      if (seen[seed] || !solid(x, y)) continue;
-      const queue = [seed]; seen[seed] = 1; let q = 0;
-      let minX = x, maxX = x, minY = y, maxY = y, count = 0;
-      while (q < queue.length) {
-        const n = queue[q++], nx = n % sw, ny = Math.floor(n / sw);
-        count++; minX = Math.min(minX, nx); maxX = Math.max(maxX, nx); minY = Math.min(minY, ny); maxY = Math.max(maxY, ny);
-        for (const next of [n - 1, n + 1, n - sw, n + sw]) {
-          if (next < 0 || next >= seen.length || seen[next]) continue;
-          const xx = next % sw, yy = Math.floor(next / sw);
-          if (Math.abs(xx - nx) + Math.abs(yy - ny) !== 1 || !solid(xx, yy)) continue;
-          seen[next] = 1; queue.push(next);
-        }
-      }
-      if (count >= 25) {
-        const rx = minX * step, ry = minY * step;
-        const rw = Math.min(width - rx, (maxX - minX + 1) * step), rh = Math.min(height - ry, (maxY - minY + 1) * step);
-        regions.push({ x: rx, y: ry, width: rw, height: rh, area: count, centerX: rx + rw / 2, centerY: ry + rh / 2 });
-      }
-    }
-    return regions.sort((a, b) => b.area - a.area);
-  }
-
-  private mountRig(tex: BossTextures, centerX: number, centerY: number, scale: number): void {
-    const place = (container: Container, sprite: Sprite, parent: Container, x: number, y: number) => {
-      parent.addChild(container);
-      container.position.set((x - centerX) * scale, (y - centerY) * scale);
-      container.addChild(sprite);
-      sprite.position.set(0, 0);
-      sprite.scale.set(1);
+    const createPart = (t: Texture, anchorX = 0.5, anchorY = 0.5): Sprite => {
+      const s = new Sprite(t);
+      s.anchor.set(anchorX, anchorY);
+      return s;
     };
 
-    // Joint containers are the rig. The numbers are joint centers in the source
-    // sheet's coordinate space; sprites themselves remain unscaled cutouts.
-    place(this.torsoLower, tex.torsoLower, this.bodyRoot, centerX + 10, centerY + 40);
-    place(this.armRightRoot, tex.armRightUpper, this.bodyRoot, centerX + 40, centerY - 10);
-    place(this.armRightLower, tex.armRightLower, this.armRightRoot, 0, 55 / scale);
-    this.armRightRoot.rotation = -0.2;
+    // Layer 0: Dorsal crest behind torso
+    this.dorsalSprite = createPart(tex.dorsalFin, 0.45, 0.88);
+    this.dorsalFinContainer.position.set(30 * scale, -130 * scale);
+    this.dorsalFinContainer.addChild(this.dorsalSprite);
+    this.bodyRoot.addChild(this.dorsalFinContainer);
 
-    place(this.torsoUpper, tex.torsoUpper, this.bodyRoot, centerX - 30, centerY - 20);
-    place(this.head, tex.head, this.torsoUpper, -160 / scale, -70 / scale);
-    place(this.jaw, tex.jaw, this.head, -35 / scale, 45 / scale);
+    // Layer 1: Tail fin behind body with convex joint overlap
+    this.tailSprite = createPart(tex.tailFin, 0.12, 0.5);
+    this.tailContainer.position.set(-190 * scale, 15 * scale);
+    this.tailContainer.addChild(this.tailSprite);
+    this.bodyRoot.addChild(this.tailContainer);
 
-    place(this.armLeftRoot, tex.armLeftUpper, this.bodyRoot, centerX + 60, centerY + 20);
-    place(this.armLeftLower, tex.armLeftLower, this.armLeftRoot, 0, 85 / scale);
-    this.armLeftRoot.rotation = 0.1;
+    // Layer 2: Main predatory torso & head core
+    this.torsoSprite = createPart(tex.torso, 0.52, 0.48);
+    this.torsoContainer.position.set(0, 0);
+    this.torsoContainer.addChild(this.torsoSprite);
+    this.bodyRoot.addChild(this.torsoContainer);
 
-    place(this.tailRoot, tex.tailFin, this.bodyRoot, centerX + 180, centerY + 20);
+    // Layer 3: Articulated Cranium & Chomping Lower Jaw
+    this.headContainer.position.set(165 * scale, -25 * scale);
+    this.jawSprite = createPart(tex.jaw, 0.15, 0.3);
+    this.jawContainer.position.set(35 * scale, 48 * scale);
+    this.jawContainer.addChild(this.jawSprite);
+    this.headContainer.addChild(this.jawContainer);
+    this.bodyRoot.addChild(this.headContainer);
+
+    // Layer 4: Front Articulated Claws (upper arm & lower claw)
+    this.armFrontUpperSprite = createPart(tex.armUpperFront, 0.5, 0.15);
+    this.armFrontLowerSprite = createPart(tex.armLowerFront, 0.5, 0.1);
+    this.armFrontRoot.position.set(65 * scale, 65 * scale);
+    this.armFrontLower.position.set(0, 130 * scale);
+    this.armFrontLower.addChild(this.armFrontLowerSprite);
+    this.armFrontRoot.addChild(this.armFrontUpperSprite);
+    this.armFrontRoot.addChild(this.armFrontLower);
+    this.bodyRoot.addChild(this.armFrontRoot);
+
+    // Apply uniform scale
+    this.bodyRoot.scale.set(scale, scale);
   }
 
-  public setTheme(theme: 'light' | 'dark'): void { this.theme = theme; }
+  private buildFallbackGeometry(): void {
+    const g = new Graphics();
+    const s = this.targetSize;
+    g.ellipse(0, 0, s * 0.5, s * 0.32);
+    g.fill({ color: this.theme === 'light' ? 0x06b6d4 : 0x7c3aed, alpha: 0.9 });
+    g.poly([
+      -s * 0.45, 0,
+      -s * 0.72, -s * 0.3,
+      -s * 0.65, 0,
+      -s * 0.72, s * 0.3
+    ]);
+    g.fill({ color: this.theme === 'light' ? 0x38bdf8 : 0x4c1d95, alpha: 0.9 });
+    this.bodyRoot.addChild(g);
+    this.loaded = true;
+  }
+
+  public setTheme(theme: 'light' | 'dark'): void {
+    this.theme = theme;
+    this.applyThemeTint();
+  }
+
+  public setFacing(facing: 'left' | 'right'): void {
+    this.facingSign = facing === 'left' ? -1 : 1;
+  }
+
+  private applyThemeTint(): void {
+    const isLight = this.theme === 'light';
+    const tintColor = isLight ? 0xe0f2fe : 0xd8b4fe;
+
+    const sprites = [
+      this.torsoSprite,
+      this.dorsalSprite,
+      this.tailSprite,
+      this.jawSprite,
+      this.armFrontUpperSprite,
+      this.armFrontLowerSprite
+    ];
+
+    for (const s of sprites) {
+      if (s) s.tint = tintColor;
+    }
+  }
 
   public takeDamage(damage: number): boolean {
     this.currentHp = Math.max(0, this.currentHp - Math.max(0, damage));
-    if (this.currentHp <= this.maxHp * 0.35) this.isEnraged = true;
+    if (this.currentHp <= this.maxHp * 0.35) {
+      this.isEnraged = true;
+    }
+    this.damageFlashTimer = 0.15;
+    this.shudderOffset = (Math.random() - 0.5) * 8;
     return this.currentHp <= 0;
   }
 
-  public update(dtScale = 1, vx = 1, _vy = 0): void {
-    if (Math.abs(vx) > 0.15) this.facingSign = vx < 0 ? -1 : 1;
-    this.elapsed += dtScale / 60;
+  public update(dtScale = 1, vx = 1, vy = 0): void {
+    if (this.isDestroyed) return;
+
+    if (Math.abs(vx) > 0.08) {
+      this.facingSign = vx < 0 ? -1 : 1;
+    }
+
+    const dt = dtScale / 60;
+    this.elapsed += dt * (this.isEnraged ? 1.7 : 1.0);
+
+    const baseScale = this.targetSize / 800;
+    // Smooth paper cutout turn-squash
+    const targetScaleX = this.facingSign;
+    this.currentScaleX += (targetScaleX - this.currentScaleX) * Math.min(1, dt * 14);
+    const turnSquash = 1 + Math.abs(targetScaleX - this.currentScaleX) * 0.25;
+
+    this.bodyRoot.scale.x = this.currentScaleX * baseScale;
+    this.bodyRoot.scale.y = baseScale * turnSquash;
+
     if (!this.loaded) return;
-    this.bodyRoot.scale.x = this.facingSign;
-    const breath = Math.sin(this.elapsed * 3) * 0.02;
-    this.torsoUpper.scale.set(1 + breath);
-    this.jaw.rotation = -0.08 + Math.sin(this.elapsed * 2) * 0.08;
-    this.tailRoot.rotation = Math.sin(this.elapsed * 2.5) * 0.05;
-    this.armLeftRoot.rotation = 0.1 + Math.sin(this.elapsed * 1.8) * 0.04;
-    this.armRightRoot.rotation = -0.2 + Math.cos(this.elapsed * 1.8) * 0.04;
-    this.armLeftLower.rotation = Math.sin(this.elapsed * 2.2 + 1) * 0.07;
-    this.armRightLower.rotation = Math.sin(this.elapsed * 2.0) * 0.06;
+
+    // Swimming undulation & breathing
+    const swimFreq = this.isEnraged ? 5.2 : 3.4;
+    const breath = Math.sin(this.elapsed * 2.5) * 0.04;
+
+    // Torso breathing & subtle spine sway
+    this.torsoContainer.scale.set(1 + breath, 1 - breath * 0.5);
+    this.torsoContainer.rotation = Math.sin(this.elapsed * swimFreq) * 0.06 + (vy * 0.04);
+
+    // Fluid, aggressive jaw chomp mechanics
+    // Wide predatory gape opening (0.50 - 0.65 rad, ~30-37 deg) followed by crisp clamping snap shut
+    const chompCycleSpeed = this.isEnraged ? 6.5 : 4.2;
+    const chompPhase = (this.elapsed * chompCycleSpeed) % (Math.PI * 2);
+    // Asymmetric wave: slow open (0 to PI), fast clamp (PI to 2*PI)
+    let chompProgress = 0;
+    if (chompPhase < Math.PI * 1.1) {
+      chompProgress = Math.sin((chompPhase / 1.1));
+    } else {
+      // Rapid snap clamp shut
+      const clampT = (chompPhase - Math.PI * 1.1) / (Math.PI * 0.9);
+      chompProgress = Math.max(0, 1 - clampT * 2.8);
+    }
+    const maxChompAngle = this.isEnraged ? 0.64 : 0.48;
+    // Frenzy multi-bite jitter when moving fast or enraged
+    const frenzyJitter = this.isEnraged ? Math.sin(this.elapsed * 18) * 0.12 : 0;
+    this.jawContainer.rotation = chompProgress * maxChompAngle + Math.max(0, frenzyJitter);
+
+    // Cranium recoil kick on bite clamp
+    if (chompPhase > Math.PI * 1.05 && chompPhase < Math.PI * 1.3) {
+      this.headContainer.rotation = -0.09 * (this.isEnraged ? 1.6 : 1.0);
+    } else {
+      this.headContainer.rotation = Math.sin(this.elapsed * swimFreq * 0.75) * 0.035;
+    }
+
+    // Powerful caudal tail fin wave with natural fluid lag
+    this.tailContainer.rotation = Math.sin(this.elapsed * swimFreq - 0.85) * 0.35;
+
+    // Menacing spined dorsal crest undulating
+    this.dorsalFinContainer.rotation = Math.sin(this.elapsed * (swimFreq * 0.85)) * 0.16;
+
+    // Claws swimming stroke animation
+    this.armFrontRoot.rotation = 0.18 + Math.sin(this.elapsed * 3.8) * 0.22;
+    this.armFrontLower.rotation = 0.12 + Math.sin(this.elapsed * 3.8 - 0.7) * 0.28;
+
+    // Damage shudder & hit flash
+    if (this.damageFlashTimer > 0) {
+      this.damageFlashTimer -= dt;
+      this.bodyRoot.position.x = (Math.random() - 0.5) * 6;
+      this.bodyRoot.position.y = (Math.random() - 0.5) * 6;
+
+      const flashColor = this.currentHp <= 0 ? 0xff2244 : 0xffffff;
+      this.setPartTint(flashColor);
+    } else {
+      this.bodyRoot.position.set(0, 0);
+      this.applyThemeTint();
+    }
+  }
+
+  private setPartTint(color: number): void {
+    const sprites = [
+      this.torsoSprite,
+      this.dorsalSprite,
+      this.tailSprite,
+      this.jawSprite,
+      this.armFrontUpperSprite,
+      this.armFrontLowerSprite
+    ];
+    for (const s of sprites) {
+      if (s) s.tint = color;
+    }
   }
 
   public setBiteProgress(progress: number): void {
     const p = Math.max(0, Math.min(1, progress));
-    this.jaw.rotation = -0.1 + p * 0.5;
-    this.torsoUpper.position.x = -30 * (this.bodyRoot.scale.x >= 0 ? 1 : -1) - p * 25;
+    this.jawContainer.rotation = p * 0.65;
+    this.headContainer.position.x = (165 * (this.targetSize / 800)) + p * 15;
+  }
+
+  public override destroy(options?: { children?: boolean }): void {
+    this.isDestroyed = true;
+    super.destroy(options);
   }
 }

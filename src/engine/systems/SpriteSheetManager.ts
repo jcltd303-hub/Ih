@@ -1618,7 +1618,15 @@ export class SpriteSheetManager {
   }
 
   public getFishFrameset(species: 'small' | 'medium' | 'angler', theme: 'light' | 'dark'): FishFrameset {
-    return this.fishFrameSets.get(`${species}_${theme}`) || this.fishFrameSets.get('medium_light')!;
+    if (this.fishFrameSets.size === 0) {
+      this.buildFishSpriteSheets();
+    }
+    const set = this.fishFrameSets.get(`${species}_${theme}`) || this.fishFrameSets.get('medium_light') || this.fishFrameSets.get('small_light');
+    if (!set) {
+      this.buildFishSpriteSheets();
+      return this.fishFrameSets.get(`${species}_${theme}`) || this.fishFrameSets.values().next().value!;
+    }
+    return set;
   }
 
   /**

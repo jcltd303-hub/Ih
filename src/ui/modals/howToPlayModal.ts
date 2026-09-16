@@ -40,9 +40,9 @@ export function showHowToPlayModal(ctx: ModalContext): void {
 
         <div style="background:#0f172a; border:1px solid #334155; padding:10px;">
           <div style="color:#ef4444; font-weight:900; font-family:var(--font-display); font-size:14px; font-style:italic; margin-bottom:4px;">
-            3. APEX BOSS RAIDS
+            3. ABYSSAL BOSS RAIDS
           </div>
-          <div>Defeat 25–60 trench targets to trigger the guaranteed APEX LEVIATHAN raid. Whittle down its Street Fighter-style health bar before time runs out for major bounty multipliers!</div>
+          <div>Defeat trench targets to trigger the guaranteed ABYSSAL HORROR BOSS raid. Whittle down its Street Fighter-style health bar before time runs out for major bounty multipliers!</div>
         </div>
 
         <div style="background:#0f172a; border:1px solid #334155; padding:10px;">

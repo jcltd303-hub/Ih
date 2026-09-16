@@ -21,9 +21,9 @@ export const GameConfig = {
 
   /** Boss pacing */
   /** Earliest boss trigger after Play; progress still gates the actual start. */
-  bossGracePeriodMs: 8000,
+  bossGracePeriodMs: 35000,
   /** Combat progress required before another boss raid can start. */
-  bossProgressThreshold: 12,
+  bossProgressThreshold: 35,
 
   /** Small-fish school size range when a tetra wave rolls */
   schoolSizeMin: 2,

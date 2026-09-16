@@ -439,124 +439,114 @@ export class SoundManager {
     arpOsc.stop(time + 0.075);
   }
 
-  /** Can-Tech: 124 BPM Cyberpunk / Synthwave groove */
+  /** Light Theme: Fun, bright, and bouncy retro-arcade synth groove */
   private static scheduleCanTechStep(step: number, time: number): void {
     if (!this.audioCtx || !this.bgmGain) return;
     const ctx = this.audioCtx;
     const bgmOut = this.bgmGain;
 
-    // 1. Driving Arpeggiated Synth Bass (16th note pattern)
-    const bassScale = [
-      73.42, 73.42, 146.83, 73.42,  87.31, 73.42, 98.00, 110.00, // D2, D2, D3, D2, F2, D2, G2, A2
-      73.42, 73.42, 130.81, 110.00, 116.54, 116.54, 130.81, 138.59 // D2, D2, C3, A2, Bb2, Bb2, C3, C#3
+    // 1. Fun and Bouncy Slap-Synth Bass (Syncopated upbeat major groove)
+    const bouncyBassScale = [
+      130.81, 65.41, 130.81, 164.81, // C3, C2, C3, E3
+      146.83, 73.42, 174.61, 196.00, // D3, D2, F3, G3
+      164.81, 82.41, 196.00, 220.00, // E3, E2, G3, A3
+      174.61, 196.00, 246.94, 261.63 // F3, G3, B3, C4
     ];
-    const bassFreq = bassScale[step % bassScale.length];
+    const bassFreq = bouncyBassScale[step % bouncyBassScale.length];
 
     const bassOsc = ctx.createOscillator();
     const bassFilt = ctx.createBiquadFilter();
     const bassG = ctx.createGain();
 
-    bassOsc.type = 'sawtooth';
+    // Bouncy punchy pluck
+    bassOsc.type = (step % 2 === 0) ? 'triangle' : 'sawtooth';
     bassOsc.frequency.setValueAtTime(bassFreq, time);
 
     bassFilt.type = 'lowpass';
-    bassFilt.Q.setValueAtTime(3.8, time);
-    bassFilt.frequency.setValueAtTime(750, time);
-    bassFilt.frequency.exponentialRampToValueAtTime(140, time + 0.11);
+    bassFilt.Q.setValueAtTime(4.2, time);
+    bassFilt.frequency.setValueAtTime(1100, time);
+    bassFilt.frequency.exponentialRampToValueAtTime(120, time + 0.09);
 
-    bassG.gain.setValueAtTime(0.13, time);
-    bassG.gain.exponentialRampToValueAtTime(0.001, time + 0.115);
+    bassG.gain.setValueAtTime(0.15, time);
+    bassG.gain.exponentialRampToValueAtTime(0.001, time + 0.095);
 
     bassOsc.connect(bassFilt);
     bassFilt.connect(bassG);
     bassG.connect(bgmOut);
 
     bassOsc.start(time);
-    bassOsc.stop(time + 0.12);
+    bassOsc.stop(time + 0.1);
 
-    // 2. Warm Cyber Ambient Pad (chords every 8 steps = 2 beats)
-    if (step % 8 === 0) {
-      const chordRoots = [
-        [293.66, 349.23, 440.00], // Dm (D4, F4, A4)
-        [233.08, 293.66, 349.23], // Bb (Bb3, D4, F4)
-        [261.63, 329.63, 392.00], // C  (C4, E4, G4)
-        [220.00, 261.63, 329.63], // Am (A3, C4, E4)
+    // 2. Cheerful Upbeat Chord Stabs (Upbeat offbeat skank on steps 2, 6, 10, 14)
+    if (step % 4 === 2) {
+      const upbeatChords = [
+        [523.25, 659.25, 783.99], // C major (C5, E5, G5)
+        [587.33, 698.46, 880.00], // Dm (D5, F5, A5)
+        [659.25, 783.99, 987.77], // Em (E5, G5, B5)
+        [698.46, 880.00, 1046.50], // F major (F5, A5, C6)
       ];
-      const chord = chordRoots[(step / 8) % chordRoots.length];
-      chord.forEach((freq, idx) => {
-        const padOsc = ctx.createOscillator();
-        const padFilt = ctx.createBiquadFilter();
-        const padG = ctx.createGain();
-        padOsc.type = 'triangle';
-        padOsc.frequency.setValueAtTime(freq * (idx === 0 ? 0.5 : 1), time);
+      const chord = upbeatChords[Math.floor((step % 16) / 4)];
+      chord.forEach((freq) => {
+        const chordOsc = ctx.createOscillator();
+        const chordFilt = ctx.createBiquadFilter();
+        const chordG = ctx.createGain();
 
-        padFilt.type = 'lowpass';
-        padFilt.frequency.setValueAtTime(550, time);
-        padFilt.frequency.linearRampToValueAtTime(850, time + 0.45);
-        padFilt.frequency.exponentialRampToValueAtTime(420, time + 0.9);
+        chordOsc.type = 'square';
+        chordOsc.frequency.setValueAtTime(freq, time);
 
-        padG.gain.setValueAtTime(0.001, time);
-        padG.gain.linearRampToValueAtTime(0.038, time + 0.12);
-        padG.gain.exponentialRampToValueAtTime(0.001, time + 0.94);
+        chordFilt.type = 'bandpass';
+        chordFilt.frequency.setValueAtTime(1400, time);
+        chordFilt.Q.setValueAtTime(1.8, time);
 
-        padOsc.connect(padFilt);
-        padFilt.connect(padG);
-        padG.connect(bgmOut);
+        chordG.gain.setValueAtTime(0.032, time);
+        chordG.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
 
-        padOsc.start(time);
-        padOsc.stop(time + 0.95);
+        chordOsc.connect(chordFilt);
+        chordFilt.connect(chordG);
+        chordG.connect(bgmOut);
+
+        chordOsc.start(time);
+        chordOsc.stop(time + 0.075);
       });
     }
 
-    // 3. Crisp High-Tech Arpeggio Plucks (alternate 16th steps)
-    if (step % 2 === 0) {
-      const arpNotes = [587.33, 698.46, 880.00, 1046.50, 880.00, 698.46, 783.99, 659.25];
-      const arpFreq = arpNotes[(step / 2) % arpNotes.length];
+    // 3. Playful Bubbly Arpeggio Plucks
+    if (step % 2 === 1) {
+      const bouncyMelody = [783.99, 880.00, 1046.50, 1174.66, 1318.51, 1174.66, 1046.50, 880.00]; // G5, A5, C6, D6, E6, D6, C6, A5
+      const arpFreq = bouncyMelody[(step) % bouncyMelody.length];
       const arpOsc = ctx.createOscillator();
       const arpG = ctx.createGain();
       arpOsc.type = 'sine';
       arpOsc.frequency.setValueAtTime(arpFreq, time);
-      arpG.gain.setValueAtTime(0.045, time);
-      arpG.gain.exponentialRampToValueAtTime(0.001, time + 0.09);
+      arpG.gain.setValueAtTime(0.048, time);
+      arpG.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
 
       arpOsc.connect(arpG);
       arpG.connect(bgmOut);
       arpOsc.start(time);
-      arpOsc.stop(time + 0.095);
+      arpOsc.stop(time + 0.085);
     }
 
-    // 4. Subtle Electro Percussion (Kick on 0, 8; Hat tick on 4, 12)
+    // 4. Punchy Bouncy Rhythm (Kick on 0, 8; Fun snare clap on 4, 12; Shaker tick on every step)
     if (step % 8 === 0) {
-      // Soft electro kick
+      // Fun punchy round kick
       const kickOsc = ctx.createOscillator();
       const kickG = ctx.createGain();
       kickOsc.type = 'sine';
-      kickOsc.frequency.setValueAtTime(115, time);
-      kickOsc.frequency.exponentialRampToValueAtTime(42, time + 0.08);
-      kickG.gain.setValueAtTime(0.12, time);
-      kickG.gain.exponentialRampToValueAtTime(0.001, time + 0.085);
+      kickOsc.frequency.setValueAtTime(145, time);
+      kickOsc.frequency.exponentialRampToValueAtTime(45, time + 0.075);
+      kickG.gain.setValueAtTime(0.16, time);
+      kickG.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
       kickOsc.connect(kickG);
       kickG.connect(bgmOut);
       kickOsc.start(time);
-      kickOsc.stop(time + 0.09);
-    } else if (step % 4 === 2) {
-      // Hi-hat tick
-      const noise = this.getNoiseBuffer();
-      if (noise) {
-        const hatSrc = ctx.createBufferSource();
-        hatSrc.buffer = noise;
-        const hatFilt = ctx.createBiquadFilter();
-        const hatG = ctx.createGain();
-        hatFilt.type = 'highpass';
-        hatFilt.frequency.setValueAtTime(7500, time);
-        hatG.gain.setValueAtTime(0.04, time);
-        hatG.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-        hatSrc.connect(hatFilt);
-        hatFilt.connect(hatG);
-        hatG.connect(bgmOut);
-        hatSrc.start(time);
-        hatSrc.stop(time + 0.045);
-      }
+      kickOsc.stop(time + 0.085);
+    } else if (step % 8 === 4) {
+      // Crisp retro snare clap
+      this.playFilteredNoise(time, 0.06, 3400, 1.2, 'bandpass', 0.08);
+    } else {
+      // Light shaker pulse
+      this.playFilteredNoise(time, 0.018, 8500, 1.5, 'highpass', 0.022);
     }
   }
 
@@ -1483,54 +1473,113 @@ export class SoundManager {
   // 5. PHYSICAL COIN DROP ON WIN (Cascade, Clinks, Tumbling, Hopper Waterfall)
   // =========================================================================
   /**
-   * Synthesizes a single physical metallic coin clink with realistic inharmonic resonance,
-   * hard edge impact transient, and micro-bounce echo.
+   * Synthesizes physical metallic coin clinks tailored to the active theme:
+   * - Light Theme: Real coins hitting a wooden deck on kills (thump on wood plank + crisp brass ring + micro-bounce rattle).
+   * - Dark Theme: Real coins heard through the ears of a ghost (spectral hollow resonance, eerie pitch glide, ethereal echo).
    */
   private static playSingleCoinClink(time: number, volume: number = 0.32, pitchMultiplier: number = 1.0): void {
-    if (!this.audioCtx || !this.masterCompressor) return;
+    if (!this.audioCtx || !this.masterCompressor || !this.sfxGain) return;
     const ctx = this.audioCtx;
+    const isDark = this.currentTheme === 'dark';
 
-    // 1. Primary Metallic Ring Mode (Brass/Gold resonance: ~3100Hz)
-    const freq1 = (3050 + (Math.random() - 0.5) * 350) * pitchMultiplier;
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(freq1, time);
-    gain1.gain.setValueAtTime(volume * 0.44, time);
-    gain1.gain.exponentialRampToValueAtTime(0.001, time + 0.13);
-    osc1.connect(gain1);
-    gain1.connect(this.sfxGain);
-    osc1.start(time);
-    osc1.stop(time + 0.14);
+    if (isDark) {
+      // "heard through the ears of a ghost"
+      // Hollow ghostly cavity resonance with downward spectral drift
+      const freq1 = (1920 + (Math.random() - 0.5) * 240) * pitchMultiplier;
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      const filter1 = ctx.createBiquadFilter();
 
-    // 2. High Inharmonic Metallic Sheen (Secondary overtone mode: ~4700Hz)
-    const freq2 = freq1 * 1.54;
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(freq2, time);
-    gain2.gain.setValueAtTime(volume * 0.24, time);
-    gain2.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
-    osc2.connect(gain2);
-    gain2.connect(this.sfxGain);
-    osc2.start(time);
-    osc2.stop(time + 0.09);
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(freq1, time);
+      // Downward spectral glissando like a fading phantom
+      osc1.frequency.exponentialRampToValueAtTime(freq1 * 0.68, time + 0.34);
 
-    // 3. Micro-bounce (Subtle secondary coin rattle 22-38ms after initial drop)
-    const bounceTime = time + 0.022 + Math.random() * 0.016;
-    const bounceOsc = ctx.createOscillator();
-    const bounceGain = ctx.createGain();
-    bounceOsc.type = 'sine';
-    bounceOsc.frequency.setValueAtTime(freq1 * 1.06, bounceTime);
-    bounceGain.gain.setValueAtTime(volume * 0.18, bounceTime);
-    bounceGain.gain.exponentialRampToValueAtTime(0.001, bounceTime + 0.06);
-    bounceOsc.connect(bounceGain);
-    bounceGain.connect(this.sfxGain);
-    bounceOsc.start(bounceTime);
-    bounceOsc.stop(bounceTime + 0.07);
+      filter1.type = 'bandpass';
+      filter1.frequency.setValueAtTime(780, time);
+      filter1.Q.setValueAtTime(5.2, time);
 
-    // 4. Crisp physical edge contact micro-transient (5kHz highpass noise tick)
-    this.playFilteredNoise(time, 0.006, 5200, 1.0, 'highpass', volume * 0.15);
+      gain1.gain.setValueAtTime(volume * 0.42, time);
+      gain1.gain.exponentialRampToValueAtTime(0.001, time + 0.32);
+
+      osc1.connect(filter1);
+      filter1.connect(gain1);
+      gain1.connect(this.sfxGain);
+      osc1.start(time);
+      osc1.stop(time + 0.34);
+
+      // Ghostly overtone bell
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(freq1 * 1.58, time);
+      osc2.frequency.exponentialRampToValueAtTime(freq1 * 1.15, time + 0.28);
+      gain2.gain.setValueAtTime(volume * 0.18, time);
+      gain2.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+      osc2.connect(gain2);
+      gain2.connect(this.sfxGain);
+      osc2.start(time);
+      osc2.stop(time + 0.32);
+
+      // Ethereal ghostly vapor whisper
+      this.playFilteredNoise(time, 0.035, 620, 2.2, 'bandpass', volume * 0.14);
+    } else {
+      // Light Theme: "real coins hitting the deck on kills"
+      // 1. Hardwood deck impact thud (low-mid woody impact)
+      const thudOsc = ctx.createOscillator();
+      const thudGain = ctx.createGain();
+      thudOsc.type = 'triangle';
+      thudOsc.frequency.setValueAtTime(280 + Math.random() * 50, time);
+      thudOsc.frequency.exponentialRampToValueAtTime(60, time + 0.045);
+      thudGain.gain.setValueAtTime(volume * 0.38, time);
+      thudGain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+      thudOsc.connect(thudGain);
+      thudGain.connect(this.sfxGain);
+      thudOsc.start(time);
+      thudOsc.stop(time + 0.055);
+
+      // 2. Primary Metallic Ring Mode (Brass/Gold resonance: ~3100Hz)
+      const freq1 = (3150 + (Math.random() - 0.5) * 350) * pitchMultiplier;
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(freq1, time);
+      gain1.gain.setValueAtTime(volume * 0.48, time);
+      gain1.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+      osc1.connect(gain1);
+      gain1.connect(this.sfxGain);
+      osc1.start(time);
+      osc1.stop(time + 0.13);
+
+      // 3. High Inharmonic Metallic Sheen (Secondary overtone mode: ~4900Hz)
+      const freq2 = freq1 * 1.56;
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(freq2, time);
+      gain2.gain.setValueAtTime(volume * 0.26, time);
+      gain2.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+      osc2.connect(gain2);
+      gain2.connect(this.sfxGain);
+      osc2.start(time);
+      osc2.stop(time + 0.09);
+
+      // 4. Micro-bounce (Secondary coin rattle on wood deck 22-38ms after drop)
+      const bounceTime = time + 0.022 + Math.random() * 0.016;
+      const bounceOsc = ctx.createOscillator();
+      const bounceGain = ctx.createGain();
+      bounceOsc.type = 'sine';
+      bounceOsc.frequency.setValueAtTime(freq1 * 1.06, bounceTime);
+      bounceGain.gain.setValueAtTime(volume * 0.22, bounceTime);
+      bounceGain.gain.exponentialRampToValueAtTime(0.001, bounceTime + 0.06);
+      bounceOsc.connect(bounceGain);
+      bounceGain.connect(this.sfxGain);
+      bounceOsc.start(bounceTime);
+      bounceOsc.stop(bounceTime + 0.07);
+
+      // 5. Crisp physical edge contact micro-transient (5kHz highpass noise tick)
+      this.playFilteredNoise(time, 0.006, 5600, 1.1, 'highpass', volume * 0.16);
+    }
   }
 
   /**

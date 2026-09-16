@@ -110,4 +110,8 @@ export class MultiplayerTableManager {
       return () => {};
     }
   }
+
+  public tick(_frameMs?: number): void {
+    // Periodic presence update / keepalive hook
+  }
 }

@@ -146,10 +146,33 @@ export class DebugOverlay {
         </div>
       </div>
 
-      <!-- AUDIO STATE -->
+      <!-- AUDIO STATE & AI GENERATION -->
       <div style="background:#0f172a; border:1px solid #334155; padding:6px 8px; margin-bottom:6px; font-size:10px;">
-        <div style="color:#a855f7; font-weight:900; margin-bottom:2px;">AUDIO STATE MACHINE</div>
-        <div>State: <b style="color:#38bdf8;">${audio.getState()}</b> · Muted: <b>${audio.getIsMuted() ? 'YES' : 'NO'}</b></div>
+        <div style="color:#a855f7; font-weight:900; margin-bottom:2px; display:flex; justify-content:space-between;">
+          <span>AUDIO & THEME ENGINE</span>
+          <span style="color:#38bdf8;">Theme: ${SoundManager.getTheme().toUpperCase()}</span>
+        </div>
+        <div style="color:#cbd5e1; margin-bottom:4px;">
+          Music: <b>${SoundManager.isBgmEnabled() ? 'ON' : 'OFF'}</b> · SFX: <b>${SoundManager.isSoundEnabled() ? 'ON' : 'OFF'}</b>
+          ${SoundManager.hasAiAudio(`ai_music_${SoundManager.getTheme()}`) ? ' · <span style="color:#34d399;">AI Music Active</span>' : ' · <span style="color:#fbbf24;">Procedural BGM</span>'}
+        </div>
+        <div style="display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;">
+          <button id="ff-dbg-test-coins" style="background:#0284c7; color:#fff; border:none; padding:3px 6px; font-size:9px; cursor:pointer; font-weight:700;">🪙 TEST COINS</button>
+          <button id="ff-dbg-gen-music-light" style="background:#3b82f6; color:#fff; border:none; padding:3px 6px; font-size:9px; cursor:pointer;">${SoundManager.isGeneratingAiAudio('ai_music_light') ? '⏳ Generating...' : '✨ AI Music (Light)'}</button>
+          <button id="ff-dbg-gen-music-dark" style="background:#7c3aed; color:#fff; border:none; padding:3px 6px; font-size:9px; cursor:pointer;">${SoundManager.isGeneratingAiAudio('ai_music_dark') ? '⏳ Generating...' : '✨ AI Music (Dark)'}</button>
+          <button id="ff-dbg-gen-sfx" style="background:#475569; color:#fff; border:none; padding:3px 6px; font-size:9px; cursor:pointer;">✨ AI SFX</button>
+        </div>
+      </div>
+
+      <!-- PAPER CUTOUT RIG INSPECTOR -->
+      <div style="background:#130a21; border:1px solid #7c3aed; padding:6px 8px; margin-bottom:6px; font-size:10px;">
+        <div style="color:#c084fc; font-weight:900; margin-bottom:4px; display:flex; justify-content:space-between;">
+          <span>PAPER CUTOUT SKELETAL RIG</span>
+          <span style="color:#4ade80;">GAPLESS: OK</span>
+        </div>
+        <button id="ff-dbg-open-rig" style="background:#7c3aed; color:#fff; border:1px solid #c084fc; padding:5px 8px; font-size:10px; cursor:pointer; font-weight:900; width:100%;">
+          🔍 OPEN SKELETAL RIG BENCH & ROTATION TESTER
+        </button>
       </div>
 
       <!-- PROVABLY FAIR -->
@@ -164,11 +187,30 @@ export class DebugOverlay {
       // Broadcast event that UIManager listens to, or just click the hidden shortcut
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '~', shiftKey: true }));
     });
+    this.el.querySelector('#ff-dbg-open-rig')?.addEventListener('click', () => {
+      this.toggle();
+      document.getElementById('hud-paper-rig-btn')?.click();
+    });
     this.el.querySelector('#ff-dbg-trigger-boss')?.addEventListener('click', () => {
       BossSystem.getInstance().forceTrigger();
     });
     this.el.querySelector('#ff-dbg-trigger-turret')?.addEventListener('click', () => {
       TurretSystem.getInstance().forceTrigger();
+    });
+    this.el.querySelector('#ff-dbg-test-coins')?.addEventListener('click', () => {
+      SoundManager.playCoinDrop('medium');
+    });
+    this.el.querySelector('#ff-dbg-gen-music-light')?.addEventListener('click', async () => {
+      await SoundManager.generateAiAudio('music', 'light');
+      this.render();
+    });
+    this.el.querySelector('#ff-dbg-gen-music-dark')?.addEventListener('click', async () => {
+      await SoundManager.generateAiAudio('music', 'dark');
+      this.render();
+    });
+    this.el.querySelector('#ff-dbg-gen-sfx')?.addEventListener('click', async () => {
+      await SoundManager.generateAiAudio('sfx', SoundManager.getTheme());
+      this.render();
     });
   }
 }

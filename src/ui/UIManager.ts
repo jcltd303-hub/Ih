@@ -14,6 +14,7 @@ import type { ModalContext } from './modals/ModalContext';
 import { showStoreModal } from './modals/storeModal';
 import { showHowToPlayModal } from './modals/howToPlayModal';
 import { showOptionsModal } from './modals/optionsModal';
+import { showCutoutRigModal } from './modals/cutoutRigModal';
 import { showAuthModal } from './modals/authModal';
 import { showDepositModal, showWithdrawModal } from './modals/walletModal';
 import { TableSelectionManager, AVAILABLE_TABLES, TableConfig } from '../network/TableSelectionManager';
@@ -247,6 +248,9 @@ export class UIManager {
 
         <!-- Cabinet Utility Menu -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+          <button id="ff-start-paper-rig" type="button" class="ff-arcade-btn" style="grid-column: span 2; padding:8px; font-size:12px; background:#7e22ce; color:#fff; border:1px solid #c084fc; font-weight:900; letter-spacing:0.5px;">
+            PAPER RIG INSPECTOR
+          </button>
           <button id="ff-start-how-to-play" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:8px; font-size:11px;">
             HOW TO PLAY
           </button>
@@ -335,6 +339,12 @@ export class UIManager {
       showWithdrawModal(this.modalCtx(), wallet, () => {
         renderWallet();
         if (statusEl) statusEl.textContent = 'Withdrawal processed.';
+      });
+    });
+
+    root.querySelector('#ff-start-paper-rig')?.addEventListener('click', () => {
+      showCutoutRigModal(this.modalCtx(), () => {
+        GameEventBus.getInstance().emit('SPAWN_CUTOUT_FISH', {});
       });
     });
 
@@ -437,6 +447,19 @@ export class UIManager {
 
         <!-- Top Right: Action -->
         <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="hud-paper-rig-btn" style="
+            background: rgba(126, 34, 206, 0.7);
+            border: 1px solid #c084fc;
+            color: #f3e8ff;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 900;
+            border-radius: 4px;
+            cursor: pointer;
+            text-shadow: 0 1px 2px #000;
+          ">
+            PAPER RIG
+          </button>
           <button id="hud-store-btn" style="
             background: rgba(3, 7, 18, 0.6);
             border: 1px solid #34d399;
@@ -525,6 +548,11 @@ export class UIManager {
     document.getElementById('hud-bet-minus')?.addEventListener('click', () => this.adjustBet(-1));
     document.getElementById('hud-bet-plus')?.addEventListener('click', () => this.adjustBet(1));
     document.getElementById('hud-table-btn')?.addEventListener('click', () => this.showLobby());
+    document.getElementById('hud-paper-rig-btn')?.addEventListener('click', () => {
+      showCutoutRigModal(this.modalCtx(), () => {
+        GameEventBus.getInstance().emit('SPAWN_CUTOUT_FISH', {});
+      });
+    });
     document.getElementById('hud-store-btn')?.addEventListener('click', () => this.openStore());
     document.getElementById('hud-options-btn')?.addEventListener('click', () => {
       showOptionsModal(this.modalCtx(), (theme) => {
@@ -893,8 +921,8 @@ export class UIManager {
     if (this.bossBar) {
       if (active) {
         this.bossBar.updateState({
-          bossId: 'apex_leviathan',
-          name: 'APEX LEVIATHAN',
+          bossId: 'abyssal_horror_boss',
+          name: 'ABYSSAL HORROR BOSS',
           hp: hpPercent ?? 100,
           maxHp: 100,
           hpPercent: hpPercent ?? 100,
@@ -922,7 +950,7 @@ export class UIManager {
 
   public showBossFrenzyTitle(): void {
     GameEventBus.getInstance().emit('BOSS_WARNING', {
-      name: 'APEX LEVIATHAN',
+      name: 'ABYSSAL HORROR BOSS',
       warningMs: 2500
     });
   }

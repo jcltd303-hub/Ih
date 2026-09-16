@@ -22,9 +22,26 @@ export class FishManager {
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
 
-    // Initial seed wave
-    for (let i = 0; i < GameConfig.initialWaveCount; i++) {
-      this.spawnRandomWave();
+    // Seed initial school directly on screen so the tank is immediately populated with swimming fish
+    this.seedInitialFish();
+  }
+
+  private seedInitialFish(): void {
+    const w = Math.max(this.screenWidth, 800);
+    const h = Math.max(this.screenHeight, 600);
+
+    // Spawn 4-5 medium mutant fish across the tank
+    for (let i = 0; i < 4; i++) {
+      const x = 120 + Math.random() * (w - 240);
+      const y = 100 + Math.random() * (h * 0.65);
+      this.spawnAt('medium', x, y);
+    }
+
+    // Spawn 8-10 small tetra fish
+    for (let i = 0; i < 8; i++) {
+      const x = 80 + Math.random() * (w - 160);
+      const y = 80 + Math.random() * (h * 0.7);
+      this.spawnAt('small', x, y);
     }
   }
 
@@ -58,6 +75,16 @@ export class FishManager {
       console.log(`[AUDIT] FishManager: Boss spawned! id=${id}, x=${startX}, y=${startY}, hp=${maxHpOverride}`);
       SoundManager.playBossWarning();
     }
+    return fish;
+  }
+
+  public spawnAt(type: 'small' | 'medium' | 'boss', x: number, y: number, maxHpOverride?: number): Fish {
+    this.fishIdCounter++;
+    const id = `fish_${this.fishIdCounter}`;
+    const fish = new Fish(id, type, x, y, this.screenWidth, this.screenHeight, this.currentTheme, maxHpOverride);
+    this.stage.addChild(fish.container);
+    this.activeFish.set(id, fish);
+    this.activeFishList.push(fish);
     return fish;
   }
 
