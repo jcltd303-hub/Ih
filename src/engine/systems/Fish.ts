@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { BossManager } from './BossManager';
+import { AbyssalHorrorBoss } from './AbyssalHorrorBoss';
 import { SpriteSheetManager, FishAnimationRig } from './SpriteSheetManager';
 import { BoidSwarmManager, Boid } from './BoidSwarmManager';
 import { EntityBounds } from './SpatialHashGrid';
@@ -20,6 +21,7 @@ export class Fish implements Boid {
   public container: Container;
   public graphics?: Graphics;
   public bossInstance?: BossManager;
+  public abyssalBoss?: AbyssalHorrorBoss;
   public animRig?: FishAnimationRig;
   public facing: 'left' | 'right' = 'right';
   public isAlive: boolean = true;
@@ -83,12 +85,16 @@ export class Fish implements Boid {
     this.container = new Container();
 
     if (isBoss) {
-      this.bossInstance = new BossManager(this.health, theme);
-      this.container.addChild(this.bossInstance);
+      if (theme === 'dark') {
+        this.abyssalBoss = new AbyssalHorrorBoss(this.health, 'dark');
+        this.container.addChild(this.abyssalBoss);
+      } else {
+        this.bossInstance = new BossManager(this.health, 'light');
+        this.container.addChild(this.bossInstance);
+      }
     } else {
-      // Never render the old low-detail fallback. Small fish intentionally use
-      // the detailed lionfish rig now so every normal fish has the restored
-      // high-detail arcade artwork rather than the crude tetra/fallback look.
+      // Never render the old low-detail fallback. Small fish use the restored
+      // detailed rig rather than the crude tetra/fallback look.
       const visualType = type === 'small' ? 'medium' : type;
       this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(visualType, theme);
       this.container.addChild(this.animRig.container);
@@ -108,14 +114,28 @@ export class Fish implements Boid {
 
   public setTheme(theme: 'light' | 'dark'): void {
     this.theme = theme;
+
+    if (this.typeId === 'boss') {
+      if (theme === 'dark' && !this.abyssalBoss) {
+        this.bossInstance?.destroy();
+        this.bossInstance = undefined;
+        this.abyssalBoss = new AbyssalHorrorBoss(this.health, 'dark');
+        this.container.addChild(this.abyssalBoss);
+      } else if (theme === 'light' && !this.bossInstance) {
+        this.abyssalBoss?.destroy({ children: true });
+        this.abyssalBoss = undefined;
+        this.bossInstance = new BossManager(this.health, 'light');
+        this.container.addChild(this.bossInstance);
+      }
+    }
+
     if (this.animRig) {
       this.animRig.setTheme(theme);
       if (theme === 'light' && this.typeId === 'medium') this.animRig.tint(0xa5f3fc);
       else this.animRig.resetTint();
     }
-    if (this.bossInstance) {
-      this.bossInstance.setTheme(theme);
-    }
+    this.bossInstance?.setTheme(theme);
+    this.abyssalBoss?.setTheme(theme);
   }
 
   public updateSteering(
@@ -146,6 +166,7 @@ export class Fish implements Boid {
       this.bounds.x = this.x - this.width / 2;
       this.bounds.y = this.y - this.height / 2;
       this.bossInstance?.update(dtScale, this.vx, this.vy);
+      this.abyssalBoss?.update(dtScale, this.vx, this.vy);
       return;
     }
 
@@ -235,8 +256,16 @@ export class Fish implements Boid {
       return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
     }
 
-    if (this.bossInstance) {
+    if (this.abyssalBoss) {
+      const isDefeated = this.abyssalBoss.takeDamage(damage);
+      this.health = this.abyssalBoss.currentHp;
+      if (isDefeated) {
+        this.kill();
+        return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
+      }
+    } else if (this.bossInstance) {
       const isDefeated = this.bossInstance.takeDamage(damage);
+      this.health = this.bossInstance.currentHp;
       if (isDefeated) {
         this.kill();
         return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
@@ -292,6 +321,7 @@ export class Fish implements Boid {
     if (!this.isAlive) return;
     this.isAlive = false;
     this.bossInstance?.destroy();
+    this.abyssalBoss?.destroy({ children: true });
     if (this.container && !this.container.destroyed) this.container.destroy({ children: true });
   }
 }
