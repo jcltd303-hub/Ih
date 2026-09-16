@@ -86,13 +86,16 @@ export class Fish implements Boid {
       this.bossInstance = new BossManager(this.health, theme);
       this.container.addChild(this.bossInstance);
     } else {
-      // The sprite-sheet rig is the primary and only fish body. Do not add the
-      // old low-detail fallback silhouette underneath it; that was the source
-      // of the duplicate "shitty fish" visible on top of the restored artwork.
-      this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
+      // Never render the old low-detail fallback. Small fish intentionally use
+      // the detailed lionfish rig now so every normal fish has the restored
+      // high-detail arcade artwork rather than the crude tetra/fallback look.
+      const visualType = type === 'small' ? 'medium' : type;
+      this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(visualType, theme);
       this.container.addChild(this.animRig.container);
 
-      if (type === 'medium' && theme === 'light') {
+      if (type === 'small') {
+        this.animRig.container.scale.set(0.72, 0.72);
+      } else if (type === 'medium' && theme === 'light') {
         this.animRig.tint(0xa5f3fc);
       }
 
