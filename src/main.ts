@@ -4,6 +4,7 @@ import { Application, Graphics } from 'pixi.js';
 import { GameScene } from './engine/core/GameScene';
 import { AssetLoader } from './engine/systems/AssetLoader';
 import { enableMobilePixiCompatibility } from './engine/systems/MobilePixiCompatibility';
+import { installDarkThemeAudio } from './audio/DarkThemeAudio';
 import { AuthManager } from './network/AuthManager';
 import { WalletService } from './network/WalletService';
 import { loadPreferredTier, resolvePerformanceSettings } from './config/PerformancePresets';
@@ -17,6 +18,8 @@ import { initAppCheck } from './network/AppCheckInit';
 import { FeatureFlags, prefersReducedMotion } from './config/FeatureFlags';
 import { maybeShowOnboarding } from './ui/OnboardingTips';
 import { CombatFeedbackOverlay } from './ui/CombatFeedbackOverlay';
+
+installDarkThemeAudio();
 
 // If the per-frame game loop throws, Pixi's own render pass for that tick
 // can get aborted right along with it — the canvas just freezes/blanks with
@@ -75,9 +78,6 @@ async function bootstrap() {
     powerPreference: perf.tier === 'low' ? 'low-power' : 'high-performance'
   });
 
-  // Force the Pixi surface into a known visible layer. Android Chrome can
-  // report a healthy renderer while CSS layout leaves the canvas covered or
-  // collapsed behind the DOM HUD.
   app.canvas.style.position = 'absolute';
   app.canvas.style.left = '0';
   app.canvas.style.top = '0';
@@ -117,21 +117,14 @@ async function bootstrap() {
       particlesEnabled: perf.particlesEnabled
     });
   } catch (err) {
-    // A throw here previously left the canvas permanently blank with no
-    // trace of why — everything after this line (ticker wiring, the React
-    // HUD, CombatFeedbackOverlay) would silently never run.
     showCrashBanner('GameScene constructor', err);
     throw err;
   }
   new CombatFeedbackOverlay(root);
 
-  // Explicitly start and render once. Do not depend on Pixi's implicit
-  // Application auto-start behavior on mobile browsers.
   app.ticker.start();
   app.render();
 
-  // A nearly invisible native Pixi border gives us a renderer-level surface
-  // independent of texture loading or DOM HUD state.
   const renderSentinel = new Graphics();
   renderSentinel.rect(0, 0, app.screen.width, app.screen.height);
   renderSentinel.stroke({ width: 1, color: 0x22d3ee, alpha: 0.045 });
@@ -140,17 +133,6 @@ async function bootstrap() {
 
   WalletService.getInstance().onChange((b) => gameScene.syncWalletBalances(b.goldCoins, b.sweepstakesCoins, b.source));
   app.ticker.add((ticker) => {
-    // This callback previously had zero error handling. If anything inside
-    // update() throws — a bad fish/texture reference, a mobile GPU quirk in
-    // the post-processing shader path, anything — the exception aborts this
-    // ticker tick, and on many browsers that also skips Pixi's own render
-    // step scheduled after it in the same tick. The result is a permanently
-    // frozen/blank canvas with the DOM HUD still fully working (since it's
-    // unrelated to the ticker), and, worse, nothing visible anywhere —
-    // console included — to explain why on a phone with no attached
-    // devtools. Catching it here can't undo the missed frame, but it stops
-    // every subsequent frame from being skipped too, and puts the real
-    // error on screen instead of leaving it a mystery.
     try {
       gameScene.update(ticker.deltaMS);
     } catch (err) {
