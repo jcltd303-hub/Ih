@@ -21,14 +21,6 @@ import { CombatFeedbackOverlay } from './ui/CombatFeedbackOverlay';
 
 installDarkThemeAudio();
 
-// Fish Frenzy is intentionally dark-first. Set the DOM theme before any
-// React/Pixi UI is created so there is no light-theme flash on startup.
-try {
-  document.documentElement.dataset.ffTheme = 'dark';
-  document.body?.setAttribute('data-ff-theme', 'dark');
-  localStorage.setItem('fish_frenzy_theme', 'dark');
-} catch { /* ignore */ }
-
 // If the per-frame game loop throws, Pixi's own render pass for that tick
 // can get aborted right along with it — the canvas just freezes/blanks with
 // nothing in the visible UI to explain why. That's especially bad on a phone
@@ -128,6 +120,17 @@ async function bootstrap() {
     showCrashBanner('GameScene constructor', err);
     throw err;
   }
+
+  // Reinstate the existing arcade intro/start screen. GameScene currently
+  // auto-starts for legacy compatibility, so immediately put it back into
+  // its idle state and let the intro's PLAY callback own the real start.
+  const sceneRuntime = gameScene as GameScene & {
+    isPlaying: boolean;
+    uiManager: { showStartScreen: () => void };
+  };
+  sceneRuntime.isPlaying = false;
+  sceneRuntime.uiManager.showStartScreen();
+
   new CombatFeedbackOverlay(root);
 
   app.ticker.start();
