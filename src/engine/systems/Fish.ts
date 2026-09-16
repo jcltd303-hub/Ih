@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { BossManager } from './BossManager';
+import { AbyssalHorrorBoss } from './AbyssalHorrorBoss';
 import { SpriteSheetManager, FishAnimationRig } from './SpriteSheetManager';
 import { BoidSwarmManager } from './BoidSwarmManager';
 
@@ -18,7 +19,7 @@ export class Fish {
   public worth: number;
   public container: Container;
   public graphics?: Graphics;
-  public bossInstance?: BossManager;
+  public bossInstance?: BossManager | AbyssalHorrorBoss;
   public animRig?: FishAnimationRig;
   public facing: 'left' | 'right' = 'right';
   public isAlive: boolean = true;
@@ -68,7 +69,11 @@ export class Fish {
     this.container = new Container();
 
     if (isBoss) {
-      this.bossInstance = new BossManager(28, theme);
+      // Dark theme uses the organic Abyssal Horror; light keeps the mecha Leviathan
+      this.bossInstance =
+        theme === 'dark'
+          ? new AbyssalHorrorBoss(28, theme)
+          : new BossManager(28, theme);
       this.container.addChild(this.bossInstance);
     } else {
       // Create animated sprite sheet rig for swimming and 3D turning with species and theme fidelity
