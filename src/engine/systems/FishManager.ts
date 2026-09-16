@@ -3,7 +3,6 @@ import { SpatialHashGrid } from './SpatialHashGrid';
 import { Fish } from './Fish';
 import { SoundManager } from '../../audio/SoundManager';
 import { GameConfig } from '../../config/GameConfig';
-import { attachVectorCreatureRig, updateVectorCreatureRig, setVectorCreatureTheme } from './VectorCreatureRigs';
 
 export type FishEntity = Fish;
 
@@ -22,15 +21,17 @@ export class FishManager {
     this.spatialGrid = spatialGrid;
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
-    for (let i = 0; i < GameConfig.initialWaveCount; i++) this.spawnRandomWave();
+
+    // Initial seed wave
+    for (let i = 0; i < GameConfig.initialWaveCount; i++) {
+      this.spawnRandomWave();
+    }
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
     this.currentTheme = theme;
     for (let i = 0; i < this.activeFishList.length; i++) {
-      const fish = this.activeFishList[i];
-      fish.setTheme(theme);
-      setVectorCreatureTheme(fish);
+      this.activeFishList[i].setTheme(theme);
     }
   }
 
@@ -42,17 +43,19 @@ export class FishManager {
   public spawnFish(type: 'small' | 'medium' | 'boss' = 'small', maxHpOverride?: number): Fish {
     this.fishIdCounter++;
     const id = `fish_${this.fishIdCounter}`;
+
     const isLeftToRight = Math.random() > 0.45;
     const startX = isLeftToRight ? -100 : this.screenWidth + 100;
     const startY = Math.random() * (this.screenHeight * 0.6) + 80;
+
     const fish = new Fish(id, type, startX, startY, this.screenWidth, this.screenHeight, this.currentTheme, maxHpOverride);
     this.stage.addChild(fish.container);
-    attachVectorCreatureRig(fish);
+
     this.activeFish.set(id, fish);
     this.activeFishList.push(fish);
 
     if (type === 'boss') {
-      console.log(`[AUDIT] FishManager: vector boss ${this.currentTheme}/${id}, hp=${maxHpOverride}`);
+      console.log(`[AUDIT] FishManager: Boss spawned! id=${id}, x=${startX}, y=${startY}, hp=${maxHpOverride}`);
       SoundManager.playBossWarning();
     }
     return fish;
@@ -60,23 +63,31 @@ export class FishManager {
 
   public spawnRandomWave(): void {
     if (this.activeFish.size >= GameConfig.maxActiveFish) return;
+
+    // Boss is progress/raid-gated only — never from random waves
     const roll = Math.random();
-    if (roll > 0.55) this.spawnFish('medium');
-    else {
+    if (roll > 0.55) {
+      this.spawnFish('medium');
+    } else {
+      // Spawn a small school for visible flocking
       const span = GameConfig.schoolSizeMax - GameConfig.schoolSizeMin + 1;
       const schoolSize = GameConfig.schoolSizeMin + Math.floor(Math.random() * span);
-      for (let i = 0; i < schoolSize && this.activeFish.size < GameConfig.maxActiveFish; i++) this.spawnFish('small');
+      for (let i = 0; i < schoolSize && this.activeFish.size < GameConfig.maxActiveFish; i++) {
+        this.spawnFish('small');
+      }
     }
   }
 
   public update(deltaTime: number, threatX?: number, threatY?: number): void {
     const dtScale = Math.min(deltaTime * 0.06, 2.5);
     const list = this.activeFishList;
+
     for (let i = 0; i < list.length; i++) {
       const fish = list[i];
       if (!fish.isAlive) continue;
+
+      // Pass cached active list for steering/flocking behaviors with zero allocations
       fish.updateSteering(list, this.screenWidth, this.screenHeight, threatX, threatY, dtScale);
-      updateVectorCreatureRig(fish, deltaTime);
       this.spatialGrid.insert(fish.bounds);
     }
   }
@@ -84,12 +95,17 @@ export class FishManager {
   public inflictDamage(fishId: string, damage: number, forceInstantKill: boolean = false): { killed: boolean; multiplier: number; x: number; y: number } {
     const fish = this.activeFish.get(fishId);
     if (!fish || !fish.isAlive) return { killed: false, multiplier: 0, x: 0, y: 0 };
+
     const result = fish.inflictDamage(damage, forceInstantKill);
-    if (result.killed) this.killFish(fishId);
+    if (result.killed) {
+      this.killFish(fishId);
+    }
     return result;
   }
 
-  public getFish(fishId: string): Fish | undefined { return this.activeFish.get(fishId); }
+  public getFish(fishId: string): Fish | undefined {
+    return this.activeFish.get(fishId);
+  }
 
   public killFish(fishId: string): void {
     const fish = this.activeFish.get(fishId);
@@ -97,8 +113,12 @@ export class FishManager {
     fish.kill();
     this.activeFish.delete(fishId);
     const idx = this.activeFishList.indexOf(fish);
-    if (idx !== -1) this.activeFishList.splice(idx, 1);
+    if (idx !== -1) {
+      this.activeFishList.splice(idx, 1);
+    }
   }
 
-  public getActiveCount(): number { return this.activeFish.size; }
+  public getActiveCount(): number {
+    return this.activeFish.size;
+  }
 }
