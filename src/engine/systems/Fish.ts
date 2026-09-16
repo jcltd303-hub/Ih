@@ -85,13 +85,11 @@ export class Fish implements Boid {
     this.container = new Container();
 
     if (isBoss) {
-      if (theme === 'dark') {
-        this.abyssalBoss = new AbyssalHorrorBoss(this.health, 'dark');
-        this.container.addChild(this.abyssalBoss);
-      } else {
-        this.bossInstance = new BossManager(this.health, 'light');
-        this.container.addChild(this.bossInstance);
-      }
+      // Use the same Abyssal Horror artwork in both themes for now. Theme
+      // changes only retune its palette rather than swapping to the fallback
+      // BossManager renderer.
+      this.abyssalBoss = new AbyssalHorrorBoss(this.health, theme);
+      this.container.addChild(this.abyssalBoss);
     } else {
       // Never render the old low-detail fallback. Small fish use the restored
       // detailed rig rather than the crude tetra/fallback look.
@@ -116,17 +114,15 @@ export class Fish implements Boid {
     this.theme = theme;
 
     if (this.typeId === 'boss') {
-      if (theme === 'dark' && !this.abyssalBoss) {
-        this.bossInstance?.destroy();
-        this.bossInstance = undefined;
-        this.abyssalBoss = new AbyssalHorrorBoss(this.health, 'dark');
+      if (!this.abyssalBoss) {
+        this.abyssalBoss = new AbyssalHorrorBoss(this.health, theme);
         this.container.addChild(this.abyssalBoss);
-      } else if (theme === 'light' && !this.bossInstance) {
-        this.abyssalBoss?.destroy({ children: true });
-        this.abyssalBoss = undefined;
-        this.bossInstance = new BossManager(this.health, 'light');
-        this.container.addChild(this.bossInstance);
+      } else {
+        this.abyssalBoss.setTheme(theme);
       }
+      // Do not recreate or switch to BossManager when the theme changes.
+      this.bossInstance?.destroy({ children: true });
+      this.bossInstance = undefined;
     }
 
     if (this.animRig) {
@@ -134,8 +130,6 @@ export class Fish implements Boid {
       if (theme === 'light' && this.typeId === 'medium') this.animRig.tint(0xa5f3fc);
       else this.animRig.resetTint();
     }
-    this.bossInstance?.setTheme(theme);
-    this.abyssalBoss?.setTheme(theme);
   }
 
   public updateSteering(
@@ -220,108 +214,51 @@ export class Fish implements Boid {
     this.x += this.vx * dtScale;
     this.y += this.vy * dtScale;
 
-    if (this.x < -120) this.x = screenWidth + 110;
-    if (this.x > screenWidth + 120) this.x = -110;
-    if (this.y < 80) { this.y = 80; this.vy *= -1; }
-    if (this.y > screenHeight - 100) { this.y = screenHeight - 100; this.vy *= -1; }
+    const margin = 80;
+    if (this.x < -margin) this.x = screenWidth + margin;
+    else if (this.x > screenWidth + margin) this.x = -margin;
+    if (this.y < -margin) this.y = screenHeight + margin;
+    else if (this.y > screenHeight + margin) this.y = -margin;
+
+    const newFacing = this.vx < -0.1 ? 'left' : this.vx > 0.1 ? 'right' : this.facing;
+    if (newFacing !== this.facing) {
+      this.facing = newFacing;
+      this.animRig?.playState(this.facing === 'left' ? 'swim_left' : 'swim_right');
+    }
 
     this.container.x = this.x;
     this.container.y = this.y;
     this.bounds.x = this.x - this.width / 2;
     this.bounds.y = this.y - this.height / 2;
-
-    if (this.animRig) {
-      const heading = this.vx < -0.25 ? 'left' : this.vx > 0.25 ? 'right' : this.facing;
-      if (heading !== this.facing && !this.animRig.isTurning) {
-        this.facing = heading;
-        const turnAnim = heading === 'left' ? 'turn_left' : 'turn_right';
-        const targetSwim = heading === 'left' ? 'swim_left' : 'swim_right';
-        this.animRig.playState(turnAnim, () => {
-          if (this.isAlive && this.animRig) this.animRig.playState(targetSwim);
-        });
-      } else if (!this.animRig.isTurning) {
-        const activeSwim = this.facing === 'left' ? 'swim_left' : 'swim_right';
-        if (this.animRig.currentState !== activeSwim) this.animRig.playState(activeSwim);
-      }
-      const animSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      this.animRig.setSpeed(Math.max(0.7, animSpeed / this.maxSpeed));
-    }
   }
 
-  public inflictDamage(damage: number, forceInstantKill: boolean = false): { killed: boolean; multiplier: number; x: number; y: number } {
-    if (!this.isAlive) return { killed: false, multiplier: 0, x: this.x, y: this.y };
+  public takeDamage(damage: number): boolean {
+    if (!this.isAlive) return false;
+    const amount = Math.max(0, damage);
+    this.health = Math.max(0, this.health - amount);
 
-    if (forceInstantKill) {
-      this.kill();
-      return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
+    if (this.typeId === 'boss') {
+      const dead = this.abyssalBoss?.takeDamage(amount) ?? false;
+      if (dead) this.health = 0;
+      return dead;
     }
 
-    if (this.abyssalBoss) {
-      const isDefeated = this.abyssalBoss.takeDamage(damage);
-      this.health = this.abyssalBoss.currentHp;
-      if (isDefeated) {
-        this.kill();
-        return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
-      }
-    } else if (this.bossInstance) {
-      const isDefeated = this.bossInstance.takeDamage(damage);
-      this.health = this.bossInstance.currentHp;
-      if (isDefeated) {
-        this.kill();
-        return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
-      }
-    } else {
-      this.health = Math.max(0, this.health - damage);
-      this.updateMiniHealthBar();
-      if (this.health <= 0) {
-        this.kill();
-        return { killed: true, multiplier: this.multiplier, x: this.x, y: this.y };
-      }
-    }
-
-    if (this.animRig) {
-      this.animRig.tint(0xff4444);
-      setTimeout(() => {
-        if (this.isAlive && this.animRig) {
-          if (this.typeId === 'medium' && this.theme === 'light') this.animRig.tint(0xa5f3fc);
-          else this.animRig.resetTint();
-        }
-      }, 90);
-    }
-
-    const punch = this.container.scale.x * 1.15;
-    this.container.scale.set(punch, punch);
-    setTimeout(() => {
-      if (this.container && !this.container.destroyed) this.container.scale.set(this.container.scale.x / 1.15, this.container.scale.y / 1.15);
-    }, 70);
-
-    return { killed: false, multiplier: 0, x: this.x, y: this.y };
-  }
-
-  private updateMiniHealthBar(): void {
-    if (this.typeId === 'boss') return;
-    if (!this.miniHealthBar) {
-      this.miniHealthBar = new Graphics();
-      this.container.addChild(this.miniHealthBar);
-    }
-    this.miniHealthBar.clear();
-    const radius = this.typeId === 'small' ? 24 : 48;
-    const barWidth = radius * 1.5;
-    const barHeight = 4;
-    const yPos = -radius * 0.7 - 8;
-    const pct = Math.max(0, Math.min(1, this.health / this.maxHealth));
-
-    this.miniHealthBar.rect(-barWidth / 2, yPos, barWidth, barHeight);
-    this.miniHealthBar.fill({ color: 0x0f172a, alpha: 0.85 });
-    this.miniHealthBar.rect(-barWidth / 2, yPos, barWidth * pct, barHeight);
-    this.miniHealthBar.fill({ color: this.theme === 'dark' ? 0xf87171 : 0x22c55e, alpha: 0.95 });
+    return this.health <= 0;
   }
 
   public kill(): void {
     if (!this.isAlive) return;
     this.isAlive = false;
-    this.bossInstance?.destroy();
+    this.animRig?.destroy({ children: true });
+    this.bossInstance?.destroy({ children: true });
     this.abyssalBoss?.destroy({ children: true });
-    if (this.container && !this.container.destroyed) this.container.destroy({ children: true });
+    this.animRig = undefined;
+    this.bossInstance = undefined;
+    this.abyssalBoss = undefined;
+    this.container.destroy({ children: true });
+  }
+
+  public getCollisionRadius(): number {
+    return this.typeId === 'boss' ? 110 : this.typeId === 'medium' ? 52 : 28;
   }
 }
