@@ -1,5 +1,6 @@
 import { Texture, Assets } from 'pixi.js';
 import { SpriteSheetManager } from './SpriteSheetManager';
+import { Tetra } from './Tetra';
 
 export class AssetLoader {
   private static assetsReady: boolean = false;
@@ -64,13 +65,16 @@ export class AssetLoader {
     sGrad.addColorStop(0.95, 'rgba(255, 255, 255, 1.0)'); sGrad.addColorStop(1.0, 'rgba(0, 255, 204, 0)');
     sCtx.fillStyle = sGrad; sCtx.fillRect(0, 0, 48, 48); Assets.cache.set('shockwave_ring', Texture.from(shockCanvas)); reportStep();
 
-    // Authored boss artwork lives under src/assets/images and must be resolved
-    // through the bundler rather than the old /leviathan_boss.png public path.
+    // Load both the legacy boss artwork and the new authored Tetra cutout.
+    // Tetra.prepare() slices tetra.png into nine independent rig parts before
+    // any Fish instance can be constructed, so the game never renders the
+    // source sheet as one giant square.
     const bossArtworkUrl = new URL('../../assets/images/abyssal_horror_boss_sheet.png', import.meta.url).href;
     try {
       await Assets.load(bossArtworkUrl);
+      await Tetra.prepare();
     } catch (err) {
-      console.error('[AssetLoader] Failed to load abyssal_horror_boss_sheet.png', err);
+      console.error('[AssetLoader] Failed to load authored boss artwork', err);
     }
     reportStep();
 
@@ -78,6 +82,6 @@ export class AssetLoader {
     reportStep();
 
     this.assetsReady = true;
-    console.log('[AssetLoader] Game assets, textures, and animated rigs loaded successfully.');
+    console.log('[AssetLoader] Game assets, textures, animated fish rigs, and Tetra boss rig loaded successfully.');
   }
 }
