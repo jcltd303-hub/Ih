@@ -23,6 +23,7 @@ export interface FishAnimationRig {
   setTheme: (theme: 'light' | 'dark') => void;
   tint: (color: number) => void;
   resetTint: () => void;
+  destroy: (options?: { children?: boolean }) => void;
 }
 
 export interface TurretSkinData {
@@ -1715,6 +1716,10 @@ export class SpriteSheetManager {
       },
       resetTint: () => {
         rig.sprite.tint = 0xffffff;
+      },
+      destroy: (options?: { children?: boolean }) => {
+        rig.sprite.onComplete = undefined;
+        if (!rig.container.destroyed) rig.container.destroy(options);
       }
     };
 
