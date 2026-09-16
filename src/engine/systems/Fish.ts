@@ -116,7 +116,6 @@ export class Fish implements Boid {
     return this.health <= 0;
   }
 
-  // Compatibility API used by FishManager and the projectile/hit systems.
   public inflictDamage(damage: number, forceInstantKill = false): { killed: boolean; multiplier: number; x: number; y: number } {
     if (!this.isAlive) return { killed: false, multiplier: 0, x: this.x, y: this.y };
     const killed = forceInstantKill ? true : this.takeDamage(damage);
@@ -126,8 +125,28 @@ export class Fish implements Boid {
 
   public kill(): void {
     if (!this.isAlive) return;
-    this.isAlive = false; this.animRig?.destroy({ children: true }); this.bossInstance?.destroy({ children: true }); this.abyssalBoss?.destroy({ children: true });
-    this.animRig = undefined; this.bossInstance = undefined; this.abyssalBoss = undefined; this.container.destroy({ children: true });
+    // Mark dead and make the render object non-renderable BEFORE destroying children.
+    // This prevents a killed AnimatedSprite from remaining visible for a frame/tick and
+    // makes the lifecycle independent of z-order or ticker behavior.
+    this.isAlive = false;
+    this.health = 0;
+    this.container.visible = false;
+    this.container.renderable = false;
+    this.container.alpha = 0;
+
+    // Detach from the stage first. This is the important part when a fish is killed:
+    // the FishManager owns the lifecycle, so the fish must no longer participate in the
+    // display tree at all.
+    const parent = this.container.parent;
+    if (parent) parent.removeChild(this.container);
+
+    this.animRig?.destroy({ children: true });
+    this.bossInstance?.destroy({ children: true });
+    this.abyssalBoss?.destroy({ children: true });
+    this.animRig = undefined;
+    this.bossInstance = undefined;
+    this.abyssalBoss = undefined;
+    this.container.destroy({ children: true });
   }
 
   public getCollisionRadius(): number { return this.typeId === 'boss' ? 110 : this.typeId === 'medium' ? 52 : 28; }
