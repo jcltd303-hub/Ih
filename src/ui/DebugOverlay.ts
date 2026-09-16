@@ -1,6 +1,6 @@
 import { FairnessSession } from '../network/FairnessSession';
 import { PayoutEngine } from '../engine/systems/PayoutEngine';
-import { BossSystem } from '../engine/systems/BossSystem';
+
 import { TurretSystem } from '../engine/systems/TurretSystem';
 import { ComboSystem } from '../engine/systems/ComboSystem';
 import { AudioManager } from '../audio/AudioManager';
@@ -89,7 +89,7 @@ export class DebugOverlay {
     if (!this.el) return;
     const sess = FairnessSession.getInstance().getState();
     const stats = PayoutEngine.getSessionStats();
-    const boss = BossSystem.getInstance();
+
     const turret = TurretSystem.getInstance();
     const combo = ComboSystem.getInstance();
     const audio = AudioManager.getInstance();
@@ -113,22 +113,7 @@ export class DebugOverlay {
         <div>Combo: <b>x${combo.getCombo()}</b> (Max: ${combo.getMaxCombo()})</div>
       </div>
 
-      <!-- BOSS SYSTEM -->
-      <div style="background:#0f172a; border:1px solid #334155; padding:6px 8px; margin-bottom:6px;">
-        <div style="color:#f87171; font-weight:900; margin-bottom:3px; display:flex; justify-content:space-between;">
-          <span>BOSS SYSTEM</span>
-          <span style="color:${boss.isActive() ? '#34d399' : '#94a3b8'};">${boss.getPhase()}</span>
-        </div>
-        <div style="font-size:10px; color:#cbd5e1;">
-          Eligible: <b style="color:${boss.isEligible() ? '#34d399' : '#ef4444'};">${boss.isEligible() ? 'YES' : 'NO'}</b> ·
-          Since last: <b>${boss.getKillsSinceBoss()} kills</b><br/>
-          Next guarantee: <b style="color:#fbbf24;">${boss.getKillsUntilGuarantee()} kills remaining</b>
-          ${boss.getCooldownRemainingSec() > 0 ? ` · Cooldown: ${boss.getCooldownRemainingSec()}s` : ''}
-        </div>
-        <div style="margin-top:5px;">
-          <button id="ff-dbg-trigger-boss" style="background:#b91c1c; color:#fff; border:1px solid #ef4444; padding:3px 8px; font-size:10px; cursor:pointer; font-weight:900;">⚡ FORCE BOSS</button>
-        </div>
-      </div>
+
 
       <!-- TURRET MULTIPLIER -->
       <div style="background:#0f172a; border:1px solid #334155; padding:6px 8px; margin-bottom:6px;">
@@ -191,9 +176,7 @@ export class DebugOverlay {
       this.toggle();
       document.getElementById('hud-paper-rig-btn')?.click();
     });
-    this.el.querySelector('#ff-dbg-trigger-boss')?.addEventListener('click', () => {
-      BossSystem.getInstance().forceTrigger();
-    });
+
     this.el.querySelector('#ff-dbg-trigger-turret')?.addEventListener('click', () => {
       TurretSystem.getInstance().forceTrigger();
     });

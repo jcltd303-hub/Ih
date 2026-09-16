@@ -181,6 +181,27 @@ export class GameScene {
     this.bossRaid.startRaid(uid, (result) => {
       console.info('[BossRaid] completed', result);
       this.bossUnlockAtMs = Date.now() + GameConfig.bossPacing.cooldownMs;
+      
+      if (result.defeated) {
+        const myUid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
+        const myDamage = result.contributors.get(myUid) || 0;
+        
+        if (myDamage > 0) {
+          // Calculate a massive bounty based on contribution (e.g. 5x total damage + bonus)
+          const baseBounty = myDamage * 5;
+          const killBonus = result.lastHitUserId === myUid ? 500 : 0;
+          const totalBounty = baseBounty + killBonus;
+          
+          this.uiManager.addBalance(0, totalBounty); // Pay out in SC
+          this.particleFX.spawnFloatingText(
+            this.app.screen.width / 2, 
+            this.app.screen.height / 2 - 100, 
+            `BOSS BOUNTY: +${totalBounty.toFixed(2)} SC!`, 
+            0xffd700, 
+            true
+          );
+        }
+      }
     });
   }
 

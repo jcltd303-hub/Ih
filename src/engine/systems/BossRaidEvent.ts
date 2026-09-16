@@ -4,6 +4,7 @@ import { ParticleFXManager } from './ParticleFXManager';
 import { SoundManager } from '../../audio/SoundManager';
 import { GameEventBus, BossStateEvent, BossResultEvent } from '../core/GameEvents';
 import { GameConfig } from '../../config/GameConfig';
+import { AuthManager } from '../../network/AuthManager';
 
 export interface BossRaidState {
   active: boolean;
@@ -186,10 +187,15 @@ export class BossRaidEvent {
       this.bossId = null;
     }
 
+    const myUid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
+    const myDamage = this.state.contributors.get(myUid)?.damage || 0;
+    const killBonus = lastHitUserId === myUid ? 500 : 0;
+    const totalBounty = myDamage > 0 ? (myDamage * 5) + killBonus : 0;
+
     GameEventBus.getInstance().emit<BossResultEvent>('BOSS_DEFEATED', {
       defeated: true,
       totalDamage: this.state.totalDamage,
-      bountyPayout: 0,
+      bountyPayout: totalBounty,
       currency: 'SC',
       multiplier: 2.5,
       timeElapsedSec: Math.max(0, (Date.now() - this.raidStartedAt) / 1000)

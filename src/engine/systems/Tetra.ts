@@ -20,10 +20,7 @@ export class Tetra extends Container {
   private readonly bodyRoot = new Container();
   private readonly torsoMain = new Container();
   private readonly headGroup = new Container();
-  private readonly jaw = new Container();
-  private readonly organCavity = new Container();
   private readonly tailAssembly = new Container();
-  private readonly pectoralFinLeft = new Container();
   private sTorsoMain!: Sprite;
   private sHeadJaw!: Sprite;
   private sEyeballLarge!: Sprite;
@@ -85,53 +82,73 @@ export class Tetra extends Container {
   }
 
   private buildRig(tex: DetailedBossTextures): void {
+    const cw = 341;
+    const ch = 341;
+
     this.sTorsoMain = new Sprite(tex.torsoMain);
     this.sTorsoMain.anchor.set(0.5);
+    
     this.sHeadJaw = new Sprite(tex.headJaw);
-    this.sHeadJaw.anchor.set(0.8, 0.4);
+    this.sHeadJaw.anchor.set(0.5);
+    
     this.sEyeballLarge = new Sprite(tex.eyeballLarge);
     this.sEyeballLarge.anchor.set(0.5);
+    
     this.sEyeballSmall = new Sprite(tex.eyeballSmall);
     this.sEyeballSmall.anchor.set(0.5);
+    
     this.sBrainOrgans = new Sprite(tex.brainOrgans);
     this.sBrainOrgans.anchor.set(0.5);
+    
     this.sVisceraSpine = new Sprite(tex.visceraSpine);
-    this.sVisceraSpine.anchor.set(0.1, 0.5);
+    this.sVisceraSpine.anchor.set(0.5);
+    
     this.sPectoralFin = new Sprite(tex.pectoralFin);
-    this.sPectoralFin.anchor.set(0.2, 0.2);
+    this.sPectoralFin.anchor.set(0.5);
+    
     this.sDorsalFin = new Sprite(tex.dorsalFin);
-    this.sDorsalFin.anchor.set(0.5, 1);
+    this.sDorsalFin.anchor.set(0.5);
+    
     this.sTailFin = new Sprite(tex.tailFin);
-    this.sTailFin.anchor.set(0.1, 0.5);
+    this.sTailFin.anchor.set(0.5);
 
     this.addChild(this.bodyRoot);
+    
+    // Middle column
     this.bodyRoot.addChild(this.torsoMain);
     this.torsoMain.addChild(this.sTorsoMain);
+    this.sTorsoMain.position.set(0, 0);
+    
+    this.torsoMain.addChild(this.sEyeballSmall);
+    this.sEyeballSmall.position.set(0, -ch);
+    
     this.torsoMain.addChild(this.sDorsalFin);
-    this.torsoMain.addChild(this.headGroup);
-    this.headGroup.addChild(this.sHeadJaw);
-    this.headGroup.addChild(this.sEyeballLarge);
-    this.headGroup.addChild(this.sEyeballSmall);
-    this.torsoMain.addChild(this.organCavity);
-    this.organCavity.addChild(this.sBrainOrgans);
-    this.torsoMain.addChild(this.pectoralFinLeft);
-    this.pectoralFinLeft.addChild(this.sPectoralFin);
-    this.torsoMain.addChild(this.sVisceraSpine);
-    this.torsoMain.addChild(this.tailAssembly);
-    this.tailAssembly.addChild(this.sTailFin);
+    this.sDorsalFin.position.set(0, ch);
 
-    // These offsets are the authored puppet proportions. The previous tiny offsets
-    // collapsed the nine cutouts on top of one another, so the result stopped reading as a fish.
+    // Left column (Head)
+    this.bodyRoot.addChild(this.headGroup);
+    this.headGroup.addChild(this.sHeadJaw);
+    this.sHeadJaw.position.set(-cw, 0);
+    
+    this.headGroup.addChild(this.sEyeballLarge);
+    this.sEyeballLarge.position.set(-cw, -ch);
+    
+    this.headGroup.addChild(this.sPectoralFin);
+    this.sPectoralFin.position.set(-cw, ch);
+
+    // Right column (Tail)
+    this.bodyRoot.addChild(this.tailAssembly);
+    this.tailAssembly.addChild(this.sVisceraSpine);
+    this.sVisceraSpine.position.set(cw, 0);
+    
+    this.tailAssembly.addChild(this.sBrainOrgans);
+    this.sBrainOrgans.position.set(cw, -ch);
+    
+    this.tailAssembly.addChild(this.sTailFin);
+    this.sTailFin.position.set(cw, ch);
+
     this.bodyRoot.position.set(0, 0);
-    this.headGroup.position.set(-180, -40);
-    this.sEyeballLarge.position.set(-65, -35);
-    this.sEyeballSmall.position.set(25, -20);
-    this.organCavity.position.set(20, -10);
-    this.sDorsalFin.position.set(-50, -140);
-    this.pectoralFinLeft.position.set(10, 50);
-    this.sVisceraSpine.position.set(140, 20);
-    this.tailAssembly.position.set(220, -10);
-    this.bodyRoot.scale.set(0.16 * this.facingSign);
+    this.bodyRoot.scale.set(0.08 * this.facingSign, 0.08);
   }
 
   public setTheme(theme: Theme): void {
@@ -145,7 +162,7 @@ export class Tetra extends Container {
 
   public setFacing(facing: 'left' | 'right'): void {
     this.facingSign = facing === 'left' ? -1 : 1;
-    this.bodyRoot.scale.x = 0.16 * this.facingSign;
+    this.bodyRoot.scale.x = 0.08 * this.facingSign;
   }
 
   public applyTheme(theme: Theme): void {
@@ -159,7 +176,7 @@ export class Tetra extends Container {
     this.elapsed += dt;
     if (vx < -0.05) this.facingSign = -1;
     else if (vx > 0.05) this.facingSign = 1;
-    this.bodyRoot.scale.x = 0.16 * this.facingSign;
+    this.bodyRoot.scale.x = 0.08 * this.facingSign;
 
     const t = this.elapsed;
     const swim = Math.sin(t * 5.2);
@@ -170,12 +187,11 @@ export class Tetra extends Container {
     this.torsoMain.rotation = swim * 0.018;
     this.torsoMain.scale.set(1 + swim * 0.012, 1 - swim * 0.008);
     this.headGroup.rotation = swim * 0.012;
-    this.headGroup.x = -180 + swim * 1.5;
+    this.headGroup.x = swim * 1.5;
     this.tailAssembly.rotation = tailWave * 0.18;
     this.sTailFin.rotation = tailWave * 0.12;
-    this.pectoralFinLeft.rotation = 0.2 + finWave * 0.08;
+    this.sPectoralFin.rotation = finWave * 0.08;
     this.sDorsalFin.rotation = Math.sin(t * 5.2 - 1.1) * 0.04;
-    this.organCavity.rotation = Math.sin(t * 5.2 - 0.4) * 0.012;
     this.sBrainOrgans.scale.set(1 + Math.sin(t * 4.5) * 0.018);
   }
 
@@ -189,8 +205,8 @@ export class Tetra extends Container {
 
   public setBiteProgress(progress: number): void {
     const p = Math.max(0, Math.min(1, progress));
-    this.jaw.rotation = -0.1 + p * 0.5;
-    this.torsoMain.position.x = -30 - p * 25;
+    this.sHeadJaw.rotation = -0.1 + p * 0.5;
+    this.torsoMain.position.x = -p * 25;
   }
 
   public destroy(options?: { children?: boolean; texture?: boolean; baseTexture?: boolean }): void {

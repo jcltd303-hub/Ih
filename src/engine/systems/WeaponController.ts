@@ -15,7 +15,7 @@ import { SpriteSheetManager, TurretAnimationRig, TurretSkinId } from './SpriteSh
 import { GameEventBus, ScreenShakeEvent } from '../core/GameEvents';
 import { ComboSystem } from './ComboSystem';
 import { TurretSystem } from './TurretSystem';
-import { BossSystem } from './BossSystem';
+
 
 export interface Projectile {
   id: string;
@@ -402,7 +402,7 @@ export class WeaponController {
     // Update arcade combat state machines
     ComboSystem.getInstance().update(dtMs);
     TurretSystem.getInstance().update(dtMs);
-    BossSystem.getInstance().update(dtMs);
+
 
     for (const [id, proj] of this.activeProjectiles.entries()) {
       proj.x += proj.vx * dtScale;
@@ -440,12 +440,11 @@ export class WeaponController {
         const evalHit = PayoutEngine.evaluateHit(proj.betAmount, fishType, skinBonus);
         const hitResult = this.fishManager.inflictDamage(hitEntity.id, evalHit.damage, evalHit.isInstantKill);
 
-        // Route boss damage to raid event & BossSystem
+        // Route boss damage to raid event
         if (fishType === 'boss') {
           if (this.onBossDamage) {
             this.onBossDamage(proj.userId, evalHit.damage, hitEntity.id);
           }
-          BossSystem.getInstance().recordDamage(evalHit.damage);
         }
 
         // Register hit with ComboSystem and emit FISH_HIT
@@ -537,8 +536,7 @@ export class WeaponController {
             );
           }
 
-          // Check Boss trigger eligibility / safety net
-          BossSystem.getInstance().onFishKilled();
+
 
           // Emit FISH_KILLED event for Kill Feed and UI
           const fishName = (fish as any)?.name || (fishType === 'boss' ? 'ABYSSAL HORROR BOSS' : fishType === 'medium' ? 'MUTANT FISH' : 'NEON TETRA');
