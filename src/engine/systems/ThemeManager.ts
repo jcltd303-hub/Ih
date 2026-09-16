@@ -62,7 +62,7 @@ export const THEME_CONFIGS: Record<GameTheme, ThemeConfig> = {
 export class ThemeManager {
   private static instance: ThemeManager | null = null;
   private app: Application;
-  private currentTheme: GameTheme = 'light';
+  private currentTheme: GameTheme = 'dark';
   private backgroundContainer: Container;
 
   constructor(app: Application) {
