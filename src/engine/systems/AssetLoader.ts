@@ -65,14 +65,13 @@ export class AssetLoader {
     sGrad.addColorStop(0.95, 'rgba(255, 255, 255, 1.0)'); sGrad.addColorStop(1.0, 'rgba(0, 255, 204, 0)');
     sCtx.fillStyle = sGrad; sCtx.fillRect(0, 0, 48, 48); Assets.cache.set('shockwave_ring', Texture.from(shockCanvas)); reportStep();
 
-    // Authored boss and mutant fish artwork
-    const bossArtworkUrl = new URL('../../assets/images/abyssal_horror_boss_sheet.png', import.meta.url).href;
+    // Authored mutant fish artwork
     const mutantArtworkUrl = new URL('../../assets/images/mutant_cutout_atlas.png', import.meta.url).href;
     try {
-      await Assets.load([bossArtworkUrl, mutantArtworkUrl]);
+      await Assets.load(mutantArtworkUrl);
       await Tetra.prepare();
     } catch (err) {
-      console.error('[AssetLoader] Failed to load boss/mutant/tetra artwork', err);
+      console.error('[AssetLoader] Failed to load mutant/tetra artwork', err);
     }
     reportStep();
 

@@ -1,5 +1,4 @@
 import { Container } from 'pixi.js';
-import { AbyssalHorrorBoss } from './AbyssalHorrorBoss';
 import { MutantCutoutPuppet } from './MutantCutoutPuppet';
 import { Tetra } from './Tetra';
 import { BoidSwarmManager, Boid } from './BoidSwarmManager';
@@ -13,7 +12,6 @@ export class Fish implements Boid {
   public health: number; public maxHealth: number;
   public multiplier: number; public worth: number;
   public container: Container;
-  public abyssalBoss?: AbyssalHorrorBoss;
   public mutantPuppet?: MutantCutoutPuppet;
   public tetraPuppet?: Tetra;
   public facing: 'left' | 'right' = 'right';
@@ -46,10 +44,10 @@ export class Fish implements Boid {
     this.container = new Container();
 
     if (isBoss) {
-      // 1. Horror Boss: Articulated 2D paper cutout rig (20% larger, targetSize 300)
-      this.abyssalBoss = new AbyssalHorrorBoss(this.health, theme, 300);
-      this.abyssalBoss.setFacing(this.facing);
-      this.container.addChild(this.abyssalBoss);
+      // 1. Horror Boss: Articulated 2D paper cutout rig using regenerated mutant fish artwork (targetSize 300)
+      this.mutantPuppet = new MutantCutoutPuppet(this.health, theme, 300);
+      this.mutantPuppet.setFacing(this.facing);
+      this.container.addChild(this.mutantPuppet);
     } else if (type === 'medium') {
       // 2. Mutant Fish: Articulated 2D paper cutout rigged puppet
       this.mutantPuppet = new MutantCutoutPuppet(this.health, theme, 140);
@@ -66,14 +64,6 @@ export class Fish implements Boid {
 
   public setTheme(theme: 'light' | 'dark'): void {
     this.theme = theme;
-    if (this.typeId === 'boss') {
-      if (!this.abyssalBoss) {
-        this.abyssalBoss = new AbyssalHorrorBoss(this.health, theme, 300);
-        this.container.addChild(this.abyssalBoss);
-      } else {
-        this.abyssalBoss.setTheme(theme);
-      }
-    }
     if (this.mutantPuppet) {
       this.mutantPuppet.setTheme(theme);
     }
@@ -101,8 +91,8 @@ export class Fish implements Boid {
       this.y = Math.max(90, Math.min(screenHeight - 120, this.y));
       this.container.x = this.x; this.container.y = this.y;
       this.bounds.x = this.x - this.width / 2; this.bounds.y = this.y - this.height / 2;
-      this.abyssalBoss?.setFacing(this.facing);
-      this.abyssalBoss?.update(dtScale, this.vx, this.vy);
+      this.mutantPuppet?.setFacing(this.facing);
+      this.mutantPuppet?.update(dtScale * 16.6);
       return;
     }
     this.lodCounter++;
@@ -147,20 +137,18 @@ export class Fish implements Boid {
       this.facing = newFacing;
       this.mutantPuppet?.setFacing(this.facing);
       this.tetraPuppet?.setFacing(this.facing);
-      this.abyssalBoss?.setFacing(this.facing);
     }
     this.container.x = this.x; this.container.y = this.y;
     this.bounds.x = this.x - this.width / 2; this.bounds.y = this.y - this.height / 2;
     this.mutantPuppet?.update(dtScale * 16.6);
     this.tetraPuppet?.update(dtScale * 16.6);
-    this.abyssalBoss?.update(dtScale, this.vx, this.vy);
   }
 
   public takeDamage(damage: number): boolean {
     if (!this.isAlive) return false;
     const amount = Math.max(0, damage);
     this.health = Math.max(0, this.health - amount);
-    if (this.typeId === 'boss') { const dead = this.abyssalBoss?.takeDamage(amount) ?? false; if (dead) this.health = 0; return dead; }
+    if (this.typeId === 'boss') { const dead = this.mutantPuppet?.takeDamage(amount) ?? false; if (dead) this.health = 0; return dead; }
     if (this.typeId === 'medium') { this.mutantPuppet?.takeDamage(amount); }
     if (this.typeId === 'small') { this.tetraPuppet?.takeDamage(amount); }
     // Trash fish are purely RNG-killed in the new Payout Engine to enforce strict RTP bounds.
@@ -187,10 +175,8 @@ export class Fish implements Boid {
 
     this.tetraPuppet?.destroy({ children: true });
     this.mutantPuppet?.destroy();
-    this.abyssalBoss?.destroy({ children: true });
     this.tetraPuppet = undefined;
     this.mutantPuppet = undefined;
-    this.abyssalBoss = undefined;
     this.container.destroy({ children: true });
   }
 

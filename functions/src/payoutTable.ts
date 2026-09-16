@@ -36,13 +36,13 @@ export const DEFAULT_PAYOUT_TABLE: PayoutTable = {
   targetRtp: 88.5,
 
   hit: {
-    baseHitRate: 0.50,
-    luckyHitChance: 0.18,
+    baseHitRate: 0.35,
+    luckyHitChance: 0.15,
     superCritChance: 0.04,
     critChance: 0.16,
     instantKillChance: {
-      small: 0.38,
-      medium: 0.22,
+      small: 0.29,
+      medium: 0.15,
       boss: 0.05
     }
   },

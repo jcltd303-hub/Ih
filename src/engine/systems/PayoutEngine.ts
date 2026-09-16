@@ -135,9 +135,9 @@ export class PayoutEngine {
   } {
     this.stats.totalHits++;
 
-    // 1. HIT PAYOUT: 59% average RTP return directly on hits (0.18 * 1.0 + 0.82 * 0.50 = 0.59)
-    const isLuckyHit = Math.random() < 0.18;
-    const hitPayout = isLuckyHit ? betAmount : betAmount * 0.50;
+    // 1. HIT PAYOUT: Balanced 44.75% average RTP return directly on hits (0.15 * 1.0 + 0.85 * 0.35 = 0.4475)
+    const isLuckyHit = Math.random() < 0.15;
+    const hitPayout = isLuckyHit ? betAmount : betAmount * 0.35;
 
     // 2. BOSS DAMAGE: Mean damage = betAmount (enabling 1:1 wager tracking for boss bounty)
     const critRoll = Math.random();
@@ -153,7 +153,7 @@ export class PayoutEngine {
     // 3. TRASH FISH INSTANT KILL
     let isInstantKill = false;
     if (fishType !== 'boss') {
-       const pKill = fishType === 'small' ? 0.38 : 0.22;
+       const pKill = fishType === 'small' ? 0.29 : 0.15;
        if (Math.random() < pKill) {
            isInstantKill = true;
            this.stats.instantGambleKills++;

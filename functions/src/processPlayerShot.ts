@@ -145,6 +145,7 @@ export const processPlayerShot = onCall(async (request) => {
     betAmount,
     targetId,
     clientHitConfirmed,
+    clientKillConfirmed,
     fishType: rawFishType,
     skinBonus: rawSkinBonus,
     timestamp,
