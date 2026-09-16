@@ -15,7 +15,7 @@ export interface DetailedBossTextures {
 type Theme = 'light' | 'dark';
 
 /**
- * Tetra is the authored boss cutout. The source PNG is treated as a 3x3
+ * Tetra is the authored cutout fish. The source PNG is treated as a 3x3
  * parts sheet, never as one giant sprite. Each part becomes its own texture
  * and is mounted on a small articulated puppet rig.
  */
@@ -48,7 +48,6 @@ export class Tetra extends Container {
 
   public static readonly assetUrl = new URL('../../assets/images/tetra.png', import.meta.url).href;
 
-  /** Pre-slice the authored sheet while the normal asset-loading phase is running. */
   public static async prepare(): Promise<void> {
     if (this.prepared) return;
     const source = await Assets.load(this.assetUrl) as Texture;
@@ -67,9 +66,6 @@ export class Tetra extends Container {
     const h = sheet.height;
     if (w < 3 || h < 3) throw new Error('[Tetra] tetra.png is too small to slice');
 
-    // The authored file is a nine-part cutout sheet. Keep each source region
-    // as an independent Pixi texture so the rig can articulate it without
-    // ever rendering the full sheet rectangle.
     const cw = Math.floor(w / 3);
     const ch = Math.floor(h / 3);
     const crop = (col: number, row: number): Texture => new Texture({
@@ -142,7 +138,6 @@ export class Tetra extends Container {
     this.torsoMain.addChild(this.tailAssembly);
     this.tailAssembly.addChild(this.sTailFin);
 
-    // Joint layout follows the authored cutout puppet design.
     this.bodyRoot.position.set(0, 0);
     this.headGroup.position.set(-180, -40);
     this.sEyeballLarge.position.set(-65, -35);
@@ -158,8 +153,6 @@ export class Tetra extends Container {
 
   public setTheme(theme: Theme): void {
     this.theme = theme;
-    // Preserve authored colors in light mode; dark mode adds a restrained
-    // cool treatment so the same rig reads clearly against deep-sea scenery.
     const tint = theme === 'dark' ? 0xe8f7ff : 0xffffff;
     for (const sprite of [
       this.sTorsoMain, this.sHeadJaw, this.sEyeballLarge, this.sEyeballSmall,
@@ -167,10 +160,21 @@ export class Tetra extends Container {
     ]) sprite.tint = tint;
   }
 
+  /** Fish.ts compatibility API: update facing without changing the rig asset. */
+  public setFacing(facing: 'left' | 'right'): void {
+    this.facingSign = facing === 'left' ? -1 : 1;
+    this.bodyRoot.scale.x = 0.9 * this.facingSign;
+  }
+
+  /** Fish.ts compatibility API used when the global game theme changes. */
+  public applyTheme(theme: Theme): void {
+    this.setTheme(theme);
+  }
+
   public update(dtScale = 1, vx = 1): void {
     this.elapsed += Math.max(0, dtScale) / 60;
-    this.facingSign = vx < -0.05 ? -1 : vx > 0.05 ? 1 : this.facingSign;
-    this.bodyRoot.scale.x = 0.9 * this.facingSign;
+    if (vx < -0.05) this.setFacing('left');
+    else if (vx > 0.05) this.setFacing('right');
 
     const breath = Math.sin(this.elapsed * 3.5) * 0.015;
     this.torsoMain.scale.set(1 + breath, 1 + breath);
