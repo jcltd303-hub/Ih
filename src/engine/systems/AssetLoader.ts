@@ -1,5 +1,6 @@
 import { Texture, Assets } from 'pixi.js';
 import { SpriteSheetManager } from './SpriteSheetManager';
+import { Tetra } from './Tetra';
 
 export class AssetLoader {
   private static assetsReady: boolean = false;
@@ -69,8 +70,9 @@ export class AssetLoader {
     const mutantArtworkUrl = new URL('../../assets/images/mutant_cutout_atlas.png', import.meta.url).href;
     try {
       await Assets.load([bossArtworkUrl, mutantArtworkUrl]);
+      await Tetra.prepare();
     } catch (err) {
-      console.error('[AssetLoader] Failed to load boss/mutant artwork', err);
+      console.error('[AssetLoader] Failed to load boss/mutant/tetra artwork', err);
     }
     reportStep();
 

@@ -1,7 +1,7 @@
 import { Container } from 'pixi.js';
 import { AbyssalHorrorBoss } from './AbyssalHorrorBoss';
 import { MutantCutoutPuppet } from './MutantCutoutPuppet';
-import { TetraCutoutPuppet } from './TetraCutoutPuppet';
+import { Tetra } from './Tetra';
 import { BoidSwarmManager, Boid } from './BoidSwarmManager';
 import { EntityBounds } from './SpatialHashGrid';
 
@@ -15,7 +15,7 @@ export class Fish implements Boid {
   public container: Container;
   public abyssalBoss?: AbyssalHorrorBoss;
   public mutantPuppet?: MutantCutoutPuppet;
-  public tetraPuppet?: TetraCutoutPuppet;
+  public tetraPuppet?: Tetra;
   public facing: 'left' | 'right' = 'right';
   public isAlive = true;
   public theme: 'light' | 'dark' = 'light';
@@ -57,7 +57,7 @@ export class Fish implements Boid {
       this.container.addChild(this.mutantPuppet);
     } else {
       // 3. New Tetra: Articulated 2D paper cutout rigged puppet
-      this.tetraPuppet = new TetraCutoutPuppet(this.health, theme, 68);
+      this.tetraPuppet = Tetra.create(this.health, theme);
       this.tetraPuppet.setFacing(this.facing);
       this.container.addChild(this.tetraPuppet);
     }
