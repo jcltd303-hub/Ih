@@ -86,9 +86,9 @@ export class Fish implements Boid {
       this.bossInstance = new BossManager(this.health, theme);
       this.container.addChild(this.bossInstance);
     } else {
-      this.graphics = this.createFallbackGraphic(type, theme);
-      this.container.addChild(this.graphics);
-
+      // The sprite-sheet rig is the primary and only fish body. Do not add the
+      // old low-detail fallback silhouette underneath it; that was the source
+      // of the duplicate "shitty fish" visible on top of the restored artwork.
       this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
       this.container.addChild(this.animRig.container);
 
@@ -103,49 +103,6 @@ export class Fish implements Boid {
     this.container.y = this.y;
   }
 
-  private createFallbackGraphic(type: 'small' | 'medium', theme: 'light' | 'dark'): Graphics {
-    const g = new Graphics();
-    const small = type === 'small';
-    const bodyW = small ? 25 : 46;
-    const bodyH = small ? 14 : 28;
-    const tail = small ? 13 : 22;
-
-    const fill = theme === 'dark' ? 0x7f1d1d : 0x1d4ed8;
-    const stroke = theme === 'dark' ? 0xf87171 : 0x7dd3fc;
-    const glow = theme === 'dark' ? 0xef4444 : 0x93c5fd;
-
-    g.ellipse(0, 0, bodyW + 10, bodyH + 8);
-    g.fill({ color: glow, alpha: 0.12 });
-    g.ellipse(0, 0, bodyW, bodyH);
-    g.fill({ color: fill, alpha: 0.88 });
-    g.stroke({ width: small ? 1.4 : 2, color: stroke, alpha: 0.95 });
-
-    g.moveTo(bodyW - 3, 0);
-    g.lineTo(bodyW + tail, -bodyH * 0.85);
-    g.lineTo(bodyW + tail, bodyH * 0.85);
-    g.closePath();
-    g.fill({ color: fill, alpha: 0.8 });
-    g.stroke({ width: 1.4, color: stroke, alpha: 0.9 });
-
-    g.moveTo(-bodyW * 0.12, -bodyH * 0.72);
-    g.lineTo(bodyW * 0.2, -bodyH * 1.35);
-    g.lineTo(bodyW * 0.42, -bodyH * 0.62);
-    g.closePath();
-    g.fill({ color: stroke, alpha: 0.42 });
-
-    g.circle(-bodyW * 0.5, -bodyH * 0.18, small ? 2.2 : 3.2);
-    g.fill({ color: 0xffffff, alpha: 0.98 });
-    g.circle(-bodyW * 0.5, -bodyH * 0.18, small ? 1 : 1.4);
-    g.fill({ color: theme === 'dark' ? 0xff0033 : 0x0f172a, alpha: 1 });
-
-    g.moveTo(-bodyW * 0.05, bodyH * 0.1);
-    g.lineTo(bodyW * 0.18, bodyH * 0.24);
-    g.lineTo(bodyW * 0.33, bodyH * 0.1);
-    g.stroke({ width: 1, color: theme === 'dark' ? 0xffb4c8 : 0xffffff, alpha: 0.32 });
-    g.alpha = 0.95;
-    return g;
-  }
-
   public setTheme(theme: 'light' | 'dark'): void {
     this.theme = theme;
     if (this.animRig) {
@@ -153,12 +110,9 @@ export class Fish implements Boid {
       if (theme === 'light' && this.typeId === 'medium') this.animRig.tint(0xa5f3fc);
       else this.animRig.resetTint();
     }
-    if (this.graphics && !this.bossInstance) {
-      this.graphics.destroy();
-      this.graphics = this.createFallbackGraphic(this.typeId as 'small' | 'medium', theme);
-      this.container.addChildAt(this.graphics, 0);
+    if (this.bossInstance) {
+      this.bossInstance.setTheme(theme);
     }
-    if (this.bossInstance) this.bossInstance.setTheme(theme);
   }
 
   public updateSteering(
