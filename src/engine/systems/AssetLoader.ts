@@ -10,7 +10,7 @@ export class AssetLoader {
       return;
     }
 
-    const steps = 6;
+    const steps = 7;
     let completed = 0;
     const reportStep = () => {
       completed++;
@@ -104,7 +104,20 @@ export class AssetLoader {
     Assets.cache.set('shockwave_ring', Texture.from(shockCanvas));
     reportStep();
 
-    // Step 6: Initialize Procedural Sprite Sheet Animations (Mechanical Lionfish, Tetra, Angler & Sci-Fi Turret)
+    // Step 6: Preload the authored Leviathan boss artwork. AbyssalHorrorBoss
+    // calls Sprite.from('/leviathan_boss.png') and, unlike every other asset
+    // in this file, that texture was never registered/loaded through Pixi's
+    // Assets system first -- so the sprite silently rendered with an empty/
+    // unresolved texture (boss present in-game and hittable, but invisible).
+    // Load it into the Assets cache up front like everything else here.
+    try {
+      await Assets.load('/leviathan_boss.png');
+    } catch (err) {
+      console.error('[AssetLoader] Failed to load leviathan_boss.png -- boss will render blank', err);
+    }
+    reportStep();
+
+    // Step 7: Initialize Procedural Sprite Sheet Animations (Mechanical Lionfish, Tetra, Angler & Sci-Fi Turret)
     await SpriteSheetManager.getInstance().initialize();
     reportStep();
 
