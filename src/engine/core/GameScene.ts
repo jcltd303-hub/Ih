@@ -61,6 +61,7 @@ export class GameScene {
   private hitStopRemainingMs = 0;
   private elapsedSeconds = 0;
   private bossMusicEnraged = false;
+  private loggedStepErrors: Set<string> = new Set();
 
   constructor(app: Application, uiRoot: HTMLElement, options?: { postFxEnabled?: boolean; particlesEnabled?: boolean }) {
     this.postFxEnabled = options?.postFxEnabled !== false;
@@ -252,11 +253,30 @@ export class GameScene {
   public syncWalletBalances(gc: number, sc: number, _source?: string): void { this.uiManager.setBalances(gc, sc); }
   public triggerShake(intensity: number, durationMs: number): void { this.shakeIntensity = intensity; this.shakeDuration = durationMs; }
 
+  /**
+   * Runs fn() and, if it throws, logs it once (per label, not once per
+   * frame) and lets the rest of update() keep going instead of the whole
+   * tick — and every visual system in it — dying because one subsystem
+   * had a bad frame. A silently-eaten exception here would previously
+   * abort the entire game loop with no visible symptom besides "the canvas
+   * never draws anything."
+   */
+  private safeStep(label: string, fn: () => void): void {
+    try {
+      fn();
+    } catch (err) {
+      if (!this.loggedStepErrors.has(label)) {
+        this.loggedStepErrors.add(label);
+        console.error(`[GameScene] "${label}" threw during update() — isolating it so other systems keep rendering. This will keep failing every frame until fixed:`, err);
+      }
+    }
+  }
+
   public update(deltaTime: number): void {
     const frameMs = Math.max(0, Math.min(100, Number.isFinite(deltaTime) ? deltaTime : 0));
     this.elapsedSeconds += frameMs / 1000;
-    this.abyssalPostProcessor.update(this.elapsedSeconds);
-    this.animatedBackground.update(frameMs);
+    this.safeStep('abyssalPostProcessor.update', () => this.abyssalPostProcessor.update(this.elapsedSeconds));
+    this.safeStep('animatedBackground.update', () => this.animatedBackground.update(frameMs));
     debugOverlay.tick();
 
     if (this.shakeDuration > 0) {
@@ -267,7 +287,7 @@ export class GameScene {
 
     if (this.hitStopRemainingMs > 0) {
       this.hitStopRemainingMs -= frameMs;
-      this.bossRaid.update(frameMs);
+      this.safeStep('bossRaid.update (hitstop)', () => this.bossRaid.update(frameMs));
       if (this.bossRaid.isActive()) {
         const bossState = this.bossRaid.getState();
         this.uiManager.setBossOverlay(true, Math.ceil(bossState.timeRemaining / 1000), bossState.maxHp > 0 ? bossState.hp / bossState.maxHp * 100 : 0, bossState.phase, bossState.totalDamage);
@@ -277,8 +297,8 @@ export class GameScene {
 
     if (!this.isPlaying) {
       this.spatialGrid.clear();
-      this.fishManager.update(frameMs);
-      this.particleFX.update(frameMs);
+      this.safeStep('fishManager.update (idle)', () => this.fishManager.update(frameMs));
+      this.safeStep('particleFX.update (idle)', () => this.particleFX.update(frameMs));
       return;
     }
 
@@ -293,7 +313,7 @@ export class GameScene {
       }
     }
 
-    this.bossRaid.update(frameMs);
+    this.safeStep('bossRaid.update', () => this.bossRaid.update(frameMs));
     const raidActive = this.bossRaid.isActive();
     if (raidActive) {
       if (!this.lastBossBashActive) {
@@ -320,12 +340,10 @@ export class GameScene {
       this.bossProgressScore = 0;
     }
     this.lastBossBashActive = raidActive;
-    this.spatialGrid.clear();
-    this.fishManager.update(frameMs);
-    this.weaponController.update(frameMs);
-    this.particleFX.update(frameMs);
-    this.abyssalPostProcessor.update(frameMs);
-    this.multiplayerTable.tick(frameMs);
+    this.safeStep('fishManager.update', () => this.fishManager.update(frameMs));
+    this.safeStep('weaponController.update', () => this.weaponController.update(frameMs));
+    this.safeStep('particleFX.update', () => this.particleFX.update(frameMs));
+    this.safeStep('multiplayerTable.tick', () => this.multiplayerTable.tick(frameMs));
   }
 
   private async onDestroy(): Promise<void> {
