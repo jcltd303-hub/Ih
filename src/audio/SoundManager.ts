@@ -1,3 +1,5 @@
+import { get as idbGet, set as idbSet } from 'idb-keyval';
+
 export type TurretSkinId = 'default' | 'plasma_neon' | 'abyssal_dread' | 'cyber_gold';
 
 export class SoundManager {
@@ -11,6 +13,11 @@ export class SoundManager {
   private static bossMusicGain: GainNode | null = null;
   private static sfxGain: GainNode | null = null;
   private static ambienceGain: GainNode | null = null;
+
+  // AI Generated Audio Cache
+  private static aiAudioBuffers: Map<string, AudioBuffer> = new Map();
+  private static isGenerating: Set<string> = new Set();
+  private static aiMusicSource: AudioBufferSourceNode | null = null;
 
   // Kept as an alias for compatibility with the existing scheduler code.
   private static bgmGain: GainNode | null = null;
@@ -195,10 +202,17 @@ export class SoundManager {
 
   public static startBgm(): void {
     if (!this.bgmEnabled || !this.enabled) return;
-    if (this.bgmIntervalId !== null) return; // already active
-
+    
     this.initContext();
     if (!this.audioCtx || !this.bgmGain) return;
+
+    const key = `ai_music_${this.currentTheme}`;
+    if (this.aiAudioBuffers.has(key)) {
+      this.startAiMusic();
+      return;
+    }
+
+    if (this.bgmIntervalId !== null) return; // already active
 
     this.bgmNextStepTime = this.audioCtx.currentTime + 0.08;
     this.bgmStep = 0;
@@ -207,11 +221,25 @@ export class SoundManager {
     this.bgmIntervalId = window.setInterval(() => this.tickBgmScheduler(), 45);
   }
 
-  public static stopBgm(): void {
+  private static startProceduralBgm(): void {
+    if (this.bgmIntervalId !== null) return;
+    if (!this.audioCtx || !this.bgmGain) return;
+    this.bgmNextStepTime = this.audioCtx.currentTime + 0.08;
+    this.bgmStep = 0;
+    this.bgmIntervalId = window.setInterval(() => this.tickBgmScheduler(), 45);
+  }
+
+  private static stopProceduralBgm(): void {
     if (this.bgmIntervalId !== null) {
       clearInterval(this.bgmIntervalId);
       this.bgmIntervalId = null;
     }
+  }
+
+  public static stopBgm(): void {
+    this.stopProceduralBgm();
+    this.stopAiMusic();
+    
     if (this.audioCtx && this.bgmGain) {
       const now = this.audioCtx.currentTime;
       this.bgmGain.gain.cancelScheduledValues(now);
@@ -719,11 +747,18 @@ export class SoundManager {
         setTimeout(() => this.playHorrorLaughter(0.75, -20), 120);
       }
       if (this.bgmEnabled && this.enabled) {
-        // Restart the musical phrase without touching the bus gain.
-        // This prevents audible volume jumps during theme changes.
-        this.bgmStep = 0;
-        if (this.audioCtx) {
-          this.bgmNextStepTime = this.audioCtx.currentTime + 0.05;
+        const key = `ai_music_${this.currentTheme}`;
+        if (this.aiAudioBuffers.has(key)) {
+          this.startAiMusic();
+        } else {
+          this.stopAiMusic();
+          // Restart the musical phrase without touching the bus gain.
+          // This prevents audible volume jumps during theme changes.
+          this.bgmStep = 0;
+          if (this.audioCtx) {
+            this.bgmNextStepTime = this.audioCtx.currentTime + 0.05;
+          }
+          this.startProceduralBgm();
         }
       }
     }
@@ -1513,6 +1548,20 @@ export class SoundManager {
       const ctx = this.audioCtx;
       const now = ctx.currentTime;
 
+      // AI SFX Layer
+      const aiKey = `ai_sfx_${this.currentTheme}`;
+      const aiBuffer = this.aiAudioBuffers.get(aiKey);
+      if (aiBuffer && this.sfxGain) {
+        const source = ctx.createBufferSource();
+        source.buffer = aiBuffer;
+        const aiGain = ctx.createGain();
+        // Lower volume for AI SFX if it's long
+        aiGain.gain.setValueAtTime(0.6, now);
+        source.connect(aiGain);
+        aiGain.connect(this.sfxGain);
+        source.start(now);
+      }
+
       const count = tier === 'jackpot' ? 22 : tier === 'medium' ? 9 : 4;
       const baseSpacing = tier === 'jackpot' ? 0.052 : tier === 'medium' ? 0.062 : 0.072;
 
@@ -1922,5 +1971,122 @@ export class SoundManager {
         this.playBossDefeat();
         break;
     }
+  }
+
+  // ==========================================
+  // AI AUDIO ENGINE
+  // ==========================================
+  public static async generateAiAudio(type: 'music' | 'sfx', theme: 'light' | 'dark'): Promise<void> {
+    const key = `ai_${type}_${theme}`;
+    if (this.isGenerating.has(key)) return;
+    this.isGenerating.add(key);
+
+    try {
+      const prompt = this.getAiPrompt(type, theme);
+      const response = await fetch('/api/audio/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const data = await response.json();
+      const audioBase64 = data.audio;
+      
+      const binary = atob(audioBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      this.initContext();
+      if (!this.audioCtx) return;
+
+      const buffer = await this.audioCtx.decodeAudioData(bytes.buffer);
+      this.aiAudioBuffers.set(key, buffer);
+      
+      // Save to IDB
+      await idbSet(key, bytes.buffer);
+      
+      if (type === 'music' && this.currentTheme === theme && this.bgmEnabled) {
+        this.startAiMusic();
+      }
+    } catch (error) {
+      console.error(`AI Audio generation failed for ${key}:`, error);
+    } finally {
+      this.isGenerating.delete(key);
+    }
+  }
+
+  private static getAiPrompt(type: 'music' | 'sfx', theme: 'light' | 'dark'): string {
+    if (type === 'music') {
+      return theme === 'light'
+        ? "A 30-second fun and bouncy arcade background music track, bright, cheerful, retro gaming vibes, catchy synthesizer melody."
+        : "A 30-second haunting and ominous arcade background music track, dark ambient, ghostly whispers, deep pressure, retro gaming vibes, minimal but scary.";
+    } else {
+      return theme === 'light'
+        ? "A short sound effect of gold coins hitting a wooden deck, bright and satisfying clinks, high quality impact."
+        : "A short sound effect of gold coins hitting a deck, but heard through the ears of a ghost, echoing, hollow, spectral, distant clinks.";
+    }
+  }
+
+  public static async loadAiAudioFromCache(): Promise<void> {
+    const keys = ['ai_music_light', 'ai_music_dark', 'ai_sfx_light', 'ai_sfx_dark'];
+    this.initContext();
+    if (!this.audioCtx) return;
+
+    for (const key of keys) {
+      try {
+        const data = await idbGet<ArrayBuffer>(key);
+        if (data) {
+          const buffer = await this.audioCtx.decodeAudioData(data.slice(0));
+          this.aiAudioBuffers.set(key, buffer);
+        }
+      } catch (err) {
+        console.warn(`Failed to load AI audio ${key} from cache:`, err);
+      }
+    }
+  }
+
+  public static startAiMusic(): void {
+    if (!this.bgmEnabled || !this.enabled) return;
+    this.initContext();
+    if (!this.audioCtx || !this.musicGain) return;
+
+    const key = `ai_music_${this.currentTheme}`;
+    const buffer = this.aiAudioBuffers.get(key);
+    if (!buffer) {
+        this.startProceduralBgm();
+        return;
+    }
+
+    this.stopAiMusic();
+    this.stopProceduralBgm();
+
+    this.aiMusicSource = this.audioCtx.createBufferSource();
+    this.aiMusicSource.buffer = buffer;
+    this.aiMusicSource.loop = true;
+    this.aiMusicSource.connect(this.musicGain);
+    this.aiMusicSource.start(0);
+  }
+
+  public static stopAiMusic(): void {
+    if (this.aiMusicSource) {
+      try {
+        this.aiMusicSource.stop();
+      } catch { /* ignore */ }
+      this.aiMusicSource = null;
+    }
+  }
+
+  public static isGeneratingAiAudio(key: string): boolean {
+    return this.isGenerating.has(key);
+  }
+
+  public static hasAiAudio(key: string): boolean {
+    return this.aiAudioBuffers.has(key);
   }
 }
