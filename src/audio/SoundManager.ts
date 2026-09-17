@@ -222,7 +222,7 @@ export class SoundManager {
   }
 
   private static startProceduralBgm(): void {
-    if (this.bgmIntervalId !== null) return;
+    if (this.bgmIntervalId !== null || !this.bgmEnabled || !this.enabled) return;
     if (!this.audioCtx || !this.bgmGain) return;
     this.bgmNextStepTime = this.audioCtx.currentTime + 0.08;
     this.bgmStep = 0;

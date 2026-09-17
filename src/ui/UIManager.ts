@@ -86,6 +86,10 @@ export class UIManager {
     this.renderHUD();
     this.createModalContainer(rootElement);
 
+    // Force music off initially as requested
+    SoundManager.toggleBgm(false);
+    this.updateAudioTogglesUI();
+
     window.addEventListener('ff-show-streak', () => {
       void this.showStreakModal();
     });
@@ -390,7 +394,9 @@ export class UIManager {
         if (this.currentTheme === 'dark') {
           SoundManager.playHorrorWhisper(0.8);
         }
-        SoundManager.startBgm();
+        if (SoundManager.isBgmEnabled()) {
+          SoundManager.startBgm();
+        }
       } catch (err) {
         console.warn('[StartScreen] Audio initialization warning:', err);
       }
@@ -896,9 +902,11 @@ export class UIManager {
     });
 
     document.getElementById('hud-music-btn')?.addEventListener('click', () => {
-      const current = SoundManager.isBgmEnabled();
-      SoundManager.toggleBgm(!current);
-      if (!current) SoundManager.startBgm();
+      const currentBgm = SoundManager.isBgmEnabled();
+      if (!currentBgm && !SoundManager.isSoundEnabled()) {
+        SoundManager.toggleSound(); // Turn master sound on if BGM is being turned on
+      }
+      SoundManager.toggleBgm(!currentBgm);
       SoundManager.playUiSound('click');
       this.updateAudioTogglesUI();
     });
