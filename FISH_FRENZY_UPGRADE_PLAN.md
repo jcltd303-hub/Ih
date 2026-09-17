@@ -1,5 +1,13 @@
 # Fish Frenzy — Comprehensive Upgrade Plan
 
+## STATUS (September 2026)
+All major upgrade tasks have been completed:
+- **[x] Boss Lifecycle Hardening:** Deterministic trigger, state machine, intro, phases, danger states, result presentation.
+- **[x] Rendering Strategy:** Standardized fish rendering using `IRenderRig` interface.
+- **[x] HUD Unification:** Unified visual language across all HUD components using standardized arcade design tokens.
+
+The codebase is now stable, performant, and arcade-compliant.
+
 ## Goal
 
 Transform Fish Frenzy from a casino-style mobile game UI into a polished arcade combat game with a **Street Fighter II-inspired HUD**, responsive combat feedback, reliable boss encounters, tuned turret mechanics, distinct light/dark presentation, and dependable audio.

@@ -32,6 +32,40 @@ export const ARCADE = {
   fontDisplay: `'Impact', 'Arial Black', -apple-system, system-ui, sans-serif`,
   fontMono: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace`,
 
+  // Standardized Arcade Panel Generator
+  arcadePanel: (
+    content: string,
+    opts?: {
+      id?: string;
+      padding?: string;
+      variant?: 'default' | 'surface' | 'header';
+    }
+  ) => {
+    const variant = opts?.variant || 'default';
+    let bg = ARCADE.panel;
+    let border = ARCADE.border;
+
+    if (variant === 'surface') {
+      bg = ARCADE.panelSurface;
+      border = ARCADE.borderLight;
+    } else if (variant === 'header') {
+      bg = ARCADE.panelHeader;
+      border = ARCADE.borderAccent;
+    }
+
+    return `
+      <div ${opts?.id ? `id="${opts.id}"` : ''} style="
+        background:${bg};
+        border:2px solid ${border};
+        border-radius:2px;
+        padding:${opts?.padding || '12px'};
+        box-shadow:4px 4px 0 #020617;
+      ">
+        ${content}
+      </div>
+    `;
+  },
+
   // Standard Arcade Button Generator
   arcadeButton: (
     label: string,

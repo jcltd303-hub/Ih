@@ -135,9 +135,10 @@ export class UIManager {
     this.startScreenEl.innerHTML = `
       <style>
         @keyframes ff-play-pulse {
-          0% { box-shadow: 0 4px 0 #92400e, 0 0 16px rgba(250,204,21,.4); }
-          100% { box-shadow: 0 4px 0 #92400e, 0 0 32px rgba(250,204,21,.85), 0 0 48px rgba(56,189,248,.35); }
+          0% { box-shadow: 0 4px 0 ${ARCADE.crimsonDark}, 0 0 16px rgba(250,204,21,.4); }
+          100% { box-shadow: 0 4px 0 ${ARCADE.crimsonDark}, 0 0 32px rgba(250,204,21,.85), 0 0 48px rgba(56,189,248,.35); }
         }
+        #ff-play { animation: ff-play-pulse 1.2s ease-in-out infinite alternate; }
         #fish-frenzy-start .ff-arcade-cabinet {
           width: min(440px, 100%);
           max-height: calc(100vh - 32px);
@@ -145,9 +146,9 @@ export class UIManager {
           box-sizing: border-box;
           padding: 24px 20px 20px;
           border-radius: 2px;
-          background: #090e1a;
-          border: 3px solid #38bdf8;
-          box-shadow: 0 0 35px rgba(56, 189, 248, 0.25), 6px 6px 0 #020617;
+          background: ${ARCADE.panel};
+          border: 3px solid ${ARCADE.borderAccent};
+          box-shadow: 0 0 35px rgba(56, 189, 248, 0.25), 6px 6px 0 ${ARCADE.slateDark};
           text-align: center;
           position: relative;
         }
@@ -185,8 +186,8 @@ export class UIManager {
           position: absolute;
           top: 14px;
           right: 14px;
-          background: rgba(15, 23, 42, 0.7);
-          border: 1px solid #334155;
+          background: ${ARCADE.slateDark};
+          border: 1px solid ${ARCADE.border};
           width: 32px;
           height: 32px;
           border-radius: 50%;
@@ -209,7 +210,7 @@ export class UIManager {
 
         <!-- Auth row -->
         <div id="ff-auth-row" style="display:flex; gap:8px; justify-content:center; align-items:center; margin-bottom:14px;">
-          <div id="ff-auth-status" style="padding:6px 10px; border-radius:2px; font-size:11px; font-weight:900; color:#e0f2fe; flex:1; background:#0f172a; border:1px solid #334155; font-family:var(--font-mono, monospace);">
+          <div id="ff-auth-status" style="padding:6px 10px; border-radius:2px; font-size:11px; font-weight:900; color:#e0f2fe; flex:1; background:${ARCADE.slateDark}; border:1px solid ${ARCADE.border}; font-family:${ARCADE.fontMono};">
             GUEST // REEF HUNTER
           </div>
           <button id="ff-auth-action" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:6px 12px; font-size:11px;">
@@ -218,53 +219,36 @@ export class UIManager {
         </div>
 
         <!-- Credits / Balance Display -->
-        <div style="background:#0f172a; border:1px solid #334155; padding:12px; margin-bottom:14px; display:flex; justify-content:space-around; align-items:center;">
+        <div style="background:${ARCADE.slateDark}; border:1px solid ${ARCADE.border}; padding:12px; margin-bottom:14px; display:flex; justify-content:space-around; align-items:center;">
           <div style="text-align:center;">
-            <div style="font-size:10px; letter-spacing:2px; color:#fde68a; font-weight:900;">GOLD COINS</div>
-            <div id="ff-lobby-gc" style="font-size:20px; font-weight:900; color:#fbbf24; text-shadow:0 2px 0 #78350f;">—</div>
+            <div style="font-size:10px; letter-spacing:2px; color:${ARCADE.gold}; font-weight:900;">GOLD COINS</div>
+            <div id="ff-lobby-gc" style="font-size:20px; font-weight:900; color:${ARCADE.gold}; text-shadow:0 2px 0 ${ARCADE.crimsonDark};">—</div>
           </div>
-          <div style="width:1px; height:28px; background:#334155;"></div>
+          <div style="width:1px; height:28px; background:${ARCADE.border};"></div>
           <div style="text-align:center;">
-            <div style="font-size:10px; letter-spacing:2px; color:#a5f3fc; font-weight:900;">SWEEPS COINS</div>
-            <div id="ff-lobby-sc" style="font-size:20px; font-weight:900; color:#38bdf8; text-shadow:0 2px 0 #0e7490;">—</div>
+            <div style="font-size:10px; letter-spacing:2px; color:${ARCADE.cyanBright}; font-weight:900;">SWEEPS COINS</div>
+            <div id="ff-lobby-sc" style="font-size:20px; font-weight:900; color:${ARCADE.cyan}; text-shadow:0 2px 0 ${ARCADE.crimsonDark};">—</div>
           </div>
         </div>
 
         <!-- Deposit / Withdraw -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
-          <button id="ff-deposit" type="button" class="ff-arcade-btn ff-arcade-btn-green" style="padding:10px 8px; font-size:12px;">+ DEPOSIT</button>
-          <button id="ff-withdraw" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px 8px; font-size:12px;">- WITHDRAW</button>
+          ${ARCADE.arcadeButton('+ DEPOSIT', { id: 'ff-deposit', variant: 'primary', fullWidth: true })}
+          ${ARCADE.arcadeButton('- WITHDRAW', { id: 'ff-withdraw', variant: 'slate', fullWidth: true })}
         </div>
-        <div id="ff-wallet-status" style="min-height:16px; margin:0 0 10px; font-size:11px; color:#94a3b8; font-family:var(--font-mono, monospace);"></div>
+        <div id="ff-wallet-status" style="min-height:16px; margin:0 0 10px; font-size:11px; color:${ARCADE.textMuted}; font-family:${ARCADE.fontMono};"></div>
 
         <!-- Primary Action: INSERT COIN / PLAY -->
         <div style="margin-bottom:14px;">
-          <button id="ff-play" type="button" class="ff-arcade-btn ff-arcade-btn-primary" style="
-            width: 100%;
-            padding: 16px 12px;
-            font-size: 22px;
-            letter-spacing: 3px;
-            font-style: italic;
-            animation: ff-play-pulse 1.2s ease-in-out infinite alternate;
-          ">
-            INSERT COIN // START COMBAT
-          </button>
+          ${ARCADE.arcadeButton('INSERT COIN // START COMBAT', { id: 'ff-play', variant: 'gold', fullWidth: true, size: 'lg' })}
         </div>
 
         <!-- Cabinet Utility Menu -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
-          <button id="ff-start-how-to-play" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px; font-size:12px;">
-            HOW TO PLAY
-          </button>
-          <button id="ff-start-tables" type="button" class="ff-arcade-btn ff-arcade-btn-cyan" style="padding:10px; font-size:12px;">
-            TABLE SELECT
-          </button>
-          <button id="ff-start-options" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px; font-size:12px;">
-            OPTIONS / AUDIO
-          </button>
-          <button id="ff-start-store" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px; font-size:12px;">
-            STORE & PERKS
-          </button>
+          ${ARCADE.arcadeButton('HOW TO PLAY', { id: 'ff-start-how-to-play', variant: 'slate', fullWidth: true, size: 'sm' })}
+          ${ARCADE.arcadeButton('TABLE SELECT', { id: 'ff-start-tables', variant: 'cyan', fullWidth: true, size: 'sm' })}
+          ${ARCADE.arcadeButton('OPTIONS / AUDIO', { id: 'ff-start-options', variant: 'slate', fullWidth: true, size: 'sm' })}
+          ${ARCADE.arcadeButton('STORE & PERKS', { id: 'ff-start-store', variant: 'slate', fullWidth: true, size: 'sm' })}
         </div>
 
         <div style="font-size:10px; color:#64748b; font-family:var(--font-mono, monospace);">

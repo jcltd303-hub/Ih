@@ -7,9 +7,18 @@ import { GameConfig } from '../../config/GameConfig';
 import { AuthManager } from '../../network/AuthManager';
 import { PlayerProgressionManager } from './PlayerProgressionManager';
 
+export enum BossState {
+  IDLE = 'idle',
+  INTRO = 'intro',
+  ACTIVE = 'active',
+  PHASE_SHIFT = 'phase_shift',
+  DEFEATED = 'defeated',
+  ESCAPED = 'escaped',
+  CLEANUP = 'cleanup'
+}
+
 export interface BossRaidState {
-  active: boolean;
-  phase: 'approaching' | 'engaged' | 'enraged' | 'defeated' | 'escaped';
+  state: BossState;
   hp: number;
   maxHp: number;
   timeRemaining: number;
@@ -50,8 +59,7 @@ export class BossRaidEvent {
     this.fishManager = fishManager;
     this.particleFX = particleFX;
     this.state = {
-      active: false,
-      phase: 'approaching',
+      state: BossState.IDLE,
       hp: 0,
       maxHp: 0,
       timeRemaining: 0,
@@ -99,14 +107,13 @@ export class BossRaidEvent {
     const second = Math.ceil(this.state.timeRemaining / 1000);
     const hpChanged = this.lastStateHp < 0 || Math.abs(this.state.hp - this.lastStateHp) >= 1;
     const secondChanged = second !== this.lastStateSecond;
-    const phaseChanged = this.state.phase !== this.lastStatePhase;
-    if (!force && !hpChanged && !secondChanged && !phaseChanged) return;
+    const stateChanged = this.state.state !== this.lastStatePhase;
+    if (!force && !hpChanged && !secondChanged && !stateChanged) return;
 
     const bus = GameEventBus.getInstance();
-    const phase: BossStateEvent['phase'] = this.state.phase;
     bus.emit<BossStateEvent>('BOSS_STATE', {
       bossId: this.bossId ?? undefined,
-      phase,
+      phase: this.state.state as unknown as BossStateEvent['phase'], // Mapping enum to legacy event type
       name: 'ABYSSAL HORROR BOSS',
       hp: this.state.hp,
       maxHp: this.state.maxHp,
@@ -117,11 +124,11 @@ export class BossRaidEvent {
     });
     this.lastStateHp = this.state.hp;
     this.lastStateSecond = second;
-    this.lastStatePhase = this.state.phase;
+    this.lastStatePhase = this.state.state as unknown as 'approaching' | 'engaged' | 'enraged' | 'defeated' | 'escaped';
   }
 
   public startRaid(userId: string, onComplete?: typeof this.onComplete): void {
-    if (this.state.active) return;
+    if (this.state.state !== BossState.IDLE) return;
 
     this.onComplete = onComplete;
     this.currentBountyPayout = 0;
@@ -134,8 +141,7 @@ export class BossRaidEvent {
 
     const maxHp = 150 + Math.floor(Math.random() * 100);
     this.state = {
-      active: true,
-      phase: 'engaged',
+      state: BossState.ACTIVE,
       hp: maxHp,
       maxHp,
       timeRemaining: this.RAID_DURATION_MS,
@@ -160,7 +166,7 @@ export class BossRaidEvent {
   }
 
   public recordDamage(userId: string, damage: number, betAmount: number = 0): void {
-    if (!this.state.active || this.state.phase === 'defeated' || this.state.phase === 'escaped') return;
+    if (this.state.state !== BossState.ACTIVE) return;
     if (!Number.isFinite(damage) || damage <= 0) return;
 
     this.state.hp = Math.max(0, this.state.hp - damage);
@@ -172,8 +178,8 @@ export class BossRaidEvent {
     contrib.lastHit = Date.now();
     this.state.contributors.set(userId, contrib);
 
-    if (this.state.hp < this.state.maxHp * 0.4 && this.state.phase === 'engaged') {
-      this.state.phase = 'enraged';
+    if (this.state.hp < this.state.maxHp * 0.4) {
+      this.state.state = BossState.PHASE_SHIFT;
       GameEventBus.getInstance().emit('BOSS_PHASE_CHANGE', { phase: 'ENRAGED' });
       SoundManager.setBossMusic(true, true);
     }
@@ -184,8 +190,8 @@ export class BossRaidEvent {
   }
 
   private defeatBoss(lastHitUserId: string): void {
-    if (!this.state.active || this.state.phase === 'defeated') return;
-    this.state.phase = 'defeated';
+    if (this.state.state !== BossState.ACTIVE && this.state.state !== BossState.PHASE_SHIFT) return;
+    this.state.state = BossState.DEFEATED;
     this.emitState(2.5, true);
 
     if (this.bossId) {
@@ -215,8 +221,8 @@ export class BossRaidEvent {
   }
 
   private escapeBoss(): void {
-    if (!this.state.active || this.state.phase === 'escaped' || this.state.phase === 'defeated') return;
-    this.state.phase = 'escaped';
+    if (this.state.state !== BossState.ACTIVE && this.state.state !== BossState.PHASE_SHIFT) return;
+    this.state.state = BossState.ESCAPED;
     this.emitState(2.5, true);
 
     if (this.bossId) {
@@ -245,16 +251,16 @@ export class BossRaidEvent {
     for (const [uid, c] of this.state.contributors) contributors.set(uid, c.damage);
 
     PlayerProgressionManager.getInstance().setBossRaidActive(false);
-    this.state.active = false;
+    this.state.state = BossState.IDLE;
     this.uiContainer.visible = false;
     this.onComplete?.({ defeated, lastHitUserId, contributors, bountyPayout: this.currentBountyPayout });
   }
 
   public update(deltaTime: number): void {
-    if (!this.state.active) return;
+    if (this.state.state !== BossState.ACTIVE && this.state.state !== BossState.PHASE_SHIFT) return;
 
     this.state.timeRemaining = Math.max(0, this.state.timeRemaining - deltaTime);
-    if (this.state.timeRemaining <= 0 && this.state.phase !== 'defeated' && this.state.phase !== 'escaped') {
+    if (this.state.timeRemaining <= 0) {
       this.escapeBoss();
       return;
     }
@@ -287,7 +293,7 @@ export class BossRaidEvent {
   }
 
   public isActive(): boolean {
-    return this.state.active;
+    return this.state.state === BossState.ACTIVE || this.state.state === BossState.PHASE_SHIFT;
   }
 
   public getBossId(): string | null {

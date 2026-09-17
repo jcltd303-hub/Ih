@@ -1,7 +1,10 @@
 import { Container, Sprite, Texture, Assets } from 'pixi.js';
-import { SpriteSheetManager, FishAnimationRig } from './SpriteSheetManager';
+import { SpriteSheetManager } from './SpriteSheetManager';
 import { BoidSwarmManager, Boid } from './BoidSwarmManager';
 import { EntityBounds, SpatialHashGrid } from './SpatialHashGrid';
+import { IRenderRig } from './RenderRig';
+import { FishRenderRig } from './FishRenderRig';
+import { BossRenderRig } from './BossRenderRig';
 
 export class Fish implements Boid {
   public id: string;
@@ -11,10 +14,7 @@ export class Fish implements Boid {
   public health: number; public maxHealth: number;
   public multiplier: number; public worth: number;
   public container: Container;
-  public animRig?: FishAnimationRig;
-  public bossSprite?: Sprite;
-  public bossDamageFlashTimer = 0;
-  public bossShudderTimer = 0;
+  private renderRig: IRenderRig;
   public facing: 'left' | 'right' = 'right';
   public isAlive = true;
   public theme: 'light' | 'dark' = 'light';
@@ -29,7 +29,6 @@ export class Fish implements Boid {
     this.id = id; this.typeId = type; this.x = startX; this.y = startY; this.theme = theme;
     this.hierarchy = type === 'boss' ? 'BOSS' : (Math.random() < 0.1 ? 'CRITICAL' : (Math.random() < 0.25 ? 'ELITE' : 'NORMAL'));
     const isSmall = type === 'small', isBoss = type === 'boss';
-    // Horror boss 20% larger (radius 135 vs 110). Small fish scaled up further 20% (radius 41 vs 34).
     const radius = isBoss ? 135 : isSmall ? 41 : 55;
     this.width = radius * 2; this.height = radius * 1.3;
     this.maxSpeed = isBoss ? 1.6 : isSmall ? 3.8 : 2.4; this.maxForce = 0.25;
@@ -45,35 +44,25 @@ export class Fish implements Boid {
     this.container = new Container();
 
     if (isBoss) {
-      const tex = Assets.cache.get('abyssal_horror_boss') || Assets.cache.get('boss_core') || Texture.EMPTY;
-      this.bossSprite = new Sprite(tex);
-      this.bossSprite.anchor.set(0.5);
-      this.bossSprite.width = this.width;
-      this.bossSprite.height = this.height;
-      this.bossSprite.tint = theme === 'dark' ? 0xd8b4fe : 0xffffff;
-      this.container.addChild(this.bossSprite);
+      this.renderRig = new BossRenderRig(this.width, this.height, theme);
     } else {
-      // Small & Medium fish use SpriteSheetManager animated rigs
-      this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
-      this.container.addChild(this.animRig.container);
+      const animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
+      this.renderRig = new FishRenderRig(animRig);
       if (this.facing === 'left') {
-        this.animRig.playState('swim_left');
+        this.renderRig.playState('swim_left');
       } else {
-        this.animRig.playState('swim_right');
+        this.renderRig.playState('swim_right');
       }
     }
+    this.container.addChild(this.renderRig.container);
     this.container.x = this.x; this.container.y = this.y;
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
     this.theme = theme;
-    if (this.animRig) {
-      this.animRig.setTheme(theme);
-    }
-    if (this.bossSprite) {
-      this.bossSprite.tint = theme === 'dark' ? 0xd8b4fe : 0xffffff;
-    }
+    this.renderRig.setTheme(theme);
   }
+
 
   public updateSteering(
     spatialGrid: SpatialHashGrid,
@@ -93,37 +82,11 @@ export class Fish implements Boid {
       if (this.x < -160) this.x = screenWidth + 140; else if (this.x > screenWidth + 160) this.x = -140;
       this.y = Math.max(90, Math.min(screenHeight - 120, this.y));
 
+
       // Update shudder/flash timers
-      if (this.bossDamageFlashTimer > 0) {
-        this.bossDamageFlashTimer -= 0.05 * dtScale;
-        if (this.bossDamageFlashTimer < 0) this.bossDamageFlashTimer = 0;
+      if (this.renderRig instanceof BossRenderRig) {
+        this.renderRig.update(dtScale, this.facing, this.x, this.y);
       }
-      if (this.bossShudderTimer > 0) {
-        this.bossShudderTimer -= 0.016 * dtScale;
-        if (this.bossShudderTimer < 0) this.bossShudderTimer = 0;
-      }
-
-      const dx = this.bossShudderTimer > 0 ? (Math.random() - 0.5) * 8 : 0;
-      const dy = this.bossShudderTimer > 0 ? (Math.random() - 0.5) * 8 : 0;
-      this.container.x = this.x + dx;
-      this.container.y = this.y + dy;
-
-      if (this.bossSprite) {
-        // Shudder / Flash tint
-        if (this.bossDamageFlashTimer > 0) {
-          this.bossSprite.tint = 0xff3333; // red flash
-        } else {
-          this.bossSprite.tint = this.theme === 'dark' ? 0xd8b4fe : 0xffffff;
-        }
-        // Set facing (the attached boss image naturally faces LEFT)
-        const scaleSign = this.facing === 'left' ? 1 : -1;
-        this.bossSprite.scale.x = scaleSign * Math.abs(this.bossSprite.scale.x);
-        
-        // Dynamic subtle breathing animation
-        const breathe = 1.0 + Math.sin(Date.now() * 0.003) * 0.03;
-        this.bossSprite.scale.y = Math.abs(this.bossSprite.scale.y) * breathe;
-      }
-
       this.bounds.x = this.x - this.width / 2; this.bounds.y = this.y - this.height / 2;
       return;
     }
@@ -167,20 +130,18 @@ export class Fish implements Boid {
     const newFacing = this.vx < -0.1 ? 'left' : this.vx > 0.1 ? 'right' : this.facing;
     if (newFacing !== this.facing) {
       this.facing = newFacing;
-      if (this.animRig) {
-        if (this.facing === 'left') {
-          this.animRig.playState('turn_left', () => {
-            if (this.isAlive && this.facing === 'left') {
-              this.animRig?.playState('swim_left');
-            }
-          });
-        } else {
-          this.animRig.playState('turn_right', () => {
-            if (this.isAlive && this.facing === 'right') {
-              this.animRig?.playState('swim_right');
-            }
-          });
-        }
+      if (this.facing === 'left') {
+        this.renderRig.playState('turn_left', () => {
+          if (this.isAlive && this.facing === 'left') {
+            this.renderRig.playState('swim_left');
+          }
+        });
+      } else {
+        this.renderRig.playState('turn_right', () => {
+          if (this.isAlive && this.facing === 'right') {
+            this.renderRig.playState('swim_right');
+          }
+        });
       }
     }
     this.container.x = this.x; this.container.y = this.y;
@@ -192,19 +153,16 @@ export class Fish implements Boid {
     const amount = Math.max(0, damage);
     this.health = Math.max(0, this.health - amount);
     if (this.typeId === 'boss') {
-      this.bossDamageFlashTimer = 1.0;
-      this.bossShudderTimer = 0.15;
+      this.renderRig.applyFlash(0xff3333, 1.0);
+      this.renderRig.applyShudder(8, 0.15);
       if (this.health <= 0) {
         return true;
       }
       return false;
     }
-    if (this.animRig) {
-      this.animRig.tint(0xff4444);
-      setTimeout(() => {
-        if (this.isAlive) this.animRig?.resetTint();
-      }, 100);
-    }
+    
+    this.renderRig.applyFlash(0xff4444, 0.1);
+
     if (this.health <= 0) {
       return true;
     }
@@ -229,14 +187,7 @@ export class Fish implements Boid {
     const parent = this.container.parent;
     if (parent) parent.removeChild(this.container);
 
-    if (this.animRig) {
-      this.animRig.destroy({ children: true });
-      this.animRig = undefined;
-    }
-    if (this.bossSprite) {
-      this.bossSprite.destroy();
-      this.bossSprite = undefined;
-    }
+    this.renderRig.destroy();
     this.container.destroy({ children: true });
   }
 
