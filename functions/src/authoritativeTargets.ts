@@ -14,7 +14,7 @@ export function getAuthoritativeTarget(serverSeed: string, targetId: string): Au
   return { targetId, fishType, maxHealth: fishType === 'boss' ? 28 : fishType === 'medium' ? 6 : 2 };
 }
 
-export function getEntitledSkinBonus(loadout: FirebaseFirestore.DocumentData | undefined): number {
+export function getEntitledSkinBonus(loadout: { skinBonus?: unknown } | undefined): number {
   const raw = Number(loadout?.skinBonus);
   return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 3) : 1;
 }
