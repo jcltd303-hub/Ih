@@ -14,7 +14,6 @@ import type { ModalContext } from './modals/ModalContext';
 import { showStoreModal } from './modals/storeModal';
 import { showHowToPlayModal } from './modals/howToPlayModal';
 import { showOptionsModal } from './modals/optionsModal';
-import { showCutoutRigModal } from './modals/cutoutRigModal';
 import { showAuthModal } from './modals/authModal';
 import { showDepositModal, showWithdrawModal } from './modals/walletModal';
 import { TableSelectionManager, AVAILABLE_TABLES, TableConfig } from '../network/TableSelectionManager';
@@ -35,14 +34,12 @@ export class UIManager {
   private gcBalance: number = 10000;
   private scBalance: number = 50.00;
   private activeCurrency: 'GC' | 'SC' = 'SC';
-  private autoFireEnabled: boolean = false;
   private currentTheme: GameTheme = 'light';
   private tableBadgeBtn: HTMLElement | null = null;
   private progressionUnsub: (() => void) | null = null;
   private tableUnsub: (() => void) | null = null;
 
   private onThemeChangeCallback?: (theme: GameTheme) => void;
-  private onAutoFireToggleCallback?: (enabled: boolean) => void;
   private onBetChangeCallback?: (bet: number, currency: 'GC' | 'SC') => void;
   private onLoadoutChangeCallback?: () => void;
   private onPlayCallback?: () => void;
@@ -53,14 +50,12 @@ export class UIManager {
     rootElement: HTMLElement,
     callbacks?: {
       onThemeChange?: (theme: GameTheme) => void;
-      onAutoFireToggle?: (enabled: boolean) => void;
       onBetChange?: (bet: number, currency: 'GC' | 'SC') => void;
       onLoadoutChange?: () => void;
       onPlay?: () => void;
     }
   ) {
     this.onThemeChangeCallback = callbacks?.onThemeChange;
-    this.onAutoFireToggleCallback = callbacks?.onAutoFireToggle;
     this.onBetChangeCallback = callbacks?.onBetChange;
     this.onLoadoutChangeCallback = callbacks?.onLoadoutChange;
     this.onPlayCallback = callbacks?.onPlay;
@@ -258,19 +253,16 @@ export class UIManager {
 
         <!-- Cabinet Utility Menu -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
-          <button id="ff-start-paper-rig" type="button" class="ff-arcade-btn" style="grid-column: span 2; padding:8px; font-size:12px; background:#7e22ce; color:#fff; border:1px solid #c084fc; font-weight:900; letter-spacing:0.5px;">
-            PAPER RIG INSPECTOR
-          </button>
-          <button id="ff-start-how-to-play" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:8px; font-size:11px;">
+          <button id="ff-start-how-to-play" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px; font-size:12px;">
             HOW TO PLAY
           </button>
-          <button id="ff-start-options" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:8px; font-size:11px;">
-            OPTIONS / AUDIO
-          </button>
-          <button id="ff-start-tables" type="button" class="ff-arcade-btn ff-arcade-btn-cyan" style="padding:8px; font-size:11px;">
+          <button id="ff-start-tables" type="button" class="ff-arcade-btn ff-arcade-btn-cyan" style="padding:10px; font-size:12px;">
             TABLE SELECT
           </button>
-          <button id="ff-start-store" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:8px; font-size:11px;">
+          <button id="ff-start-options" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px; font-size:12px;">
+            OPTIONS / AUDIO
+          </button>
+          <button id="ff-start-store" type="button" class="ff-arcade-btn ff-arcade-btn-slate" style="padding:10px; font-size:12px;">
             STORE & PERKS
           </button>
         </div>
@@ -349,12 +341,6 @@ export class UIManager {
       showWithdrawModal(this.modalCtx(), wallet, () => {
         renderWallet();
         if (statusEl) statusEl.textContent = 'Withdrawal processed.';
-      });
-    });
-
-    root.querySelector('#ff-start-paper-rig')?.addEventListener('click', () => {
-      showCutoutRigModal(this.modalCtx(), () => {
-        GameEventBus.getInstance().emit('SPAWN_CUTOUT_FISH', {});
       });
     });
 
@@ -573,6 +559,19 @@ export class UIManager {
           text-shadow: none !important;
         }
 
+        /* Integrated Turret Base Controller Styling */
+        #hud-turret-controller {
+          position: absolute;
+          bottom: 6px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: auto;
+          z-index: 40;
+        }
+
         /* Mobile & responsive viewport adjustments */
         @media (max-width: 680px) {
           #hud-topbar {
@@ -598,25 +597,35 @@ export class UIManager {
             font-size: 13px !important;
           }
           #hud-turret-controller {
-            bottom: 80px !important;
-            right: 12px !important;
+            bottom: 4px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
           }
           .ff-turret-plate {
-            padding: 4px 10px !important;
+            padding: 3px 8px !important;
+            gap: 6px !important;
+          }
+          #hud-turret-bet-display {
+            padding: 2px 6px !important;
             gap: 6px !important;
           }
           #hud-turret-coin {
-            width: 32px !important;
-            height: 32px !important;
-            font-size: 11px !important;
+            width: 28px !important;
+            height: 28px !important;
+            font-size: 10px !important;
           }
           #hud-bet-display {
-            font-size: 15px !important;
+            font-size: 16px !important;
           }
           .ff-step-btn {
-            width: 26px !important;
-            height: 26px !important;
-            font-size: 15px !important;
+            width: 28px !important;
+            height: 28px !important;
+            font-size: 16px !important;
+          }
+          #hud-bet-max {
+            width: 32px !important;
+            height: 28px !important;
+            font-size: 8px !important;
           }
           .ff-pill-btn {
             padding: 0 8px !important;
@@ -643,7 +652,7 @@ export class UIManager {
           padding: 4px 8px;
           z-index: 50;
         ">
-          <!-- Top Left: Currency Toggle Pill + Live Balance -->
+          <!-- Top Left: Currency Toggle Pill + Live Balance + Room Badge -->
           <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
             <!-- Currency Mode Switcher Pill -->
             <button id="hud-currency-toggle" type="button" class="ff-pill-btn ff-metal-pill" style="
@@ -659,9 +668,18 @@ export class UIManager {
               <span class="swap-text" style="font-size: 9px; opacity: 0.7; letter-spacing: 1px;">SWAP</span>
             </button>
             <span id="hud-active-currency" style="display: none;">${this.activeCurrency}</span>
+
+            <!-- Table / Room Quick Switch Badge -->
+            <button id="hud-room-badge" type="button" class="ff-pill-btn ff-metal-pill" style="
+              height: 38px;
+              padding: 0 12px;
+            " title="Active Room / Table (Click to switch tables)">
+              <span style="font-size: 13px;">🌊</span>
+              <span id="hud-room-name" class="pill-text" style="font-size: 11px; font-weight: 800;">REEF</span>
+            </button>
           </div>
 
-          <!-- Top Right: Audio Toggles, Theme Toggle, Lobby, Store, Redeem -->
+          <!-- Top Right: Audio Toggles, Theme Toggle, Rules, Store, Redeem, Lobby -->
           <div style="
             display: flex;
             align-items: center;
@@ -688,6 +706,12 @@ export class UIManager {
             <button id="hud-theme-toggle" type="button" class="ff-pill-btn ff-metal-pill" style="height: 36px; padding: 0 12px;" title="Toggle Light / Abyssal Theme">
               <span style="font-size: 14px;">${isLight ? '☀️' : '🌙'}</span>
               <span class="pill-text" style="font-size: 11px;">${isLight ? 'LIGHT' : 'ABYSS'}</span>
+            </button>
+
+            <!-- Rules / Manual Pill -->
+            <button id="hud-help-btn" type="button" class="ff-pill-btn ff-metal-pill" style="height: 36px; padding: 0 12px;" title="Arcade Combat Manual & Rules">
+              <span style="font-size: 13px;">❓</span>
+              <span class="pill-text" style="font-size: 11px;">RULES</span>
             </button>
 
             <!-- Store Pill -->
@@ -721,55 +745,97 @@ export class UIManager {
           </div>
         </div>
 
-        <!-- BOTTOM RIGHT: Turret Stake Controller (Unobstructed Cannon in Center) -->
+        <!-- INTEGRATED TURRET BASE CONTROLLER (Centered directly on Turret Pedestal) -->
         <div id="hud-turret-controller" style="
           position: absolute;
-          bottom: 18px;
-          right: 18px;
+          bottom: 6px;
+          left: 50%;
+          transform: translateX(-50%);
           display: flex;
           align-items: center;
-          gap: 12px;
+          justify-content: center;
           pointer-events: auto;
           z-index: 40;
         ">
-          <!-- Main Bet Badge & Stepper Plate -->
           <div class="ff-turret-plate" style="
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 6px 16px;
+            gap: 8px;
+            padding: 4px 12px;
             border-radius: 9999px;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(12px);
+            user-select: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
           ">
-            <!-- Round Coin Indicator for Active Currency -->
-            <div id="hud-turret-coin" class="ff-coin-badge ${isSc ? 'ff-coin-sc' : 'ff-coin-gc'}" style="
-              width: 44px;
-              height: 44px;
-              font-size: 15px;
-              box-shadow: 0 3px 8px rgba(0,0,0,0.35);
-              flex-shrink: 0;
-            ">
-              ${this.activeCurrency}
-            </div>
+            <!-- Stepper Minus Button (Left Wing) -->
+            <button id="hud-bet-minus" type="button" class="ff-step-btn" style="
+              width: 32px;
+              height: 32px;
+              font-size: 18px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            " title="Decrease Stake (−)">−</button>
 
-            <!-- Current Bet Stake Amount -->
-            <div style="display: flex; flex-direction: column; align-items: flex-start; min-width: 92px;">
-              <span style="font-size: 9px; font-weight: 800; letter-spacing: 1.5px; opacity: 0.65; line-height: 1;">STAKE</span>
-              <div style="display: flex; align-items: baseline; gap: 4px;">
-                <span id="hud-bet-display" style="font-family: monospace; font-size: 20px; font-weight: 900; line-height: 1.2;">
-                  ${bet.toFixed(2)}
-                </span>
-                <span id="hud-bet-currency-label" style="font-size: 11px; font-weight: 800; opacity: 0.85;">
-                  ${this.activeCurrency}
-                </span>
+            <!-- Integrated Turret Base Stake Display (Center Mount) -->
+            <div id="hud-turret-bet-display" style="
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              padding: 2px 10px;
+              border-radius: 12px;
+              cursor: pointer;
+              background: rgba(0, 0, 0, 0.12);
+            " title="Current Stake Amount (Click to cycle)">
+              <!-- Round Coin Indicator -->
+              <div id="hud-turret-coin" class="ff-coin-badge ${isSc ? 'ff-coin-sc' : 'ff-coin-gc'}" style="
+                width: 32px;
+                height: 32px;
+                font-size: 12px;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+                flex-shrink: 0;
+              ">
+                ${this.activeCurrency}
+              </div>
+
+              <!-- Numerical Bet Stake Readout -->
+              <div style="display: flex; flex-direction: column; align-items: flex-start; min-width: 68px;">
+                <span style="font-size: 8px; font-weight: 800; letter-spacing: 1.2px; opacity: 0.65; line-height: 1;">STAKE</span>
+                <div style="display: flex; align-items: baseline; gap: 3px;">
+                  <span id="hud-bet-display" style="font-family: monospace; font-size: 18px; font-weight: 900; line-height: 1.2;">
+                    ${bet.toFixed(2)}
+                  </span>
+                  <span id="hud-bet-currency-label" style="font-size: 10px; font-weight: 800; opacity: 0.85;">
+                    ${this.activeCurrency}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <!-- Vertical Stepper: + slightly above, - slightly below along the side -->
-            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-              <button id="hud-bet-plus" type="button" class="ff-step-btn" title="Increase Bet">+</button>
-              <button id="hud-bet-minus" type="button" class="ff-step-btn" title="Decrease Bet">−</button>
-            </div>
+            <!-- Stepper Plus Button (Right Wing) -->
+            <button id="hud-bet-plus" type="button" class="ff-step-btn" style="
+              width: 32px;
+              height: 32px;
+              font-size: 18px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            " title="Increase Stake (+)">+</button>
+
+            <!-- MAX Bet Button -->
+            <button id="hud-bet-max" type="button" class="ff-step-btn" style="
+              width: 36px;
+              height: 32px;
+              border-radius: 8px;
+              font-size: 9px;
+              letter-spacing: 0.5px;
+              font-weight: 900;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            " title="Maximum Stake">MAX</button>
           </div>
         </div>
       </div>
@@ -827,9 +893,25 @@ export class UIManager {
       this.toggleCurrency();
     });
 
-    // Stake stepper (+ and -)
+    // Room badge (Table Select)
+    document.getElementById('hud-room-badge')?.addEventListener('click', () => {
+      this.showLobby();
+    });
+
+    // Rules & Manual
+    document.getElementById('hud-help-btn')?.addEventListener('click', () => {
+      showHowToPlayModal(this.modalCtx());
+    });
+
+    // Stake stepper (+ and -), MAX bet, and direct display cycle
     document.getElementById('hud-bet-plus')?.addEventListener('click', () => this.adjustBet(1));
     document.getElementById('hud-bet-minus')?.addEventListener('click', () => this.adjustBet(-1));
+    document.getElementById('hud-bet-max')?.addEventListener('click', () => {
+      this.setBetIndex(this.betTiers.length - 1);
+    });
+    document.getElementById('hud-turret-bet-display')?.addEventListener('click', () => {
+      this.adjustBet(1);
+    });
 
     // Lobby, Store, Redeem
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
@@ -838,9 +920,17 @@ export class UIManager {
       showWithdrawModal(this.modalCtx(), WalletService.getInstance());
     });
 
+    // Table room name sync
+    const activeTbl = TableSelectionManager.getInstance().getActiveTable();
+    const roomNameEl = document.getElementById('hud-room-name');
+    if (roomNameEl && activeTbl) roomNameEl.textContent = activeTbl.name.toUpperCase();
+
     // Subscribe to table changes
     if (!this.tableUnsub) {
       this.tableUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => {
+        const rName = document.getElementById('hud-room-name');
+        if (rName) rName.textContent = tbl.name.toUpperCase();
+
         if (!tbl.allowedCurrencies.includes(this.activeCurrency)) {
           this.activeCurrency = tbl.allowedCurrencies[0];
         }
@@ -857,10 +947,30 @@ export class UIManager {
       });
     }
 
-    // Operator shortcut (Shift + `)
+    // Subscribe to player progression updates
+    if (!this.progressionUnsub) {
+      this.progressionUnsub = PlayerProgressionManager.getInstance().subscribe((prog) => {
+        this.updateProgressionHud(prog);
+      });
+    }
+    this.updateProgressionHud(PlayerProgressionManager.getInstance().getState());
+
+    // Keyboard shortcuts for arcade combat
     window.addEventListener('keydown', (e) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+      if (this.modalContainer && this.modalContainer.style.display === 'flex') return;
+
       if (e.shiftKey && (e.key === '`' || e.key === '~')) {
         this.showAdminPortalModal();
+      } else if (e.key === '+' || e.key === '=') {
+        this.adjustBet(1);
+      } else if (e.key === '-' || e.key === '_') {
+        this.adjustBet(-1);
+      } else if (e.key === 'c' || e.key === 'C') {
+        this.toggleCurrency();
+      } else if (e.key === 't' || e.key === 'T') {
+        this.toggleTheme();
       }
     });
   }
@@ -885,11 +995,11 @@ export class UIManager {
   }
 
   private updateProgressionHud(prog: PlayerProgressionState): void {
-    const lvlVal = document.getElementById('hud-level-val');
-    const lvlBar = document.getElementById('hud-level-bar');
+    const lvlVal = document.getElementById('hud-hunter-level') || document.getElementById('hud-level-val');
+    const lvlBar = document.getElementById('hud-hunter-bar') || document.getElementById('hud-level-bar');
 
     if (lvlVal) lvlVal.textContent = prog.level.toString();
-    if (lvlBar) lvlBar.style.width = `${prog.progressPct}%`;
+    if (lvlBar) lvlBar.style.width = `${Math.min(100, Math.max(0, prog.progressPct))}%`;
   }
 
   private createModalContainer(_root: HTMLElement): void {

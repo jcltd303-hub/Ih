@@ -109,7 +109,7 @@ export class WeaponController {
     this.onBossDamage = onBossDamage;
 
     this.cannonX = screenWidth / 2;
-    this.cannonY = screenHeight - 40;
+    this.cannonY = screenHeight - 44;
 
     this.projectilePool = new ObjectPool<Container>(
       () => {
@@ -193,7 +193,7 @@ export class WeaponController {
     this.screenWidth = width;
     this.screenHeight = height;
     this.cannonX = width / 2;
-    this.cannonY = height - 40;
+    this.cannonY = height - 44;
     this.cannonGraphic.x = this.cannonX;
     this.cannonGraphic.y = this.cannonY;
     if (this.turretRig) {
