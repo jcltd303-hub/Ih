@@ -5,6 +5,7 @@ import { assertRateLimit, assertBetAmount, MAX_SHOTS_PER_MINUTE, MAX_DAILY_SC_LO
 import { DEFAULT_PAYOUT_TABLE, validatePayoutTable, type PayoutTable } from './payoutTable';
 import { deriveRoll } from './provablyFair';
 import { serverSessionStateRef } from './sessionState';
+import { getEntitledSkinBonus } from './authoritativeTargets';
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
@@ -79,7 +80,7 @@ export const processPlayerShot = onCall(async (request) => {
   let shard = 0;
   for (let i = 0; i < userId.length; i++) shard = ((shard << 5) - shard + userId.charCodeAt(i)) | 0;
   const telemetryRef = db.collection('economyTelemetry').doc(`${telemetryHour}_${currencyType}_${Math.abs(shard) % 32}`);
-  const loadoutRef = db.collection('users').doc(userId).collection('loadout').doc('current');
+  const entitlementRef = db.collection('serverEntitlements').doc(userId).collection('entitlements').doc('current');
   const fp = requestFingerprint(sessionId, currencyType, betAmount, targetId);
 
   return db.runTransaction(async (transaction) => {
@@ -97,7 +98,7 @@ export const processPlayerShot = onCall(async (request) => {
     const dailySnap = await transaction.get(dailyStatsRef);
     const winRateSnap = await transaction.get(winRateRef);
     const telemetrySnap = await transaction.get(telemetryRef);
-    const loadoutSnap = await transaction.get(loadoutRef);
+    const entitlementSnap = await transaction.get(entitlementRef);
     const targetSnap = await transaction.get(targetRef);
 
     if (!sessionSnap.exists || sessionSnap.data()?.status !== 'active') throw new HttpsError('failed-precondition', 'No active fairness session.');
@@ -123,8 +124,7 @@ export const processPlayerShot = onCall(async (request) => {
 
     const startNonce = Number(privateState.nonce) || 0;
     const rng = makeSessionRng(serverSeed, clientSeed, startNonce);
-    const loadoutBonus = loadoutSnap.exists ? Number(loadoutSnap.data()?.skinBonus) : 1;
-    const skinBonus = Number.isFinite(loadoutBonus) && loadoutBonus > 0 ? Math.min(loadoutBonus, 3) : 1;
+    const skinBonus = getEntitledSkinBonus(entitlementSnap.exists ? entitlementSnap.data() : undefined);
 
     const defaults = targetDefaults(serverSeed, targetId);
     const target: TargetState = targetSnap.exists
