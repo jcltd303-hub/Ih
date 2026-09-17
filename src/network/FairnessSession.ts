@@ -8,12 +8,12 @@ export type FairSessionState = {
   serverSeedHash: string;
   clientSeed: string;
   serverSeed?: string;
-  status: 'local' | 'committed' | 'revealed';
+  status: 'local' | 'committed' | 'closed' | 'revealed';
 };
 
 /**
  * Commit–reveal session for provably fair audits.
- * Online: Cloud Function holds server seed until reveal.
+ * Online: Cloud Function holds server seed until an irreversible close.
  * Offline: local demo commit (not production-grade).
  */
 export class FairnessSession {
@@ -78,16 +78,31 @@ export class FairnessSession {
     }
   }
 
+  public async close(): Promise<FairSessionState | null> {
+    if (!this.state) return null;
+    if (this.state.status === 'local' || this.state.status === 'closed' || this.state.status === 'revealed') {
+      return { ...this.state };
+    }
+    if (!isFirebaseConfigured || this.state.status !== 'committed') return { ...this.state };
+
+    const close = httpsCallable(functions, 'closeGameSession');
+    const res = await close({ sessionId: this.state.sessionId });
+    const data = (res.data || {}) as Record<string, string>;
+    this.state = { ...this.state, status: data.status === 'revealed' ? 'revealed' : 'closed' };
+    return { ...this.state };
+  }
+
   public async reveal(): Promise<FairSessionState | null> {
     if (!this.state) return null;
     if (this.state.status === 'local' && this.state.serverSeed) {
       this.state = { ...this.state, status: 'revealed' };
       return { ...this.state };
     }
-    if (!isFirebaseConfigured || this.state.status !== 'committed') {
+    if (!isFirebaseConfigured || (this.state.status !== 'committed' && this.state.status !== 'closed')) {
       return this.state;
     }
     try {
+      if (this.state.status === 'committed') await this.close();
       const reveal = httpsCallable(functions, 'revealSessionSeed');
       const res = await reveal({ sessionId: this.state.sessionId });
       const data = (res.data || {}) as Record<string, string>;
