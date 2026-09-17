@@ -25,12 +25,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test:ci
 
       - name: Build Project
         run: npm run build
+
+      - name: Build Functions
+        run: npm run functions:build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
