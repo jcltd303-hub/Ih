@@ -12,7 +12,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // User profile: owner read; wallet writes only via Admin SDK (Cloud Functions)
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow write: if false;
@@ -28,26 +27,30 @@ service cloud.firestore {
           && !('goldCoins' in request.resource.data);
       }
 
+      // Loadout is cosmetic/client-owned. Financial entitlements such as
+      // skinBonus are deliberately excluded from this client-writable path.
       match /loadout/{docId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isOwner(userId)
+          && !('skinBonus' in request.resource.data);
       }
 
-      // Public fairness metadata only. The active server seed and nonce live
-      // under serverSessionState and are never client-readable.
       match /sessions/{sessionId} {
         allow read: if isOwner(userId);
         allow write: if false;
       }
 
-      // Block arbitrary subcollection writes (prevents client balance tampering)
       match /{document=**} {
         allow read: if isOwner(userId);
         allow write: if false;
       }
     }
 
-    // Active fairness seeds, nonces, and payout state are server-only.
-    // Admin SDK used by Cloud Functions bypasses Firestore security rules.
+    // Financial entitlements are server-only. Cloud Functions Admin SDK
+    // bypasses these client security rules when granting legitimate bonuses.
+    match /serverEntitlements/{userId}/{document=**} {
+      allow read, write: if false;
+    }
+
     match /serverSessionState/{userId}/{document=**} {
       allow read, write: if false;
     }
