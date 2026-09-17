@@ -1,432 +1,177 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
-import {
-    assertRateLimit,
-    assertBetAmount,
-    MAX_SHOTS_PER_MINUTE,
-    MAX_DAILY_SC_LOSS,
-    MAX_CLAIMED_WIN_SC_PER_MINUTE,
-    MAX_CLAIMED_WIN_GC_PER_MINUTE
-} from './limits';
-import {
-    DEFAULT_PAYOUT_TABLE,
-    validatePayoutTable,
-    type PayoutTable
-} from './payoutTable';
+import { createHash, createHmac } from 'node:crypto';
+import { assertRateLimit, assertBetAmount, MAX_SHOTS_PER_MINUTE, MAX_DAILY_SC_LOSS, MAX_CLAIMED_WIN_SC_PER_MINUTE, MAX_CLAIMED_WIN_GC_PER_MINUTE } from './limits';
+import { DEFAULT_PAYOUT_TABLE, validatePayoutTable, type PayoutTable } from './payoutTable';
 import { deriveRoll } from './provablyFair';
+import { serverSessionStateRef } from './sessionState';
 
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
-
 type FishType = 'small' | 'medium' | 'boss';
 
-/** Sequential RNG bound to a session; each call consumes the next nonce. */
+type TargetState = { targetId: string; fishType: FishType; maxHealth: number; remainingHealth: number; killed: boolean };
+
 function makeSessionRng(serverSeed: string, clientSeed: string, startNonce: number) {
-    let n = startNonce;
-    return {
-          next: () => deriveRoll(serverSeed, clientSeed, n++),
-          consumed: () => n - startNonce
-    };
+  let n = startNonce;
+  return { next: () => deriveRoll(serverSeed, clientSeed, n++), consumed: () => n - startNonce };
 }
 
-function rtpTelemetryShard(userId: string): number {
-    let hash = 0;
-    for (let i = 0; i < userId.length; i += 1) {
-          hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
-    }
-    return Math.abs(hash) % 32;
+function requestFingerprint(sessionId: string, currencyType: string, betAmount: number, targetId: string): string {
+  return createHash('sha256').update(JSON.stringify({ sessionId, currencyType, betAmount, targetId })).digest('hex');
 }
 
-function evaluateServerHit(
-    betAmount: number,
-    fishType: FishType,
-    skinBonus: number,
-    payoutTable: PayoutTable,
-    rng: () => number
-  ) {
-    const { hit } = payoutTable;
+function targetDefaults(serverSeed: string, targetId: string): Omit<TargetState, 'remainingHealth' | 'killed'> {
+  const digest = createHmac('sha256', serverSeed).update(targetId).digest();
+  const roll = digest.readUInt32BE(0) / 0x100000000;
+  const fishType: FishType = roll < 0.70 ? 'small' : roll < 0.98 ? 'medium' : 'boss';
+  return { targetId, fishType, maxHealth: fishType === 'boss' ? 28 : fishType === 'medium' ? 6 : 2 };
+}
 
-  const baseHitRate = hit.baseHitRate;
-    const isLuckyHit = rng() < hit.luckyHitChance;
-    const hitPayout = baseHitRate > 0 ? (isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate) : 0;
-
+function evaluateServerHit(betAmount: number, fishType: FishType, skinBonus: number, payoutTable: PayoutTable, rng: () => number) {
+  const { hit } = payoutTable;
+  const isLuckyHit = rng() < hit.luckyHitChance;
+  const hitPayout = hit.baseHitRate > 0 ? (isLuckyHit ? betAmount : betAmount * hit.baseHitRate) : 0;
   const critRoll = rng();
-    const isSuperCrit = critRoll < hit.superCritChance;
-    const isCrit = !isSuperCrit && critRoll < hit.critChance;
-    const critMultiplier = isSuperCrit ? 3.5 : isCrit ? 2.0 : 1.0;
-
-  const randomJitter = 0.9 + rng() * 0.3;
-    const damage = 1.0 * skinBonus * critMultiplier * randomJitter;
-
-  const baseInstant = hit.instantKillChance[fishType];
-    const isInstantKill = rng() < baseInstant;
-
+  const isSuperCrit = critRoll < hit.superCritChance;
+  const isCrit = !isSuperCrit && critRoll < hit.critChance;
+  const critMultiplier = isSuperCrit ? 3.5 : isCrit ? 2 : 1;
+  const damage = skinBonus * critMultiplier * (0.9 + rng() * 0.3);
+  const isInstantKill = rng() < hit.instantKillChance[fishType];
   return { hitPayout, isLuckyHit, damage, isCrit, isSuperCrit, isInstantKill };
 }
 
-function evaluateServerKill(
-    baseMultiplier: number,
-    fishType: FishType,
-    payoutTable: PayoutTable,
-    rng: () => number
-  ) {
-    const { kill } = payoutTable;
-
-  if (fishType === 'boss') {
-        return {
-                finalMultiplier: baseMultiplier, // Balanced flat bounty
-                bonusLabel: 'BOSS BOUNTY CLAIMED',
-                isJackpot: false
-        };
-  }
-
+function evaluateServerKill(baseMultiplier: number, fishType: FishType, payoutTable: PayoutTable, rng: () => number) {
+  if (fishType === 'boss') return { finalMultiplier: baseMultiplier, bonusLabel: 'BOSS BOUNTY CLAIMED', isJackpot: false };
   const roll = rng();
-
-  if (roll < kill.jackpotChance) {
-        return {
-                finalMultiplier: baseMultiplier * kill.jackpotMultiplier,
-                bonusLabel: '10X JACKPOT',
-                isJackpot: true
-        };
-  }
-
-  if (roll < kill.tripleChance) {
-        return {
-                finalMultiplier: baseMultiplier * kill.tripleMultiplier,
-                bonusLabel: 'TRIPLE BOUNTY',
-                isJackpot: false
-        };
-  }
-
-  if (roll < kill.bonusChance) {
-        return {
-                finalMultiplier: baseMultiplier * kill.bonusMultiplier,
-                bonusLabel: 'BONUS',
-                isJackpot: false
-        };
-  }
-
-  const typeBoost = 1.0;
-
-  return {
-        finalMultiplier: baseMultiplier * typeBoost,
-        bonusLabel: 'STANDARD WIN',
-        isJackpot: false
-  };
+  if (roll < payoutTable.kill.jackpotChance) return { finalMultiplier: baseMultiplier * payoutTable.kill.jackpotMultiplier, bonusLabel: '10X JACKPOT', isJackpot: true };
+  if (roll < payoutTable.kill.tripleChance) return { finalMultiplier: baseMultiplier * payoutTable.kill.tripleMultiplier, bonusLabel: 'TRIPLE BOUNTY', isJackpot: false };
+  if (roll < payoutTable.kill.bonusChance) return { finalMultiplier: baseMultiplier * payoutTable.kill.bonusMultiplier, bonusLabel: 'BONUS', isJackpot: false };
+  return { finalMultiplier: baseMultiplier, bonusLabel: 'STANDARD WIN', isJackpot: false };
 }
 
 function baseMultiplierFor(fishType: FishType): number {
-    if (fishType === 'boss') return 15;
-    if (fishType === 'medium') return 4;
-    return 1.2;
+  return fishType === 'boss' ? 15 : fishType === 'medium' ? 4 : 1.2;
 }
 
-/**
- * Server-authoritative shot settlement.
- * Deducts bet, evaluates hit/kill using rolls derived from the session's
- * committed provably-fair seed, credits payout, returns balances for HUD sync.
- *
- * Request integrity comes from Firebase Auth (request.auth.uid, verified
- * server-side against the ID token) plus a per-request idempotency key —
- * NOT a shared-secret signature, which can't be kept secret from a client
- * that has to compute it itself.
- */
 export const processPlayerShot = onCall(async (request) => {
-    const data = request.data || {};
-    const {
-          sessionId,
-          currencyType,
-          betAmount,
-          targetId,
-          clientHitConfirmed,
-          clientKillConfirmed,
-          fishType: rawFishType,
-          skinBonus: rawSkinBonus,
-          timestamp,
-          requestId
-    } = data;
-    const userId = request.auth?.uid;
+  const data = request.data || {};
+  const userId = request.auth?.uid;
+  if (!userId) throw new HttpsError('unauthenticated', 'User must be authenticated to fire shots.');
 
-                                          if (!userId) {
-                                                throw new HttpsError('unauthenticated', 'User must be authenticated to fire shots.');
-                                          }
-    if (currencyType !== 'SC' && currencyType !== 'GC') {
-          throw new HttpsError('invalid-argument', 'Invalid currency.');
+  const { sessionId, currencyType, betAmount, targetId, timestamp, requestId } = data;
+  if (currencyType !== 'SC' && currencyType !== 'GC') throw new HttpsError('invalid-argument', 'Invalid currency.');
+  assertBetAmount(betAmount, currencyType);
+  await assertRateLimit(userId, 'shot', MAX_SHOTS_PER_MINUTE);
+  if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('sess_')) throw new HttpsError('invalid-argument', 'A committed fairness session is required.');
+  if (!requestId || typeof requestId !== 'string' || !targetId || typeof targetId !== 'string' || typeof timestamp !== 'number') throw new HttpsError('invalid-argument', 'Missing request fields.');
+  if (Math.abs(Date.now() - timestamp) > 60000) throw new HttpsError('invalid-argument', 'Request timestamp expired.');
+
+  const requestRef = db.collection('users').doc(userId).collection('processedRequests').doc(requestId);
+  const walletRef = db.collection('users').doc(userId).collection('wallet').doc('balances');
+  const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
+  const privateRef = serverSessionStateRef(db, userId, sessionId);
+  const settlementRef = db.collection('users').doc(userId).collection('settlements').doc(requestId);
+  const targetRef = privateRef.collection('targets').doc(targetId);
+  const dailyStatsRef = db.collection('users').doc(userId).collection('dailyStats').doc(new Date().toISOString().slice(0, 10));
+  const winRateRef = db.collection('users').doc(userId).collection('rateLimits').doc(`winAmount_${currencyType}`);
+  const telemetryHour = new Date(timestamp).toISOString().slice(0, 13).replace('T', '');
+  let shard = 0;
+  for (let i = 0; i < userId.length; i++) shard = ((shard << 5) - shard + userId.charCodeAt(i)) | 0;
+  const telemetryRef = db.collection('economyTelemetry').doc(`${telemetryHour}_${currencyType}_${Math.abs(shard) % 32}`);
+  const loadoutRef = db.collection('users').doc(userId).collection('loadout').doc('current');
+  const fp = requestFingerprint(sessionId, currencyType, betAmount, targetId);
+
+  return db.runTransaction(async (transaction) => {
+    const requestDoc = await transaction.get(requestRef);
+    if (requestDoc.exists) {
+      if (requestDoc.data()?.fingerprint !== fp) throw new HttpsError('already-exists', 'requestId has already been used for different financial inputs.');
+      const prior = requestDoc.data()?.result;
+      if (prior && typeof prior === 'object') return prior;
+      throw new HttpsError('already-exists', 'Duplicate request.');
     }
-    assertBetAmount(betAmount, currencyType);
-    await assertRateLimit(userId, 'shot', MAX_SHOTS_PER_MINUTE);
 
-                                          if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('sess_')) {
-                                                throw new HttpsError('invalid-argument', 'A committed fairness session is required.');
-                                          }
-    if (!requestId || typeof requestId !== 'string' || typeof timestamp !== 'number') {
-          throw new HttpsError('invalid-argument', 'Missing request fields.');
+    const sessionSnap = await transaction.get(sessionRef);
+    const privateSnap = await transaction.get(privateRef);
+    const walletSnap = await transaction.get(walletRef);
+    const dailySnap = await transaction.get(dailyStatsRef);
+    const winRateSnap = await transaction.get(winRateRef);
+    const telemetrySnap = await transaction.get(telemetryRef);
+    const loadoutSnap = await transaction.get(loadoutRef);
+    const targetSnap = await transaction.get(targetRef);
+
+    if (!sessionSnap.exists || sessionSnap.data()?.status !== 'active') throw new HttpsError('failed-precondition', 'No active fairness session.');
+    if (!privateSnap.exists) throw new HttpsError('failed-precondition', 'Private fairness state is missing.');
+
+    const privateState = privateSnap.data()!;
+    const serverSeed = String(privateState.serverSeed || '');
+    const clientSeed = String(privateState.clientSeed || '');
+    if (!serverSeed || !clientSeed) throw new HttpsError('failed-precondition', 'Fairness state is invalid.');
+
+    let payoutTable: PayoutTable = DEFAULT_PAYOUT_TABLE;
+    try { payoutTable = validatePayoutTable((privateState.payoutTable || DEFAULT_PAYOUT_TABLE) as PayoutTable); }
+    catch { throw new HttpsError('failed-precondition', 'Invalid payout table attached to session.'); }
+
+    if (!walletSnap.exists) throw new HttpsError('not-found', 'User wallet not found.');
+    const walletData = walletSnap.data()!;
+    const balanceKey = currencyType === 'SC' ? 'sweepstakesCoins' : 'goldCoins';
+    const currentBalance = Number(walletData[balanceKey]) || 0;
+    if (currentBalance < betAmount) throw new HttpsError('failed-precondition', 'Insufficient funds for bet.');
+
+    const existingNetLoss = dailySnap.exists ? Number(dailySnap.data()!.scNetLoss) || 0 : 0;
+    if (currencyType === 'SC' && existingNetLoss >= MAX_DAILY_SC_LOSS) throw new HttpsError('failed-precondition', `Daily SC loss cap (${MAX_DAILY_SC_LOSS}) reached.`);
+
+    const startNonce = Number(privateState.nonce) || 0;
+    const rng = makeSessionRng(serverSeed, clientSeed, startNonce);
+    const loadoutBonus = loadoutSnap.exists ? Number(loadoutSnap.data()?.skinBonus) : 1;
+    const skinBonus = Number.isFinite(loadoutBonus) && loadoutBonus > 0 ? Math.min(loadoutBonus, 3) : 1;
+
+    const defaults = targetDefaults(serverSeed, targetId);
+    const target: TargetState = targetSnap.exists
+      ? { targetId, fishType: targetSnap.data()?.fishType as FishType, maxHealth: Number(targetSnap.data()?.maxHealth) || defaults.maxHealth, remainingHealth: Number(targetSnap.data()?.remainingHealth) || defaults.maxHealth, killed: Boolean(targetSnap.data()?.killed) }
+      : { ...defaults, remainingHealth: defaults.maxHealth, killed: false };
+    if (!['small', 'medium', 'boss'].includes(target.fishType)) throw new HttpsError('failed-precondition', 'Invalid authoritative target.');
+
+    const hit = evaluateServerHit(betAmount, target.fishType, skinBonus, payoutTable, rng.next);
+    const nextHealth = Math.max(0, target.remainingHealth - hit.damage);
+    const killClaimed = target.fishType === 'boss' ? nextHealth <= 0 : hit.isInstantKill || nextHealth <= 0;
+    let payoutAmount = hit.hitPayout;
+    let killed = false;
+    let kill: ReturnType<typeof evaluateServerKill> | null = null;
+    if (killClaimed && !target.killed) {
+      killed = true;
+      kill = evaluateServerKill(baseMultiplierFor(target.fishType), target.fishType, payoutTable, rng.next);
+      payoutAmount += betAmount * kill.finalMultiplier;
     }
-    if (Math.abs(Date.now() - timestamp) > 60000) {
-          throw new HttpsError('invalid-argument', 'Request timestamp expired.');
+
+    const netLoss = betAmount - payoutAmount;
+    if (currencyType === 'SC' && netLoss > 0 && existingNetLoss + netLoss > MAX_DAILY_SC_LOSS) throw new HttpsError('failed-precondition', `Daily SC loss cap (${MAX_DAILY_SC_LOSS}) reached.`);
+
+    const winData = winRateSnap.exists ? winRateSnap.data()! : {};
+    let winWindowStart = Number(winData.windowStart) || Date.now();
+    let claimedInWindow = Number(winData.claimed) || 0;
+    if (Date.now() - winWindowStart > 60000) { winWindowStart = Date.now(); claimedInWindow = 0; }
+    if (payoutAmount > 0) {
+      claimedInWindow += payoutAmount;
+      const cap = currencyType === 'SC' ? MAX_CLAIMED_WIN_SC_PER_MINUTE : MAX_CLAIMED_WIN_GC_PER_MINUTE;
+      if (claimedInWindow > cap) throw new HttpsError('resource-exhausted', `Claimed win burst limit reached for ${currencyType}.`);
     }
 
-                                          // Fish tier is server-authoritative.
-                                          const fishType: FishType =
-                                                  rawFishType === 'boss'
-          ? 'boss'
-                                                    : rawFishType === 'medium'
-          ? 'medium'
-                                                    : 'small';
-    const skinBonus = typeof rawSkinBonus === 'number' && rawSkinBonus > 0 ? Math.min(rawSkinBonus, 3) : 1;
+    const finalBalance = currentBalance - betAmount + payoutAmount;
+    const fairNonceEnd = startNonce + rng.consumed();
+    const result = { success: true, currencyType, betAmount, payoutAmount, finalBalance, goldCoins: balanceKey === 'goldCoins' ? finalBalance : Number(walletData.goldCoins) || 0, sweepstakesCoins: balanceKey === 'sweepstakesCoins' ? finalBalance : Number(walletData.sweepstakesCoins) || 0, hit, kill, killed, serverAuthoritative: true, fairNonceStart: startNonce, fairNonceEnd, payoutTableVersion: payoutTable.version };
+    const settlement = { userId, sessionId, requestId, targetId, currencyType, fishType: target.fishType, betAmount, payoutAmount, finalBalance, killed, killPayout: killed && kill ? betAmount * kill.finalMultiplier : 0, hitPayout: hit.hitPayout, multiplier: kill?.finalMultiplier || 0, bonusLabel: kill?.bonusLabel || null, isJackpot: kill?.isJackpot || false, fairNonceStart: startNonce, fairNonceEnd, payoutTableVersion: payoutTable.version, settledAt: timestamp };
 
-                                          // Idempotency key: prevents a retried/duplicated call from paying out
-                                          // twice. It only needs to be unique per attempt — it is not a secret and
-                                          // does not need to be signed.
-                                          const requestRef = db
-      .collection('users')
-      .doc(userId)
-      .collection('processedRequests')
-      .doc(String(requestId));
+    transaction.set(walletRef, { [balanceKey]: finalBalance, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    transaction.set(settlementRef, { ...settlement, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    transaction.create(requestRef, { fingerprint: fp, ts: timestamp, result, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    transaction.set(targetRef, { targetId, fishType: target.fishType, maxHealth: target.maxHealth, remainingHealth: nextHealth, killed: target.killed || killed, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    transaction.update(privateRef, { nonce: fairNonceEnd });
+    if (currencyType === 'SC' && netLoss > 0) transaction.set(dailyStatsRef, { scNetLoss: existingNetLoss + netLoss, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    if (payoutAmount > 0) transaction.set(winRateRef, { windowStart: winWindowStart, claimed: claimedInWindow, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 
-                                          const userWalletRef = db.collection('users').doc(userId).collection('wallet').doc('balances');
-    const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
-    const settlementRef = db.collection('users').doc(userId).collection('settlements').doc(String(requestId));
-    const today = new Date().toISOString().slice(0, 10);
-    const dailyStatsRef = db.collection('users').doc(userId).collection('dailyStats').doc(today);
-
-                                          const result = await db.runTransaction(async (transaction) => {
-                                                const requestDoc = await transaction.get(requestRef);
-                                                if (requestDoc.exists) {
-                                                        const prior = requestDoc.data()?.result;
-                                                        if (prior && typeof prior === 'object') return prior;
-                                                        throw new HttpsError('already-exists', 'Duplicate request.');
-                                                }
-
-                                                                                     const sessionSnap = await transaction.get(sessionRef);
-                                                if (!sessionSnap.exists || sessionSnap.data()?.status !== 'active') {
-                                                        throw new HttpsError(
-                                                                  'failed-precondition',
-                                                                  'No active fairness session. Call startGameSession first.'
-                                                                );
-                                                }
-                                                const session = sessionSnap.data()!;
-                                                const serverSeed: string = session.serverSeed;
-                                                const clientSeed: string = session.clientSeed;
-
-                                                                                     // Lock settlement to the payout table captured when the session started.
-                                                                                     // Older sessions without a snapshot retain the original 85% behavior.
-                                                                                     let payoutTable: PayoutTable = DEFAULT_PAYOUT_TABLE;
-                                                if (session.payoutTable && typeof session.payoutTable === 'object') {
-                                                        try {
-                                                                  payoutTable = validatePayoutTable(session.payoutTable as PayoutTable);
-                                                        } catch {
-                                                                  throw new HttpsError(
-                                                                              'failed-precondition',
-                                                                              'Invalid payout table attached to session.'
-                                                                            );
-                                                        }
-                                                }
-
-                                                                                     const startNonce: number = Number(session.nonce) || 0;
-
-                                                                                     const walletDoc = await transaction.get(userWalletRef);
-                                                if (!walletDoc.exists) {
-                                                        throw new HttpsError('not-found', 'User wallet not found. Call ensureUserWallet first.');
-                                                }
-                                                const walletData = walletDoc.data()!;
-                                                const balanceKey = currencyType === 'SC' ? 'sweepstakesCoins' : 'goldCoins';
-                                                const currentBalance = Number(walletData[balanceKey]) || 0;
-
-                                                                                     if (currentBalance < betAmount) {
-                                                                                             throw new HttpsError('failed-precondition', 'Insufficient funds for bet.');
-                                                                                     }
-
-                                                                                     // Enforce the daily SC loss cap BEFORE settling, so a single bet can
-                                                                                     // never push a player past the cap (previously checked after the fact).
-                                                                                     let existingNetLoss = 0;
-                                                if (currencyType === 'SC') {
-                                                        const dailySnap = await transaction.get(dailyStatsRef);
-                                                        existingNetLoss = dailySnap.exists ? Number(dailySnap.data()!.scNetLoss) || 0 : 0;
-                                                        if (existingNetLoss >= MAX_DAILY_SC_LOSS) {
-                                                                  throw new HttpsError('failed-precondition', `Daily SC loss cap (${MAX_DAILY_SC_LOSS}) reached.`);
-                                                        }
-                                                }
-
-                                                                                     const isCollision =
-                                                                                             Boolean(clientHitConfirmed) && typeof targetId === 'string' && targetId !== 'pending_collision';
-
-                                                                                     // Dedupe kill claims per session per target. This does NOT verify a hit
-                                                                                     // actually happened — that still relies on the client-reported
-                                                                                     // clientHitConfirmed flag. What this closes is a narrower gap: the
-                                                                                     // same targetId being submitted more than once within a session to
-                                                                                     // collect the kill payout repeatedly. All reads must happen before any
-                                                                                     // writes in this transaction, so this read happens up front regardless
-                                                                                     // of the eventual roll outcome.
-                                                                                     let killedTargetRef: FirebaseFirestore.DocumentReference | null = null;
-                                                let targetAlreadyKilled = false;
-                                                if (isCollision) {
-                                                        killedTargetRef = sessionRef.collection('killedTargets').doc(targetId);
-                                                        const killedSnap = await transaction.get(killedTargetRef);
-                                                        targetAlreadyKilled = killedSnap.exists;
-                                                }
-
-                                                                                     // Claimed-win burst limiter, tracked per user+currency in a rolling
-                                                                                     // 60s window. This is a coarse circuit breaker against a flood of
-                                                                                     // large claimed wins slipping through between shot-count rate-limit
-                                                                                     // resets — not a precise economic model, just a tunable backstop.
-                                                                                     const winRateRef = db
-                                                  .collection('users')
-                                                  .doc(userId)
-                                                  .collection('rateLimits')
-                                                  .doc(`winAmount_${currencyType}`);
-                                                const winRateSnap = await transaction.get(winRateRef);
-
-                                                                                     // Aggregate, sharded RTP telemetry. This is intentionally independent
-                                                                                     // of player identity for payout decisions: it only records realized
-                                                                                     // economic totals for later calibration/auditing.
-                                                                                     const telemetryHour = new Date(timestamp).toISOString().slice(0, 13).replace('T', '');
-                                                const telemetryShard = rtpTelemetryShard(userId);
-                                                const telemetryRef = db
-                                                  .collection('economyTelemetry')
-                                                  .doc(`${telemetryHour}_${currencyType}_${telemetryShard}`);
-
-                                                                                     const telemetrySnap = await transaction.get(telemetryRef);
-                                                const telemetryData = telemetrySnap.exists ? telemetrySnap.data()! : {};
-                                                const previousWager = Number(telemetryData.wagered) || 0;
-                                                const previousPayout = Number(telemetryData.paidOut) || 0;
-                                                const previousShots = Number(telemetryData.shots) || 0;
-                                                const previousKills = Number(telemetryData.kills) || 0;
-
-                                                                                     const rng = makeSessionRng(serverSeed, clientSeed, startNonce);
-
-                                                                                     let payoutAmount = 0;
-                                                let hitResult: ReturnType<typeof evaluateServerHit> | null = null;
-                                                let killResult: ReturnType<typeof evaluateServerKill> | null = null;
-                                                let killed = false;
-                                                let bossProgress = Number(session.bossProgress) || 0;
-
-                                                                                     if (isCollision) {
-                                                                                             hitResult = evaluateServerHit(betAmount, fishType, skinBonus, payoutTable, rng.next);
-                                                                                             payoutAmount += hitResult.hitPayout;
-
-                                                  // Kill payout is server-authoritative. The client may report a visual
-                                                  // kill, but that report can never create a payout by itself.
-                                                  // For standard fish, instant-kill is the authoritative kill condition.
-                                                  // For boss, client-side HP depletion determines the kill.
-                                                  const killClaimed = fishType === 'boss'
-                                                                                               ? bossProgress + hitResult.damage >= 100
-                                                            : hitResult.isInstantKill;
-                                                                                             if (killClaimed && !targetAlreadyKilled) {
-                                                                                                       killed = true;
-                                                                                                       killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, payoutTable, rng.next);
-                                                                                                       payoutAmount += betAmount * killResult.finalMultiplier;
-                                                                                               }
-                                                                                             if (fishType === 'boss' && !targetAlreadyKilled) bossProgress += hitResult.damage;
-                                                                                     }
-
-                                                                                     const netLoss = betAmount - payoutAmount;
-                                                if (currencyType === 'SC' && netLoss > 0 && existingNetLoss + netLoss > MAX_DAILY_SC_LOSS) {
-                                                        throw new HttpsError('failed-precondition', `Daily SC loss cap (${MAX_DAILY_SC_LOSS}) reached.`);
-                                                }
-
-                                                                                     const winWindowMs = 60_000;
-                                                const winData = winRateSnap.exists ? winRateSnap.data()! : {};
-                                                let winWindowStart = Number(winData.windowStart) || Date.now();
-                                                let claimedInWindow = Number(winData.claimed) || 0;
-                                                if (Date.now() - winWindowStart > winWindowMs) {
-                                                        winWindowStart = Date.now();
-                                                        claimedInWindow = 0;
-                                                }
-                                                if (payoutAmount > 0) {
-                                                        claimedInWindow += payoutAmount;
-                                                        const winCap = currencyType === 'SC' ? MAX_CLAIMED_WIN_SC_PER_MINUTE : MAX_CLAIMED_WIN_GC_PER_MINUTE;
-                                                        if (claimedInWindow > winCap) {
-                                                                  throw new HttpsError(
-                                                                              'resource-exhausted',
-                                                                              `Claimed win burst limit reached for ${currencyType}. Please slow down and try again shortly.`
-                                                                            );
-                                                        }
-                                                }
-
-                                                                                     const finalBalance = currentBalance - betAmount + payoutAmount;
-
-                                                                                     if (fishType === 'boss' && !targetAlreadyKilled) {
-                                                                                             transaction.update(sessionRef, { bossProgress, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                                                                                     }
-
-                                                                                     const settlement = {
-                                                                                             userId, sessionId, requestId, targetId: typeof targetId === 'string' ? targetId : null,
-                                                                                             currencyType, fishType, betAmount, payoutAmount, finalBalance, killed,
-                                                                                             killPayout: killed && killResult ? betAmount * killResult.finalMultiplier : 0,
-                                                                                             hitPayout: hitResult?.hitPayout || 0,
-                                                                                             multiplier: killResult?.finalMultiplier || 0,
-                                                                                             bonusLabel: killResult?.bonusLabel || null,
-                                                                                             isJackpot: killResult?.isJackpot || false,
-                                                                                             fairNonceStart: startNonce, fairNonceEnd: startNonce + rng.consumed(),
-                                                                                             payoutTableVersion: payoutTable.version, settledAt: timestamp,
-                                                                                             createdAt: admin.firestore.FieldValue.serverTimestamp()
-                                                                                     };
-                                                transaction.set(settlementRef, settlement);
-                                                transaction.set(requestRef, { ts: timestamp, result: { ...settlement, createdAt: undefined }, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-
-                                                                                     transaction.set(telemetryRef, {
-                                                                                             bucket: telemetryHour,
-                                                                                             currencyType,
-                                                                                             shard: telemetryShard,
-                                                                                             tableVersion: payoutTable.version,
-                                                                                             wagered: previousWager + betAmount,
-                                                                                             paidOut: previousPayout + payoutAmount,
-                                                                                             shots: previousShots + 1,amp()
-                                                                                                   if (currencyType === 'SC' && netLoss > 0) {
-                                                                                             transaction.set(
-                                                                                                       dailyStatsRef,
-                                                                                               {
-                                                                                                           scNetLoss: existingNetLoss + netLoss,
-                                                                                                           updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                                                                                                 },
-                                                                                               { merge: true }
-                                                                                                     );
-                                                                                     }
-                                                if (killed && killedTargetRef) {
-                                                        transaction.set(killedTargetRef, {
-                                                                  fishType,
-                                                                  killedAt: admin.firestore.FieldValue.serverTimestamp()
-                                                        });
-                                                }
-                                                if (payoutAmount > 0) {
-                                                        transaction.set(winRateRef, {
-                                                                  windowStart: winWindowStart,
-                                                                  claimed: claimedInWindow,
-                                                                  updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                                                        });
-                                                }
-
-                                                return {
-                                                        success: true,
-                                                        currencyType,
-                                                        betAmount,
-                                                        payoutAmount,
-                                                        finalBalance,
-                                                        goldCoins: balanceKey === 'goldCoins' ? finalBalance : Number(walletData.goldCoins) || 0,
-                                                        sweepstakesCoins:
-                                                                  balanceKey === 'sweepstakesCoins' ? finalBalance : Number(walletData.sweepstakesCoins) || 0,
-                                                        hit: hitResult,
-                                                        kill: killResult,
-                                                        killed,
-                                                        duplicateKillClaim: isCollision && targetAlreadyKilled,
-                                                        serverAuthoritative: true,
-                                                        fairNonceStart: startNonce,
-                                                        fairNonceEnd: startNonce + rng.consumed()
-                                                };
-                                          });
-
+    const telemetry = telemetrySnap.exists ? telemetrySnap.data()! : {};
+    transaction.set(telemetryRef, { bucket: telemetryHour, currencyType, tableVersion: payoutTable.version, wagered: (Number(telemetry.wagered) || 0) + betAmount, paidOut: (Number(telemetry.paidOut) || 0) + payoutAmount, shots: (Number(telemetry.shots) || 0) + 1, kills: (Number(telemetry.kills) || 0) + (killed ? 1 : 0), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     return result;
+  });
 });
-
-                                                                                               });
-                                                                                             kills: previousKills + (killed ? 1 : 0),
-                                                                                             updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                                                                                     }, { merge: true });
-
-                                                                                     transaction.update(sessionRef, { nonce: startNonce + rng.consumed() });
-                                                transaction.update(userWalletRef, {
-                                                        [balanceKey]: finalBalance,
-                                                        updatedAt: admin.firestore.FieldValue.serverTimest

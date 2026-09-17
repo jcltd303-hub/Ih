@@ -32,8 +32,8 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
-      // Fairness sessions: client may read metadata; server seed field is still
-      // readable after reveal — prefer revealSessionSeed callable for production.
+      // Public fairness metadata only. The active server seed and nonce live
+      // under serverSessionState and are never client-readable.
       match /sessions/{sessionId} {
         allow read: if isOwner(userId);
         allow write: if false;
@@ -46,7 +46,12 @@ service cloud.firestore {
       }
     }
 
-    // Shared tables: authenticated read; table document writes restricted (Admin/server only); player docs only writable by self
+    // Active fairness seeds, nonces, and payout state are server-only.
+    // Admin SDK used by Cloud Functions bypasses Firestore security rules.
+    match /serverSessionState/{userId}/{document=**} {
+      allow read, write: if false;
+    }
+
     match /tables/{tableId} {
       allow read: if isSignedIn();
       allow write: if false;
@@ -57,13 +62,11 @@ service cloud.firestore {
       }
     }
 
-    // Tournaments: public read for auth users; scores only via Admin SDK
     match /tournaments/{tournamentId} {
       allow read: if isSignedIn();
       allow write: if false;
     }
 
-    // Compliance audit: create-only for signed-in users; no client reads
     match /compliance_audit_logs/{logId} {
       allow read: if false;
       allow create: if isSignedIn()
@@ -72,19 +75,16 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Package catalog: public read; writes only via Cloud Functions (Admin SDK)
     match /config/{docId} {
       allow read: if true;
       allow write: if false;
     }
 
-    // Deposits: owner read; writes via Functions only
     match /deposits/{depId} {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;
     }
 
-    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }

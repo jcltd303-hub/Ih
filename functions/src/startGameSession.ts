@@ -2,21 +2,16 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { DEFAULT_PAYOUT_TABLE, validatePayoutTable } from './payoutTable';
 import { generateServerSeed, hashServerSeed, generateClientSeed } from './provablyFair';
+import { createServerSessionState, serverSessionStateRef } from './sessionState';
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 const db = admin.firestore();
 
-/**
- * Commit–reveal: server generates seed, stores it, returns only SHA-256 hash.
- * Seed is revealed later via revealSessionSeed.
- */
 export const startGameSession = onCall(async (request) => {
   const userId = request.auth?.uid;
-  if (!userId) {
-    throw new HttpsError('unauthenticated', 'Sign in required.');
-  }
+  if (!userId) throw new HttpsError('unauthenticated', 'Sign in required.');
 
   const clientSeed =
     typeof request.data?.clientSeed === 'string' && request.data.clientSeed.length > 0
@@ -25,14 +20,12 @@ export const startGameSession = onCall(async (request) => {
 
   const serverSeed = generateServerSeed();
   const serverSeedHash = hashServerSeed(serverSeed);
-  const sessionId = `sess_${userId.slice(0, 8)}_${Date.now()}`;
-
+  const sessionId = `sess_${userId.slice(0, 8)}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
+  const privateRef = serverSessionStateRef(db, userId, sessionId);
 
   const activeTableSnap = await db.collection('config').doc('payoutActive').get();
-
   let payoutTable = DEFAULT_PAYOUT_TABLE;
-
   if (activeTableSnap.exists) {
     const activeData = activeTableSnap.data() || {};
     if (activeData.table && typeof activeData.table === 'object') {
@@ -40,24 +33,31 @@ export const startGameSession = onCall(async (request) => {
     }
   }
 
-  await sessionRef.set({
-    serverSeed, // server-only until reveal
-    serverSeedHash,
+  const privateState = createServerSessionState(userId, sessionId, {
+    serverSeed,
     clientSeed,
     nonce: 0,
-    status: 'active',
-
-    // Server-authoritative boss progression. The client may render its
-    // own boss event, but cannot grant itself boss economics.
-    bossProgress: 0,
-    bossActiveUntil: 0,
-    bossCooldownUntil: 0,
-
-    targetRtp: payoutTable.targetRtp,
-    payoutTableVersion: payoutTable.version,
     payoutTable,
+    payoutTableVersion: payoutTable.version,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    revealedAt: null
+    closedAt: null
+  });
+
+  await db.runTransaction(async (transaction) => {
+    transaction.create(privateRef, privateState);
+    transaction.create(sessionRef, {
+      serverSeedHash,
+      clientSeed,
+      status: 'active',
+      bossProgress: 0,
+      bossActiveUntil: 0,
+      bossCooldownUntil: 0,
+      targetRtp: payoutTable.targetRtp,
+      payoutTableVersion: payoutTable.version,
+      payoutTable,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      revealedAt: null
+    });
   });
 
   return {
@@ -72,31 +72,51 @@ export const startGameSession = onCall(async (request) => {
 
 export const revealSessionSeed = onCall(async (request) => {
   const userId = request.auth?.uid;
-  if (!userId) {
-    throw new HttpsError('unauthenticated', 'Sign in required.');
-  }
+  if (!userId) throw new HttpsError('unauthenticated', 'Sign in required.');
+
   const sessionId = request.data?.sessionId;
   if (!sessionId || typeof sessionId !== 'string') {
     throw new HttpsError('invalid-argument', 'sessionId required.');
   }
 
   const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
-  const snap = await sessionRef.get();
-  if (!snap.exists) {
-    throw new HttpsError('not-found', 'Session not found.');
-  }
-  const data = snap.data()!;
-  await sessionRef.update({
-    status: 'revealed',
-    revealedAt: admin.firestore.FieldValue.serverTimestamp()
+  const privateRef = serverSessionStateRef(db, userId, sessionId);
+
+  const result = await db.runTransaction(async (transaction) => {
+    const sessionSnap = await transaction.get(sessionRef);
+    const privateSnap = await transaction.get(privateRef);
+    if (!sessionSnap.exists || !privateSnap.exists) {
+      throw new HttpsError('not-found', 'Session not found.');
+    }
+
+    const session = sessionSnap.data()!;
+    const privateState = privateSnap.data() as {
+      serverSeed: string;
+      clientSeed: string;
+      nonce?: number;
+    };
+
+    if (session.status === 'active') {
+      transaction.update(sessionRef, {
+        status: 'revealed',
+        revealedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      transaction.update(privateRef, {
+        closedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else if (session.status !== 'revealed') {
+      throw new HttpsError('failed-precondition', 'Session cannot be revealed from its current state.');
+    }
+
+    return {
+      sessionId,
+      serverSeed: privateState.serverSeed,
+      serverSeedHash: session.serverSeedHash,
+      clientSeed: privateState.clientSeed,
+      nonce: Number(privateState.nonce) || 0,
+      status: 'revealed' as const
+    };
   });
 
-  return {
-    sessionId,
-    serverSeed: data.serverSeed,
-    serverSeedHash: data.serverSeedHash,
-    clientSeed: data.clientSeed,
-    nonce: data.nonce || 0,
-    status: 'revealed'
-  };
+  return result;
 });
