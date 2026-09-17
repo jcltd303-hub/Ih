@@ -14,6 +14,7 @@
     "cap:sync": "npx cap sync",
     "clean": "rm -rf dist server.js",
     "typecheck": "tsc --noEmit",
+    "functions:build": "npm --prefix functions ci && npm --prefix functions run build",
     "firebase:emulators": "firebase emulators:start",
     "firebase:deploy:rules": "firebase deploy --only firestore:rules,database",
     "firebase:deploy:functions": "firebase deploy --only functions",
@@ -38,7 +39,7 @@
     "stripe": "^22.6.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.5.2",
+    "@capacitor/cli": "^8.0.2",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
