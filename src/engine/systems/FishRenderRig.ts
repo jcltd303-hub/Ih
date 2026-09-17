@@ -14,15 +14,20 @@ export class FishRenderRig implements IRenderRig {
     return this.rig.container;
   }
 
+  private flashTimeout: ReturnType<typeof setTimeout> | null = null;
+  private shudderTimeout: ReturnType<typeof setTimeout> | null = null;
+
   setTheme(theme: 'light' | 'dark'): void {
     this.rig.setTheme(theme);
   }
 
-  applyFlash(color: number, duration: number): void {
+  applyFlash(color: number, durationSeconds: number): void {
+    if (this.flashTimeout) clearTimeout(this.flashTimeout);
     this.rig.tint(color);
-    setTimeout(() => {
+    this.flashTimeout = setTimeout(() => {
       this.rig.resetTint();
-    }, duration);
+      this.flashTimeout = null;
+    }, durationSeconds * 1000);
   }
 
   setMotion(speed: number, vy: number, panic: boolean): void {
@@ -33,9 +38,15 @@ export class FishRenderRig implements IRenderRig {
   }
 
   setHierarchy(hierarchy: 'NORMAL' | 'ELITE' | 'CRITICAL' | 'BOSS'): void {
-    if (!this.rig || !this.rig.container) return;
-    if (hierarchy === 'ELITE') this.rig.container.scale.set(1.1);
-    else if (hierarchy === 'CRITICAL') this.rig.container.scale.set(1.25);
+    if (!this.rig || !this.rig.container || !this.rig.sprite) return;
+    if (hierarchy === 'ELITE') {
+        this.rig.container.scale.set(1.1);
+        this.rig.sprite.tint = 0xaaaaff; // Faint blue-ish tint
+    }
+    else if (hierarchy === 'CRITICAL') {
+        this.rig.container.scale.set(1.25);
+        this.rig.sprite.tint = 0xffaaaa; // Brighter red-ish tint
+    }
   }
 
   playHitReaction(amount: number, theme: 'light' | 'dark'): void {
@@ -50,8 +61,23 @@ export class FishRenderRig implements IRenderRig {
     }, 100);
   }
 
-  applyShudder(intensity: number, duration: number): void {
-    // Normal fish don't have shudder logic in the rig
+  applyShudder(intensity: number, durationSeconds: number): void {
+    if (!this.rig || !this.rig.container) return;
+    if (this.shudderTimeout) clearTimeout(this.shudderTimeout);
+    
+    // Simple shudder implementation: shake container
+    const originalPos = { x: this.rig.container.x, y: this.rig.container.y };
+    const interval = setInterval(() => {
+        this.rig.container.x = originalPos.x + (Math.random() - 0.5) * intensity;
+        this.rig.container.y = originalPos.y + (Math.random() - 0.5) * intensity;
+    }, 30);
+    
+    this.shudderTimeout = setTimeout(() => {
+        clearInterval(interval);
+        this.rig.container.x = originalPos.x;
+        this.rig.container.y = originalPos.y;
+        this.shudderTimeout = null;
+    }, durationSeconds * 1000);
   }
 
   playState(state: string, onComplete?: () => void): void {

@@ -118,7 +118,11 @@ export class Fish implements Boid {
       if (ds > 0 && ds < r * r) this.panicTimer = this.typeId === 'small' ? 50 : 35;
     }
     let extraX = 0, extraY = 0;
-    if (this.panicTimer > 0) { this.panicTimer--; extraX = (Math.random() - 0.5) * 1.9; extraY = (Math.random() - 0.5) * 1.9; }
+    if (this.panicTimer > 0) { 
+      this.panicTimer -= dtScale; 
+      extraX = (Math.random() - 0.5) * 1.9; 
+      extraY = (Math.random() - 0.5) * 1.9; 
+    }
     this.vx += (ax + extraX) * dtScale; this.vy += (ay + extraY) * dtScale;
     const weights = BoidSwarmManager.getWeights(this.typeId), speedSq = this.vx * this.vx + this.vy * this.vy;
     const maxSpeed = (this.panicTimer > 0 ? weights.maxSpeed * 1.55 : weights.maxSpeed), maxSq = maxSpeed * maxSpeed;
@@ -147,7 +151,9 @@ export class Fish implements Boid {
     }
     this.container.x = this.x; this.container.y = this.y;
     this.bounds.x = this.x - this.width / 2; this.bounds.y = this.y - this.height / 2;
-    this.renderRig.setMotion(Math.sqrt(this.vx * this.vx + this.vy * this.vy), this.vy, this.panicTimer > 0);
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    const multiplier = speed / this.maxSpeed;
+    this.renderRig.setMotion(multiplier, this.vy, this.panicTimer > 0);
   }
 
   public takeDamage(damage: number): boolean {

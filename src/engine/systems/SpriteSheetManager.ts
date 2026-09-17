@@ -413,9 +413,9 @@ export class SpriteSheetManager {
     progress: number,
     phase: number
   ): HTMLCanvasElement {
+    // Force 'left' as the base direction and let yawAngle handle the flip
     const yawAngle = type === 'turn_left' ? progress * Math.PI : Math.PI - progress * Math.PI;
-    const direction = Math.cos(yawAngle) >= 0 ? 'left' : 'right';
-    return this.renderTetraFrame(theme, direction, phase, yawAngle);
+    return this.renderTetraFrame(theme, 'left', phase, yawAngle);
   }
 
   /**
