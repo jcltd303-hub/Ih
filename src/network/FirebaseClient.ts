@@ -21,7 +21,8 @@ export const firebaseConfig = {
     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'fish-frenzy-mobile.firebasestorage.app',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '5130585649',
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:5130585649:web:26ac3b9b28af881b117710',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-N2PKR17E84'
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-N2PKR17E84',
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || 'ai-studio-fishfrenzy-e0f097a6-5f15-49b0-9fc2-bea8e878f02b'
 };
 
 export const isFirebaseConfigured = Boolean(
@@ -35,7 +36,7 @@ export const useEmulators =
 
 export const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
+export const db: Firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const rtdb: Database = getDatabase(app);
 export const functions: Functions = getFunctions(
   app,

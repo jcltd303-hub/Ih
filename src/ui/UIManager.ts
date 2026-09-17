@@ -716,6 +716,12 @@ export class UIManager {
               <span id="hud-music-label" class="pill-text" style="font-size: 11px;">BGM ON</span>
             </button>
 
+            <!-- Login/Logout Pill -->
+            <button id="hud-auth-btn" type="button" class="ff-pill-btn ff-metal-pill" style="height: 36px; padding: 0 12px;" title="Auth">
+              <span id="hud-auth-icon">🚪</span>
+              <span id="hud-auth-label" class="pill-text" style="font-size: 11px;">LOGOUT</span>
+            </button>
+
             <!-- Theme Toggle Pill (Bright Light / Abyssal Scary) -->
             <button id="hud-theme-toggle" type="button" class="ff-pill-btn ff-metal-pill" style="height: 36px; padding: 0 12px;" title="Toggle Light / Abyssal Theme">
               <span style="font-size: 14px;">${isLight ? '☀️' : '🌙'}</span>
@@ -929,6 +935,31 @@ export class UIManager {
 
     // Lobby, Store, Redeem
     document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
+    const authBtn = document.getElementById('hud-auth-btn');
+    const updateAuthBtn = () => {
+        const state = AuthManager.getInstance().getState();
+        const isLoggedIn = !!state.user && !state.isAnonymous;
+        const label = document.getElementById('hud-auth-label');
+        const icon = document.getElementById('hud-auth-icon');
+        if (label) label.textContent = isLoggedIn ? 'LOGOUT' : 'LOGIN';
+        if (icon) icon.textContent = isLoggedIn ? '🚪' : '👤';
+    };
+    updateAuthBtn();
+    AuthManager.getInstance().onChange(updateAuthBtn);
+
+    authBtn?.addEventListener('click', async () => {
+      const state = AuthManager.getInstance().getState();
+      const isLoggedIn = !!state.user && !state.isAnonymous;
+      if (isLoggedIn) {
+        await AuthManager.getInstance().signOut();
+        window.location.reload();
+      } else {
+        // Assume signInAnonymously or prompt login
+        await AuthManager.getInstance().ensureSignedIn();
+        window.location.reload();
+      }
+    });
+
     document.getElementById('hud-store-btn')?.addEventListener('click', () => this.openStore());
     document.getElementById('hud-redeem-btn')?.addEventListener('click', () => {
       showWithdrawModal(this.modalCtx(), WalletService.getInstance());
