@@ -3,7 +3,6 @@ import { functions, isFirebaseConfigured } from './FirebaseClient';
 import { AuthManager } from './AuthManager';
 import { WalletService } from './WalletService';
 import { debugOverlay } from '../ui/DebugOverlay';
-import { showStoreModal } from '../ui/modals/storeModal';
 import { OfflineTransactionQueue } from './OfflineTransactionQueue';
 
 export type SettlementRequest = {
@@ -36,15 +35,33 @@ function makeRequestId(): string {
 }
 
 /**
+ * Server target IDs are opaque capabilities issued by the fairness session.
+ * The local fish ID is only a client-side lookup key and never becomes a
+ * payout-bearing Firestore document ID.
+ */
+const serverTargetIds = new Map<string, string>();
+
+async function resolveServerTargetId(sessionId: string, localTargetId: string): Promise<string> {
+  const key = `${sessionId}:${localTargetId}`;
+  const cached = serverTargetIds.get(key);
+  if (cached) return cached;
+
+  const issueTarget = httpsCallable(functions, 'issueGameplayTarget');
+  const response = await issueTarget({ sessionId });
+  const targetId = String((response.data as Record<string, unknown>)?.targetId || '');
+  if (!targetId) throw new Error('Server did not issue a gameplay target.');
+  serverTargetIds.set(key, targetId);
+  return targetId;
+}
+
+/**
  * Settles a shot against Cloud Functions when authenticated + configured;
  * otherwise queues offline and leaves local HUD balances alone.
  *
- * Request integrity comes from Firebase Auth (the server independently
- * verifies request.auth.uid from the ID token) plus `requestId`, a
- * per-attempt idempotency key that only needs to be unique — not secret,
- * and not signed. A client-computed HMAC signature was removed here: any
- * secret the client can compute with is a secret the client bundle leaks,
- * so it added no real integrity guarantee.
+ * Request integrity comes from Firebase Auth plus a server-issued target ID
+ * and a per-attempt idempotency key. Client collision, fish type, skin,
+ * damage and kill claims are informational only; the server recomputes all
+ * payout-bearing facts.
  */
 export class ShotSettlement {
   public static async settle(req: SettlementRequest): Promise<SettlementResult> {
@@ -69,13 +86,22 @@ export class ShotSettlement {
 
     const timestamp = Date.now();
     const requestId = makeRequestId();
+    let serverTargetId: string;
+    try {
+      serverTargetId = await resolveServerTargetId(req.sessionId, req.targetId);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Target issuance failed';
+      console.warn('[ShotSettlement] target issuance failed', message);
+      return { online: false, success: false, payoutAmount: 0, error: message };
+    }
+
     try {
       const processShot = httpsCallable(functions, 'processPlayerShot');
       const response = await processShot({
         sessionId: req.sessionId,
         currencyType: req.currencyType,
         betAmount: req.betAmount,
-        targetId: req.targetId,
+        targetId: serverTargetId,
         clientHitConfirmed: req.clientHitConfirmed,
         clientKillConfirmed: req.clientKillConfirmed === true,
         fishType: req.fishType || 'small',
@@ -90,7 +116,6 @@ export class ShotSettlement {
       const sweepstakesCoins = Number(data.sweepstakesCoins);
       const payoutAmount = Number(data.payoutAmount) || 0;
 
-      // Push balances into wallet listeners / HUD
       if (Number.isFinite(goldCoins) && Number.isFinite(sweepstakesCoins)) {
         WalletService.getInstance().applyServerBalances(goldCoins, sweepstakesCoins);
       }

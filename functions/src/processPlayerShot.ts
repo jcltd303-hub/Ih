@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
-import { createHash, createHmac } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { assertRateLimit, assertBetAmount, MAX_SHOTS_PER_MINUTE, MAX_DAILY_SC_LOSS, MAX_CLAIMED_WIN_SC_PER_MINUTE, MAX_CLAIMED_WIN_GC_PER_MINUTE } from './limits';
 import { DEFAULT_PAYOUT_TABLE, validatePayoutTable, type PayoutTable } from './payoutTable';
 import { deriveRoll } from './provablyFair';
@@ -20,13 +20,6 @@ function makeSessionRng(serverSeed: string, clientSeed: string, startNonce: numb
 
 function requestFingerprint(sessionId: string, currencyType: string, betAmount: number, targetId: string): string {
   return createHash('sha256').update(JSON.stringify({ sessionId, currencyType, betAmount, targetId })).digest('hex');
-}
-
-function targetDefaults(serverSeed: string, targetId: string): Omit<TargetState, 'remainingHealth' | 'killed'> {
-  const digest = createHmac('sha256', serverSeed).update(targetId).digest();
-  const roll = digest.readUInt32BE(0) / 0x100000000;
-  const fishType: FishType = roll < 0.70 ? 'small' : roll < 0.98 ? 'medium' : 'boss';
-  return { targetId, fishType, maxHealth: fishType === 'boss' ? 28 : fishType === 'medium' ? 6 : 2 };
 }
 
 function evaluateServerHit(betAmount: number, fishType: FishType, skinBonus: number, payoutTable: PayoutTable, rng: () => number) {
@@ -103,6 +96,7 @@ export const processPlayerShot = onCall(async (request) => {
 
     if (!sessionSnap.exists || sessionSnap.data()?.status !== 'active') throw new HttpsError('failed-precondition', 'No active fairness session.');
     if (!privateSnap.exists) throw new HttpsError('failed-precondition', 'Private fairness state is missing.');
+    if (!targetSnap.exists) throw new HttpsError('failed-precondition', 'Target was not issued by the server for this session.');
 
     const privateState = privateSnap.data()!;
     const serverSeed = String(privateState.serverSeed || '');
@@ -125,12 +119,18 @@ export const processPlayerShot = onCall(async (request) => {
     const startNonce = Number(privateState.nonce) || 0;
     const rng = makeSessionRng(serverSeed, clientSeed, startNonce);
     const skinBonus = getEntitledSkinBonus(entitlementSnap.exists ? entitlementSnap.data() : undefined);
-
-    const defaults = targetDefaults(serverSeed, targetId);
-    const target: TargetState = targetSnap.exists
-      ? { targetId, fishType: targetSnap.data()?.fishType as FishType, maxHealth: Number(targetSnap.data()?.maxHealth) || defaults.maxHealth, remainingHealth: Number(targetSnap.data()?.remainingHealth) || defaults.maxHealth, killed: Boolean(targetSnap.data()?.killed) }
-      : { ...defaults, remainingHealth: defaults.maxHealth, killed: false };
-    if (!['small', 'medium', 'boss'].includes(target.fishType)) throw new HttpsError('failed-precondition', 'Invalid authoritative target.');
+    const targetData = targetSnap.data()!;
+    const target: TargetState = {
+      targetId,
+      fishType: targetData.fishType as FishType,
+      maxHealth: Number(targetData.maxHealth),
+      remainingHealth: Number(targetData.remainingHealth),
+      killed: Boolean(targetData.killed)
+    };
+    if (!['small', 'medium', 'boss'].includes(target.fishType) || !Number.isFinite(target.maxHealth) || target.maxHealth <= 0 || !Number.isFinite(target.remainingHealth) || target.remainingHealth < 0) {
+      throw new HttpsError('failed-precondition', 'Invalid authoritative target state.');
+    }
+    if (target.killed) throw new HttpsError('failed-precondition', 'Target has already been killed.');
 
     const hit = evaluateServerHit(betAmount, target.fishType, skinBonus, payoutTable, rng.next);
     const nextHealth = Math.max(0, target.remainingHealth - hit.damage);
@@ -138,7 +138,7 @@ export const processPlayerShot = onCall(async (request) => {
     let payoutAmount = hit.hitPayout;
     let killed = false;
     let kill: ReturnType<typeof evaluateServerKill> | null = null;
-    if (killClaimed && !target.killed) {
+    if (killClaimed) {
       killed = true;
       kill = evaluateServerKill(baseMultiplierFor(target.fishType), target.fishType, payoutTable, rng.next);
       payoutAmount += betAmount * kill.finalMultiplier;
@@ -165,8 +165,8 @@ export const processPlayerShot = onCall(async (request) => {
     transaction.set(walletRef, { [balanceKey]: finalBalance, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(settlementRef, { ...settlement, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     transaction.create(requestRef, { fingerprint: fp, ts: timestamp, result, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-    transaction.set(targetRef, { targetId, fishType: target.fishType, maxHealth: target.maxHealth, remainingHealth: nextHealth, killed: target.killed || killed, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-    transaction.update(privateRef, { nonce: fairNonceEnd });
+    transaction.set(targetRef, { remainingHealth: nextHealth, killed, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    transaction.update(privateRef, { nonce: fairNonceEnd, ...(killed && target.fishType === 'boss' ? { bossKills: (Number(privateState.bossKills) || 0) + 1 } : {}) });
     if (currencyType === 'SC' && netLoss > 0) transaction.set(dailyStatsRef, { scNetLoss: existingNetLoss + netLoss, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     if (payoutAmount > 0) transaction.set(winRateRef, { windowStart: winWindowStart, claimed: claimedInWindow, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 

@@ -2,9 +2,10 @@ import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { processPlayerShot } from './processPlayerShot';
+import { issueGameplayTarget } from './issueGameplayTarget';
 import { validatePlayerRegion } from './validateRegion';
 import { ensureUserWallet } from './ensureUserWallet';
-import { startGameSession, revealSessionSeed } from './startGameSession';
+import { startGameSession, closeGameSession, revealSessionSeed } from './startGameSession';
 import { requestDeposit, listPackages, confirmDepositStub } from './requestDeposit';
 import { requestWithdrawal } from './requestWithdrawal';
 import { updatePackages, seedDefaultPackages } from './updatePackages';
@@ -26,9 +27,11 @@ if (!admin.apps.length) {
 
 export {
   processPlayerShot,
+  issueGameplayTarget,
   validatePlayerRegion,
   ensureUserWallet,
   startGameSession,
+  closeGameSession,
   revealSessionSeed,
   requestDeposit,
   listPackages,

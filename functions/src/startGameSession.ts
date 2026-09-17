@@ -44,7 +44,7 @@ export const startGameSession = onCall(async (request) => {
   });
 
   await db.runTransaction(async (transaction) => {
-    transaction.create(privateRef, privateState);
+    transaction.create(privateRef, { ...privateState, targetSequence: 0, bossKills: 0 });
     transaction.create(sessionRef, {
       serverSeedHash,
       clientSeed,
@@ -56,6 +56,7 @@ export const startGameSession = onCall(async (request) => {
       payoutTableVersion: payoutTable.version,
       payoutTable,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      closedAt: null,
       revealedAt: null
     });
   });
@@ -66,8 +67,39 @@ export const startGameSession = onCall(async (request) => {
     clientSeed,
     targetRtp: payoutTable.targetRtp,
     payoutTableVersion: payoutTable.version,
-    message: 'Server seed committed. Verify hash after reveal.'
+    message: 'Server seed committed. Close the session before reveal.'
   };
+});
+
+export const closeGameSession = onCall(async (request) => {
+  const userId = request.auth?.uid;
+  if (!userId) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const sessionId = request.data?.sessionId;
+  if (typeof sessionId !== 'string' || !sessionId.startsWith('sess_')) {
+    throw new HttpsError('invalid-argument', 'sessionId required.');
+  }
+
+  const sessionRef = db.collection('users').doc(userId).collection('sessions').doc(sessionId);
+  const privateRef = serverSessionStateRef(db, userId, sessionId);
+
+  return db.runTransaction(async (transaction) => {
+    const sessionSnap = await transaction.get(sessionRef);
+    const privateSnap = await transaction.get(privateRef);
+    if (!sessionSnap.exists || !privateSnap.exists) throw new HttpsError('not-found', 'Session not found.');
+
+    const status = sessionSnap.data()?.status;
+    if (status === 'active') {
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      transaction.update(sessionRef, { status: 'closed', closedAt: now });
+      transaction.update(privateRef, { closedAt: now });
+      return { sessionId, status: 'closed' as const };
+    }
+    if (status === 'closed' || status === 'revealed') {
+      return { sessionId, status: status as 'closed' | 'revealed' };
+    }
+    throw new HttpsError('failed-precondition', 'Session cannot be closed from its current state.');
+  });
 });
 
 export const revealSessionSeed = onCall(async (request) => {
@@ -96,16 +128,13 @@ export const revealSessionSeed = onCall(async (request) => {
       nonce?: number;
     };
 
-    if (session.status === 'active') {
+    if (session.status === 'closed') {
       transaction.update(sessionRef, {
         status: 'revealed',
         revealedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      transaction.update(privateRef, {
-        closedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
     } else if (session.status !== 'revealed') {
-      throw new HttpsError('failed-precondition', 'Session cannot be revealed from its current state.');
+      throw new HttpsError('failed-precondition', 'Session must be closed before its seed can be revealed.');
     }
 
     return {
