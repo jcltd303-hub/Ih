@@ -5,6 +5,7 @@ import { SoundManager } from '../../audio/SoundManager';
 import { GameEventBus, BossStateEvent, BossResultEvent } from '../core/GameEvents';
 import { GameConfig } from '../../config/GameConfig';
 import { AuthManager } from '../../network/AuthManager';
+import { PlayerProgressionManager } from './PlayerProgressionManager';
 
 export interface BossRaidState {
   active: boolean;
@@ -13,7 +14,7 @@ export interface BossRaidState {
   maxHp: number;
   timeRemaining: number;
   totalDamage: number;
-  contributors: Map<string, { damage: number; lastHit: number }>;
+  contributors: Map<string, { damage: number; wager: number; lastHit: number }>;
 }
 
 /**
@@ -70,8 +71,8 @@ export class BossRaidEvent {
 
     this.hpBarBg = new Graphics();
     this.hpBarFill = new Graphics();
-    this.uiContainer.addChild(this.hpBarBg);
-    this.uiContainer.addChild(this.hpBarFill);
+    this.hpBarBg.visible = false;
+    this.hpBarFill.visible = false;
 
     const announceStyle = new TextStyle({
       fontFamily: 'monospace',
@@ -142,8 +143,10 @@ export class BossRaidEvent {
       contributors: new Map()
     };
 
-    const boss = this.fishManager.spawnFish('boss', maxHp);
+    const boss = this.fishManager.spawnBoss(maxHp);
     this.bossId = boss.id;
+
+    PlayerProgressionManager.getInstance().setBossRaidActive(true);
 
     const bus = GameEventBus.getInstance();
     bus.emit('BOSS_TRIGGER', { name: 'ABYSSAL HORROR BOSS', userId });
@@ -156,15 +159,16 @@ export class BossRaidEvent {
     this.uiContainer.visible = false; // HUD owns boss chrome.
   }
 
-  public recordDamage(userId: string, damage: number): void {
+  public recordDamage(userId: string, damage: number, betAmount: number = 0): void {
     if (!this.state.active || this.state.phase === 'defeated' || this.state.phase === 'escaped') return;
     if (!Number.isFinite(damage) || damage <= 0) return;
 
     this.state.hp = Math.max(0, this.state.hp - damage);
     this.state.totalDamage += damage;
 
-    const contrib = this.state.contributors.get(userId) || { damage: 0, lastHit: 0 };
+    const contrib = this.state.contributors.get(userId) || { damage: 0, wager: 0, lastHit: 0 };
     contrib.damage += damage;
+    contrib.wager += (Number.isFinite(betAmount) && betAmount > 0 ? betAmount : 1.0);
     contrib.lastHit = Date.now();
     this.state.contributors.set(userId, contrib);
 
@@ -190,10 +194,11 @@ export class BossRaidEvent {
     }
 
     const myUid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
-    const myDamage = this.state.contributors.get(myUid)?.damage || 0;
-    const killBonus = lastHitUserId === myUid ? (myDamage * 0.10) : 0; // Last hit gets +10% bonus
-    // myDamage is strictly 1:1 with betAmount wagered (mean). Pay exactly 65% of wager back as bounty, preserving 85% total RTP.
-    const totalBounty = myDamage > 0 ? (myDamage * 0.65) + killBonus : 0;
+    const myContrib = this.state.contributors.get(myUid);
+    const myWager = myContrib?.wager ?? 0;
+    const killBonus = lastHitUserId === myUid ? (myWager * 0.15) : 0; // Last hit gets +15% bonus
+    const calculatedBounty = (myWager * 0.75) + killBonus;
+    const totalBounty = myWager > 0 ? Number(calculatedBounty.toFixed(2)) : 0;
     this.currentBountyPayout = totalBounty;
 
     GameEventBus.getInstance().emit<BossResultEvent>('BOSS_DEFEATED', {
@@ -239,6 +244,7 @@ export class BossRaidEvent {
     const contributors = new Map<string, number>();
     for (const [uid, c] of this.state.contributors) contributors.set(uid, c.damage);
 
+    PlayerProgressionManager.getInstance().setBossRaidActive(false);
     this.state.active = false;
     this.uiContainer.visible = false;
     this.onComplete?.({ defeated, lastHitUserId, contributors, bountyPayout: this.currentBountyPayout });

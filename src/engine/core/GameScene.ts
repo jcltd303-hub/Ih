@@ -22,6 +22,8 @@ import { GameEventBus, ScreenShakeEvent } from './GameEvents';
 import { TableSelection } from '../../network/TableSelection';
 import type { TableInfo } from '../../network/TableSelection';
 import { TableSelectionManager } from '../../network/TableSelectionManager';
+import { WalletService } from '../../network/WalletService';
+import { PayoutEngine } from '../systems/PayoutEngine';
 
 export class GameScene {
   private app: Application;
@@ -104,8 +106,10 @@ export class GameScene {
         }
         this.abyssalPostProcessor.triggerImpactGlitch(0.015);
       },
-      (userId, damage, fishId) => {
-        if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) this.bossRaid.recordDamage(userId, damage);
+      (userId, damage, fishId, betAmount) => {
+        if (this.bossRaid.isActive() && fishId === this.bossRaid.getBossId()) {
+          this.bossRaid.recordDamage(userId, damage, betAmount);
+        }
       }
     );
     // Keep the gameplay world on the main Pixi render path. The custom
@@ -182,22 +186,21 @@ export class GameScene {
       console.info('[BossRaid] completed', result);
       this.bossUnlockAtMs = Date.now() + GameConfig.bossPacing.cooldownMs;
       
-      if (result.defeated) {
-        const auth = AuthManager.getInstance().getState();
-        const isOffline = !isFirebaseConfigured || !auth.user || auth.uid.startsWith('player_');
-        
-        if (result.bountyPayout > 0) {
-          if (isOffline) {
-            this.uiManager.addBalance(0, result.bountyPayout); // Pay out in SC offline
-          }
-          this.particleFX.spawnFloatingText(
-            this.app.screen.width / 2, 
-            this.app.screen.height / 2 - 100, 
-            `BOSS BOUNTY: +${result.bountyPayout.toFixed(2)} SC!`, 
-            0xffd700, 
-            true
-          );
-        }
+      if (result.defeated && result.bountyPayout > 0) {
+        const rewardSc = result.bountyPayout;
+        WalletService.creditRaidReward(0, rewardSc);
+        this.uiManager.addBalance(0, rewardSc);
+        PayoutEngine.recordPayout(rewardSc);
+
+        SoundManager.playCoinDrop('jackpot', rewardSc);
+        this.particleFX.emitCoinExplosion(this.app.screen.width / 2, this.app.screen.height / 2, 48);
+        this.particleFX.spawnFloatingText(
+          this.app.screen.width / 2, 
+          this.app.screen.height / 2 - 100, 
+          `BOSS BOUNTY: +${rewardSc.toFixed(2)} SC!`, 
+          0xffd700, 
+          true
+        );
       }
     });
   }
@@ -338,8 +341,6 @@ export class GameScene {
     const raidActive = this.bossRaid.isActive();
     if (raidActive) {
       if (!this.lastBossBashActive) {
-        this.uiManager.showBossFrenzyTitle();
-        SoundManager.playBossWarning();
         const cx = this.app.screen.width / 2;
         const cy = this.app.screen.height * 0.22;
         this.particleFX.spawnExplosion(cx, cy, 0xff0033, 40);

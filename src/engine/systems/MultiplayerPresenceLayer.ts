@@ -38,6 +38,7 @@ export class MultiplayerPresenceLayer {
     this.countText.x = 18;
     this.countText.y = -8;
     this.badge.addChild(this.countText);
+    this.badge.visible = false;
     this.container.addChild(this.badge);
   }
 

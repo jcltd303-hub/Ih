@@ -1,6 +1,7 @@
 import { Texture, Assets } from 'pixi.js';
 import { SpriteSheetManager } from './SpriteSheetManager';
 import { Tetra } from './Tetra';
+import mutantAtlasDataUri from '../../assets/images/mutant_cutout_atlas_data';
 
 export class AssetLoader {
   private static assetsReady: boolean = false;
@@ -65,20 +66,27 @@ export class AssetLoader {
     sGrad.addColorStop(0.95, 'rgba(255, 255, 255, 1.0)'); sGrad.addColorStop(1.0, 'rgba(0, 255, 204, 0)');
     sCtx.fillStyle = sGrad; sCtx.fillRect(0, 0, 48, 48); Assets.cache.set('shockwave_ring', Texture.from(shockCanvas)); reportStep();
 
-    // Authored mutant fish artwork
-    const mutantArtworkUrl = new URL('../../assets/images/mutant_cutout_atlas.png', import.meta.url).href;
+    // Authored mutant fish artwork and boss textures
     const abyssalHorrorUrl = new URL('../../assets/images/abyssal_horror_boss.png', import.meta.url).href;
     try {
-      await Assets.load(mutantArtworkUrl);
       const abyssalTex = await Assets.load(abyssalHorrorUrl) as Texture;
-      Assets.cache.set('abyssal_horror_boss', abyssalTex);
+      if (abyssalTex) Assets.cache.set('abyssal_horror_boss', abyssalTex);
+    } catch (err) {
+      console.warn('[AssetLoader] Failed to load abyssal horror boss artwork, using fallback', err);
+    }
+
+    try {
       await Tetra.prepare();
     } catch (err) {
-      console.error('[AssetLoader] Failed to load mutant/tetra/abyssal artwork', err);
+      console.warn('[AssetLoader] Tetra prepare failed, using fallback', err);
     }
     reportStep();
 
-    await SpriteSheetManager.getInstance().initialize();
+    try {
+      await SpriteSheetManager.getInstance().initialize();
+    } catch (err) {
+      console.warn('[AssetLoader] SpriteSheetManager initialization error', err);
+    }
     reportStep();
 
     this.assetsReady = true;

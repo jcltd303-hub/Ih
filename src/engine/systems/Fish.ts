@@ -1,6 +1,5 @@
 import { Container, Sprite, Texture, Assets } from 'pixi.js';
-import { MutantCutoutPuppet } from './MutantCutoutPuppet';
-import { Tetra } from './Tetra';
+import { SpriteSheetManager, FishAnimationRig } from './SpriteSheetManager';
 import { BoidSwarmManager, Boid } from './BoidSwarmManager';
 import { EntityBounds, SpatialHashGrid } from './SpatialHashGrid';
 
@@ -12,8 +11,7 @@ export class Fish implements Boid {
   public health: number; public maxHealth: number;
   public multiplier: number; public worth: number;
   public container: Container;
-  public mutantPuppet?: MutantCutoutPuppet;
-  public tetraPuppet?: Tetra;
+  public animRig?: FishAnimationRig;
   public bossSprite?: Sprite;
   public bossDamageFlashTimer = 0;
   public bossShudderTimer = 0;
@@ -47,34 +45,30 @@ export class Fish implements Boid {
     this.container = new Container();
 
     if (isBoss) {
-      const tex = Assets.cache.get('abyssal_horror_boss') || Texture.EMPTY;
+      const tex = Assets.cache.get('abyssal_horror_boss') || Assets.cache.get('boss_core') || Texture.EMPTY;
       this.bossSprite = new Sprite(tex);
       this.bossSprite.anchor.set(0.5);
       this.bossSprite.width = this.width;
       this.bossSprite.height = this.height;
       this.bossSprite.tint = theme === 'dark' ? 0xd8b4fe : 0xffffff;
       this.container.addChild(this.bossSprite);
-    } else if (type === 'medium') {
-      // 2. Mutant Fish: Articulated 2D paper cutout rigged puppet
-      this.mutantPuppet = new MutantCutoutPuppet(this.health, theme, 140);
-      this.mutantPuppet.setFacing(this.facing);
-      this.container.addChild(this.mutantPuppet);
     } else {
-      // 3. New Tetra: Articulated 2D paper cutout rigged puppet
-      this.tetraPuppet = Tetra.create(this.health, theme);
-      this.tetraPuppet.setFacing(this.facing);
-      this.container.addChild(this.tetraPuppet);
+      // Small & Medium fish use SpriteSheetManager animated rigs
+      this.animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
+      this.container.addChild(this.animRig.container);
+      if (this.facing === 'left') {
+        this.animRig.playState('swim_left');
+      } else {
+        this.animRig.playState('swim_right');
+      }
     }
     this.container.x = this.x; this.container.y = this.y;
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
     this.theme = theme;
-    if (this.mutantPuppet) {
-      this.mutantPuppet.setTheme(theme);
-    }
-    if (this.tetraPuppet) {
-      this.tetraPuppet.setTheme(theme);
+    if (this.animRig) {
+      this.animRig.setTheme(theme);
     }
     if (this.bossSprite) {
       this.bossSprite.tint = theme === 'dark' ? 0xd8b4fe : 0xffffff;
@@ -173,13 +167,24 @@ export class Fish implements Boid {
     const newFacing = this.vx < -0.1 ? 'left' : this.vx > 0.1 ? 'right' : this.facing;
     if (newFacing !== this.facing) {
       this.facing = newFacing;
-      this.mutantPuppet?.setFacing(this.facing);
-      this.tetraPuppet?.setFacing(this.facing);
+      if (this.animRig) {
+        if (this.facing === 'left') {
+          this.animRig.playState('turn_left', () => {
+            if (this.isAlive && this.facing === 'left') {
+              this.animRig?.playState('swim_left');
+            }
+          });
+        } else {
+          this.animRig.playState('turn_right', () => {
+            if (this.isAlive && this.facing === 'right') {
+              this.animRig?.playState('swim_right');
+            }
+          });
+        }
+      }
     }
     this.container.x = this.x; this.container.y = this.y;
     this.bounds.x = this.x - this.width / 2; this.bounds.y = this.y - this.height / 2;
-    this.mutantPuppet?.update(dtScale * 16.6);
-    this.tetraPuppet?.update(dtScale * 16.6);
   }
 
   public takeDamage(damage: number): boolean {
@@ -194,9 +199,15 @@ export class Fish implements Boid {
       }
       return false;
     }
-    if (this.typeId === 'medium') { this.mutantPuppet?.takeDamage(amount); }
-    if (this.typeId === 'small') { this.tetraPuppet?.takeDamage(amount); }
-    // Trash fish are purely RNG-killed in the new Payout Engine to enforce strict RTP bounds.
+    if (this.animRig) {
+      this.animRig.tint(0xff4444);
+      setTimeout(() => {
+        if (this.isAlive) this.animRig?.resetTint();
+      }, 100);
+    }
+    if (this.health <= 0) {
+      return true;
+    }
     return false;
   }
 
@@ -218,12 +229,14 @@ export class Fish implements Boid {
     const parent = this.container.parent;
     if (parent) parent.removeChild(this.container);
 
-    this.tetraPuppet?.destroy({ children: true });
-    this.mutantPuppet?.destroy();
-    this.bossSprite?.destroy();
-    this.tetraPuppet = undefined;
-    this.mutantPuppet = undefined;
-    this.bossSprite = undefined;
+    if (this.animRig) {
+      this.animRig.destroy({ children: true });
+      this.animRig = undefined;
+    }
+    if (this.bossSprite) {
+      this.bossSprite.destroy();
+      this.bossSprite = undefined;
+    }
     this.container.destroy({ children: true });
   }
 

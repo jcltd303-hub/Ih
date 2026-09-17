@@ -27,20 +27,20 @@ export class FishManager {
   }
 
   private seedInitialFish(): void {
-    const w = Math.max(this.screenWidth, 800);
-    const h = Math.max(this.screenHeight, 600);
+    const w = this.screenWidth > 0 ? this.screenWidth : 800;
+    const h = this.screenHeight > 0 ? this.screenHeight : 600;
 
-    // Spawn 4-5 medium mutant fish across the tank
-    for (let i = 0; i < 4; i++) {
-      const x = 120 + Math.random() * (w - 240);
-      const y = 100 + Math.random() * (h * 0.65);
+    // Spawn 3 medium mutant fish nicely spaced across the tank
+    for (let i = 0; i < 3; i++) {
+      const x = 50 + Math.random() * Math.max(80, w - 100);
+      const y = 90 + Math.random() * Math.max(80, h * 0.55);
       this.spawnAt('medium', x, y);
     }
 
-    // Spawn 8-10 small tetra fish
-    for (let i = 0; i < 8; i++) {
-      const x = 80 + Math.random() * (w - 160);
-      const y = 80 + Math.random() * (h * 0.7);
+    // Spawn 6 small tetra fish spread across the water
+    for (let i = 0; i < 6; i++) {
+      const x = 40 + Math.random() * Math.max(80, w - 80);
+      const y = 80 + Math.random() * Math.max(80, h * 0.6);
       this.spawnAt('small', x, y);
     }
   }
@@ -57,7 +57,7 @@ export class FishManager {
     this.screenHeight = height;
   }
 
-  public spawnFish(type: 'small' | 'medium' | 'boss' = 'small', maxHpOverride?: number): Fish {
+  public spawnFish(type: 'small' | 'medium' = 'small', maxHpOverride?: number): Fish {
     this.fishIdCounter++;
     const id = `fish_${this.fishIdCounter}`;
 
@@ -70,18 +70,27 @@ export class FishManager {
 
     this.activeFish.set(id, fish);
     this.activeFishList.push(fish);
-
-    if (type === 'boss') {
-      console.log(`[AUDIT] FishManager: Boss spawned! id=${id}, x=${startX}, y=${startY}, hp=${maxHpOverride}`);
-      SoundManager.playBossWarning();
-    }
     return fish;
   }
 
-  public spawnAt(type: 'small' | 'medium' | 'boss', x: number, y: number, maxHpOverride?: number): Fish {
+  public spawnAt(type: 'small' | 'medium', x: number, y: number, maxHpOverride?: number): Fish {
     this.fishIdCounter++;
     const id = `fish_${this.fishIdCounter}`;
     const fish = new Fish(id, type, x, y, this.screenWidth, this.screenHeight, this.currentTheme, maxHpOverride);
+    this.stage.addChild(fish.container);
+    this.activeFish.set(id, fish);
+    this.activeFishList.push(fish);
+    return fish;
+  }
+
+  public spawnBoss(maxHp: number): Fish {
+    this.fishIdCounter++;
+    const id = `boss_${this.fishIdCounter}`;
+    const isLeftToRight = Math.random() > 0.45;
+    const startX = isLeftToRight ? -140 : this.screenWidth + 140;
+    const startY = Math.random() * (this.screenHeight * 0.4) + 100;
+
+    const fish = new Fish(id, 'boss', startX, startY, this.screenWidth, this.screenHeight, this.currentTheme, maxHp);
     this.stage.addChild(fish.container);
     this.activeFish.set(id, fish);
     this.activeFishList.push(fish);

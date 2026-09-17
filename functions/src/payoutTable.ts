@@ -33,28 +33,28 @@ export type PayoutTable = {
 
 export const DEFAULT_PAYOUT_TABLE: PayoutTable = {
   version: 'payout-v1-85',
-  targetRtp: 88.5,
+  targetRtp: 85.0,
 
   hit: {
-    baseHitRate: 0.35,
-    luckyHitChance: 0.15,
+    baseHitRate: 0.0,
+    luckyHitChance: 0.08,
     superCritChance: 0.04,
     critChance: 0.16,
     instantKillChance: {
-      small: 0.29,
-      medium: 0.15,
-      boss: 0.05
+      small: 0.47,
+      medium: 0.117,
+      boss: 0.0
     }
   },
 
   kill: {
-    jackpotChance: 0.03,
-    tripleChance: 0.10,
-    bonusChance: 0.25,
+    jackpotChance: 0.01,
+    tripleChance: 0.06,
+    bonusChance: 0.18,
     jackpotMultiplier: 15,
     tripleMultiplier: 5,
     bonusMultiplier: 2.5,
-    bossTypeBoost: 1.5
+    bossTypeBoost: 1.0
   }
 };
 

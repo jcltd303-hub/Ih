@@ -38,14 +38,47 @@ export class Tetra extends Container {
 
   public static readonly assetUrl = new URL('../../assets/images/tetra.png', import.meta.url).href;
 
+  private static createFallbackTextures(): DetailedBossTextures {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#06b6d4';
+    ctx.fillRect(0, 0, 64, 64);
+    const tex = Texture.from(canvas);
+    return {
+      torsoMain: tex,
+      headJaw: tex,
+      eyeballLarge: tex,
+      eyeballSmall: tex,
+      brainOrgans: tex,
+      visceraSpine: tex,
+      pectoralFin: tex,
+      dorsalFin: tex,
+      tailFin: tex
+    };
+  }
+
   public static async prepare(): Promise<void> {
     if (this.prepared) return;
-    const source = await Assets.load(this.assetUrl) as Texture;
-    this.prepared = this.sliceSheet(source);
+    try {
+      const source = await Assets.load(this.assetUrl) as Texture;
+      if (source && source.width >= 3 && source.height >= 3) {
+        this.prepared = this.sliceSheet(source);
+      } else {
+        this.prepared = this.createFallbackTextures();
+      }
+    } catch (err) {
+      console.warn('[Tetra] Could not load tetra.png, using procedural fallback:', err);
+      this.prepared = this.createFallbackTextures();
+    }
   }
 
   public static create(maxHp: number, theme: Theme): Tetra {
-    if (!this.prepared) throw new Error('[Tetra] tetra.png was not prepared by AssetLoader');
+    if (!this.prepared) {
+      this.prepared = this.createFallbackTextures();
+      void this.prepare();
+    }
     return new Tetra(this.prepared, maxHp, theme);
   }
 

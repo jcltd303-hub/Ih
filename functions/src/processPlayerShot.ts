@@ -50,7 +50,7 @@ function evaluateServerHit(
 
   const baseHitRate = hit.baseHitRate;
   const isLuckyHit = rng() < hit.luckyHitChance;
-  const hitPayout = isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate;
+  const hitPayout = baseHitRate > 0 ? (isLuckyHit ? betAmount * 1.0 : betAmount * baseHitRate) : 0;
 
   const critRoll = rng();
   const isSuperCrit = critRoll < hit.superCritChance;
@@ -311,7 +311,7 @@ export const processPlayerShot = onCall(async (request) => {
       if (killClaimed && !targetAlreadyKilled) {
         killed = true;
         killResult = evaluateServerKill(baseMultiplierFor(fishType), fishType, payoutTable, rng.next);
-        payoutAmount += betAmount * killResult.finalMultiplier * 0.7;
+        payoutAmount += betAmount * killResult.finalMultiplier;
       }
     }
 

@@ -21,9 +21,6 @@ import { TableSelectionManager, AVAILABLE_TABLES, TableConfig } from '../network
 import { PlayerProgressionManager, PlayerProgressionState } from '../engine/systems/PlayerProgressionManager';
 import { GameEventBus, GameOverEvent } from '../engine/core/GameEvents';
 import { ARCADE } from './StyleConstants';
-import { KillFeed } from './KillFeed';
-import { StreetFighterBossBar } from './StreetFighterBossBar';
-import { ArcadeCombatWidgets } from './ArcadeCombatWidgets';
 
 export class UIManager {
   private container: HTMLElement;
@@ -52,11 +49,6 @@ export class UIManager {
   private startScreenEl: HTMLElement | null = null;
   private isGameActive: boolean = false;
 
-  // Sub-widgets
-  private killFeed: KillFeed | null = null;
-  private bossBar: StreetFighterBossBar | null = null;
-  private combatWidgets: ArcadeCombatWidgets | null = null;
-
   constructor(
     rootElement: HTMLElement,
     callbacks?: {
@@ -77,7 +69,7 @@ export class UIManager {
     this.container.id = 'fish-frenzy-hud';
     this.container.style.cssText = `
       position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-      pointer-events: none; font-family: var(--font-display, 'Impact', sans-serif);
+      pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       z-index: 20; display: flex; flex-direction: column; justify-content: space-between;
       box-sizing: border-box; padding: 12px 16px; overflow: hidden;
     `;
@@ -98,11 +90,6 @@ export class UIManager {
 
     this.renderHUD();
     this.createModalContainer(rootElement);
-
-    // Subsystem widgets
-    this.killFeed = new KillFeed(this.container);
-    this.bossBar = new StreetFighterBossBar(this.container);
-    this.combatWidgets = new ArcadeCombatWidgets(this.container);
 
     window.addEventListener('ff-show-streak', () => {
       void this.showStreakModal();
@@ -426,203 +413,430 @@ export class UIManager {
   }
 
   private renderHUD(): void {
-    const activeTable = TableSelectionManager.getInstance().getActiveTable();
+    const isLight = this.currentTheme === 'light';
+    const bet = this.getCurrentBet();
+    const isSc = this.activeCurrency === 'SC';
 
     this.container.innerHTML = `
-      <!-- Minimal Floating Top Bar -->
-      <div id="hud-topbar" style="
+      <style id="ff-streamlined-ui-styles">
+        .ff-pill-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          border-radius: 9999px;
+          font-weight: 700;
+          font-size: 12px;
+          letter-spacing: 0.5px;
+          cursor: pointer;
+          user-select: none;
+          transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+          white-space: nowrap;
+          box-sizing: border-box;
+          text-decoration: none;
+          outline: none;
+        }
+        .ff-pill-btn:active {
+          transform: scale(0.96);
+        }
+        
+        /* Light Theme Metallic Pill Styling (Bright & Lustrous) */
+        .theme-light .ff-metal-pill {
+          background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 45%, #cbd5e1 100%);
+          border: 1px solid rgba(148, 163, 184, 0.8);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+          color: #0f172a;
+        }
+        .theme-light .ff-metal-pill:hover {
+          background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 45%, #e2e8f0 100%);
+          border-color: #94a3b8;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.16), inset 0 1px 0 #ffffff;
+        }
+        
+        /* Dark / Abyssal Theme Metallic Pill Styling (Scary, Obsidian, Biomech) */
+        .theme-dark .ff-metal-pill {
+          background: linear-gradient(180deg, #1e1b2e 0%, #0d0b14 50%, #05040a 100%);
+          border: 1px solid rgba(168, 85, 247, 0.35);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7), 0 0 12px rgba(168, 85, 247, 0.2), inset 0 1px 0 rgba(192, 132, 252, 0.3);
+          color: #e9d5ff;
+        }
+        .theme-dark .ff-metal-pill:hover {
+          background: linear-gradient(180deg, #2b1f3d 0%, #151124 50%, #090712 100%);
+          border-color: rgba(239, 68, 68, 0.6);
+          box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3), 0 0 16px rgba(168, 85, 247, 0.35), inset 0 1px 0 rgba(248, 113, 113, 0.4);
+          color: #fca5a5;
+        }
+
+        /* Currency Badge (SC Green / GC Gold) */
+        .ff-coin-badge {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          font-weight: 900;
+          font-size: 11px;
+          user-select: none;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .ff-coin-sc {
+          background: linear-gradient(135deg, #4ade80 0%, #16a34a 60%, #15803d 100%);
+          border: 1.5px solid #86efac;
+          color: #052e16;
+          text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+        }
+        .ff-coin-gc {
+          background: linear-gradient(135deg, #fde047 0%, #ca8a04 60%, #a16207 100%);
+          border: 1.5px solid #fef08a;
+          color: #422006;
+          text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+        }
+
+        /* Turret Bet Stepper Button (+ / -) */
+        .ff-step-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 900;
+          font-size: 18px;
+          line-height: 1;
+          cursor: pointer;
+          user-select: none;
+          transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+          border: none;
+          outline: none;
+        }
+        .theme-light .ff-step-btn {
+          background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+          border: 1.5px solid #94a3b8;
+          color: #0f172a;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.15), inset 0 1px 0 #fff;
+        }
+        .theme-light .ff-step-btn:hover {
+          background: #ffffff;
+          border-color: #3b82f6;
+          color: #2563eb;
+          transform: scale(1.08);
+        }
+        .theme-dark .ff-step-btn {
+          background: linear-gradient(180deg, #241433 0%, #0d0714 100%);
+          border: 1.5px solid rgba(168, 85, 247, 0.5);
+          color: #c084fc;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(192, 132, 252, 0.3);
+        }
+        .theme-dark .ff-step-btn:hover {
+          background: #331445;
+          border-color: #ef4444;
+          color: #f87171;
+          box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+          transform: scale(1.08);
+        }
+        .ff-step-btn:active {
+          transform: scale(0.92);
+        }
+
+        /* Turret Core Controller Widget Container */
+        .theme-light .ff-turret-plate {
+          background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+          border: 2px solid #cbd5e1;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.18), inset 0 1px 0 #ffffff;
+          color: #0f172a;
+        }
+        .theme-light .ff-turret-plate * {
+          color: #0f172a !important;
+          text-shadow: none !important;
+        }
+        .theme-light .ff-turret-plate .ff-coin-badge {
+          color: #052e16 !important;
+        }
+        .theme-light .ff-turret-plate .ff-coin-gc {
+          color: #422006 !important;
+        }
+        .theme-dark .ff-turret-plate {
+          background: linear-gradient(180deg, rgba(26,16,37,0.95) 0%, rgba(10,6,18,0.98) 100%);
+          border: 2px solid rgba(168,85,247,0.5);
+          box-shadow: 0 8px 30px rgba(0,0,0,0.85), 0 0 20px rgba(168,85,247,0.25), inset 0 1px 0 rgba(192,132,252,0.3);
+          color: #f8fafc;
+        }
+        .theme-dark .ff-turret-plate * {
+          color: #f8fafc;
+          text-shadow: 0 0 8px rgba(168,85,247,0.5);
+        }
+        .theme-dark .ff-turret-plate .ff-coin-badge {
+          color: #052e16 !important;
+          text-shadow: none !important;
+        }
+        .theme-dark .ff-turret-plate .ff-coin-gc {
+          color: #422006 !important;
+          text-shadow: none !important;
+        }
+
+        /* Mobile & responsive viewport adjustments */
+        @media (max-width: 680px) {
+          #hud-topbar {
+            padding: 4px 6px !important;
+          }
+          .ff-pill-btn {
+            height: 32px !important;
+            padding: 0 8px !important;
+            font-size: 11px !important;
+            gap: 4px !important;
+          }
+          .ff-pill-btn .pill-text {
+            display: none !important;
+          }
+          #hud-currency-toggle {
+            height: 32px !important;
+            padding: 0 8px !important;
+          }
+          #hud-currency-toggle .swap-text {
+            display: none !important;
+          }
+          #hud-active-balance {
+            font-size: 13px !important;
+          }
+          #hud-turret-controller {
+            bottom: 80px !important;
+            right: 12px !important;
+          }
+          .ff-turret-plate {
+            padding: 4px 10px !important;
+            gap: 6px !important;
+          }
+          #hud-turret-coin {
+            width: 32px !important;
+            height: 32px !important;
+            font-size: 11px !important;
+          }
+          #hud-bet-display {
+            font-size: 15px !important;
+          }
+          .ff-step-btn {
+            width: 26px !important;
+            height: 26px !important;
+            font-size: 15px !important;
+          }
+          .ff-pill-btn {
+            padding: 0 8px !important;
+            min-width: 32px !important;
+          }
+        }
+      </style>
+
+      <div id="hud-root-wrapper" class="${isLight ? 'theme-light' : 'theme-dark'}" style="
         display: flex;
+        flex-direction: column;
         justify-content: space-between;
-        align-items: flex-start;
         width: 100%;
-        pointer-events: auto;
-        padding: 8px 12px;
-        background: transparent;
-        z-index: 50;
+        height: 100%;
+        pointer-events: none;
       ">
-        <!-- Top Left: Currency -->
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button id="hud-currency-toggle" type="button" title="Toggle GC/SC" style="
-            background: transparent;
-            border: none;
-            padding: 0;
-            cursor: pointer;
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
-            color: #f8fafc;
-            text-shadow: 0 2px 4px #000;
-          ">
-            <span id="hud-active-balance" style="font-size: 18px; font-weight: 900; color: #38bdf8; font-family: var(--font-mono, monospace);">
-              ${this.activeCurrency === 'SC' ? this.scBalance.toFixed(2) : this.gcBalance.toLocaleString()}
-            </span>
-            <span id="hud-active-currency" style="font-size: 10px; font-weight: 900; color: #fbbf24;">
-              ${this.activeCurrency}
-            </span>
-          </button>
+        <!-- TOP UTILITY BAR (Streamlined Metallic Pills) -->
+        <div id="hud-topbar" style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          width: 100%;
+          pointer-events: auto;
+          padding: 4px 8px;
+          z-index: 50;
+        ">
+          <!-- Top Left: Currency Toggle Pill + Live Balance -->
+          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            <!-- Currency Mode Switcher Pill -->
+            <button id="hud-currency-toggle" type="button" class="ff-pill-btn ff-metal-pill" style="
+              height: 38px;
+              padding: 0 14px;
+            " title="Switch between SC and GC">
+              <span id="hud-coin-badge" class="ff-coin-badge ${isSc ? 'ff-coin-sc' : 'ff-coin-gc'}" style="width: 24px; height: 24px;">
+                ${this.activeCurrency}
+              </span>
+              <span id="hud-active-balance" style="font-family: monospace; font-size: 15px; font-weight: 800;">
+                ${isSc ? this.scBalance.toFixed(2) : this.gcBalance.toLocaleString()}
+              </span>
+              <span class="swap-text" style="font-size: 9px; opacity: 0.7; letter-spacing: 1px;">SWAP</span>
+            </button>
+            <span id="hud-active-currency" style="display: none;">${this.activeCurrency}</span>
+          </div>
 
-          <!-- Hidden compatibility elements -->
-          <span id="hud-gc-balance" style="display:none;"></span>
-          <span id="hud-sc-balance" style="display:none;"></span>
-          <div id="hud-gc-wallet" style="display:none;"></div>
-          <div id="hud-sc-wallet" style="display:none;"></div>
-          <span id="hud-player-name" style="display:none;"></span>
-          <div id="hud-player-tag" style="display:none;"></div>
-          <button id="hud-level-btn" style="display:none;"></button>
-          <span id="hud-level-val" style="display:none;"></span>
-          <div id="hud-level-bar" style="display:none;"></div>
-        </div>
-
-        <!-- Top Right: Action -->
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button id="hud-paper-rig-btn" style="
-            background: rgba(126, 34, 206, 0.7);
-            border: 1px solid #c084fc;
-            color: #f3e8ff;
-            padding: 2px 10px;
-            font-size: 11px;
-            font-weight: 900;
-            border-radius: 4px;
-            cursor: pointer;
-            text-shadow: 0 1px 2px #000;
-          ">
-            PAPER RIG
-          </button>
-          <button id="hud-store-btn" style="
-            background: rgba(3, 7, 18, 0.6);
-            border: 1px solid #34d399;
-            color: #34d399;
-            padding: 2px 10px;
-            font-size: 11px;
-            font-weight: 900;
-            border-radius: 4px;
-            cursor: pointer;
-            text-shadow: 0 1px 2px #000;
-          ">
-            STORE
-          </button>
-
-          <button id="hud-theme-toggle" type="button" title="Toggle Theme" style="
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid #334155;
-            color: ${this.currentTheme === 'light' ? '#fde047' : '#a855f7'};
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            cursor: pointer;
+          <!-- Top Right: Audio Toggles, Theme Toggle, Lobby, Store, Redeem -->
+          <div style="
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            gap: 6px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+            max-width: calc(100vw - 140px);
+            padding-bottom: 2px;
           ">
-            ${this.currentTheme === 'light' ? '☀️' : '🌙'}
-          </button>
-          
-          <!-- Hidden compatibility buttons -->
-          <button id="hud-table-btn" style="display:none;"></button>
-          <button id="hud-diag-btn" style="display:none;"></button>
+            <!-- Sound SFX Toggle Pill -->
+            <button id="hud-sfx-btn" type="button" class="ff-pill-btn ff-metal-pill" style="height: 36px; padding: 0 12px;" title="SFX Sound Effects On/Off">
+              <span style="font-size: 14px;">🔊</span>
+              <span id="hud-sfx-label" class="pill-text" style="font-size: 11px;">SFX ON</span>
+            </button>
+
+            <!-- Sound Music Toggle Pill -->
+            <button id="hud-music-btn" type="button" class="ff-pill-btn ff-metal-pill" style="height: 36px; padding: 0 12px;" title="Music On/Off">
+              <span style="font-size: 14px;">🎵</span>
+              <span id="hud-music-label" class="pill-text" style="font-size: 11px;">BGM ON</span>
+            </button>
+
+            <!-- Theme Toggle Pill (Bright Light / Abyssal Scary) -->
+            <button id="hud-theme-toggle" type="button" class="ff-pill-btn ff-metal-pill" style="height: 36px; padding: 0 12px;" title="Toggle Light / Abyssal Theme">
+              <span style="font-size: 14px;">${isLight ? '☀️' : '🌙'}</span>
+              <span class="pill-text" style="font-size: 11px;">${isLight ? 'LIGHT' : 'ABYSS'}</span>
+            </button>
+
+            <!-- Store Pill -->
+            <button id="hud-store-btn" type="button" class="ff-pill-btn ff-metal-pill" style="
+              height: 36px;
+              padding: 0 14px;
+              color: ${isLight ? '#059669' : '#34d399'};
+              border-color: ${isLight ? '#34d399' : '#059669'};
+            " title="Open Store">
+              <span>🛒</span>
+              <span class="pill-text">STORE</span>
+            </button>
+
+            <!-- Redeem / Withdrawal Pill -->
+            <button id="hud-redeem-btn" type="button" class="ff-pill-btn ff-metal-pill" style="
+              height: 36px;
+              padding: 0 12px;
+            " title="Redeem / Cash Out">
+              <span>💎</span>
+              <span class="pill-text">REDEEM</span>
+            </button>
+
+            <!-- Lobby Pill -->
+            <button id="hud-lobby-btn" type="button" class="ff-pill-btn ff-metal-pill" style="
+              height: 36px;
+              padding: 0 12px;
+            " title="Return to Lobby">
+              <span>🏠</span>
+              <span class="pill-text">LOBBY</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- BOTTOM RIGHT: Turret Stake Controller (Unobstructed Cannon in Center) -->
+        <div id="hud-turret-controller" style="
+          position: absolute;
+          bottom: 18px;
+          right: 18px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          pointer-events: auto;
+          z-index: 40;
+        ">
+          <!-- Main Bet Badge & Stepper Plate -->
+          <div class="ff-turret-plate" style="
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 6px 16px;
+            border-radius: 9999px;
+            backdrop-filter: blur(8px);
+          ">
+            <!-- Round Coin Indicator for Active Currency -->
+            <div id="hud-turret-coin" class="ff-coin-badge ${isSc ? 'ff-coin-sc' : 'ff-coin-gc'}" style="
+              width: 44px;
+              height: 44px;
+              font-size: 15px;
+              box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+              flex-shrink: 0;
+            ">
+              ${this.activeCurrency}
+            </div>
+
+            <!-- Current Bet Stake Amount -->
+            <div style="display: flex; flex-direction: column; align-items: flex-start; min-width: 92px;">
+              <span style="font-size: 9px; font-weight: 800; letter-spacing: 1.5px; opacity: 0.65; line-height: 1;">STAKE</span>
+              <div style="display: flex; align-items: baseline; gap: 4px;">
+                <span id="hud-bet-display" style="font-family: monospace; font-size: 20px; font-weight: 900; line-height: 1.2;">
+                  ${bet.toFixed(2)}
+                </span>
+                <span id="hud-bet-currency-label" style="font-size: 11px; font-weight: 800; opacity: 0.85;">
+                  ${this.activeCurrency}
+                </span>
+              </div>
+            </div>
+
+            <!-- Vertical Stepper: + slightly above, - slightly below along the side -->
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+              <button id="hud-bet-plus" type="button" class="ff-step-btn" title="Increase Bet">+</button>
+              <button id="hud-bet-minus" type="button" class="ff-step-btn" title="Decrease Bet">−</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Floating Bottom Status -->
-      <div style="
-        position: absolute;
-        bottom: 74px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 16px;
-        align-items: center;
-        pointer-events: none;
-        z-index: 20;
-      ">
-        <div id="hud-bet-badge" style="
-          font-weight: 900;
-          font-size: 16px;
-          font-style: italic;
-          color: #fbbf24;
-          text-shadow: 0 2px 4px #000;
-          letter-spacing: 1px;
-        ">×1.00 SC</div>
-
-        <div id="hud-barrel-badge" style="
-          font-weight: 900;
-          font-size: 14px;
-          font-style: italic;
-          color: #38bdf8;
-          text-shadow: 0 2px 4px #000;
-          letter-spacing: 1px;
-        ">2× BARREL</div>
-      </div>
-      
-      <!-- Hidden compatibility spacers -->
-      <span id="hud-bet-display" style="display:none;"></span>
-      <button id="hud-bet-minus" style="display:none;"></button>
-      <button id="hud-bet-plus" style="display:none;"></button>
+      <!-- Hidden compatibility elements to maintain backwards system compatibility -->
+      <span id="hud-gc-balance" style="display:none;"></span>
+      <span id="hud-sc-balance" style="display:none;"></span>
+      <div id="hud-gc-wallet" style="display:none;"></div>
+      <div id="hud-sc-wallet" style="display:none;"></div>
+      <span id="hud-player-name" style="display:none;"></span>
+      <div id="hud-player-tag" style="display:none;"></div>
+      <button id="hud-table-btn" style="display:none;"></button>
+      <button id="hud-paper-rig-btn" style="display:none;"></button>
+      <button id="hud-options-btn" style="display:none;"></button>
+      <button id="hud-diag-btn" style="display:none;"></button>
+      <button id="hud-level-btn" style="display:none;"></button>
+      <span id="hud-level-val" style="display:none;"></span>
+      <div id="hud-level-bar" style="display:none;"></div>
+      <div id="hud-bet-badge" style="display:none;"></div>
+      <div id="hud-barrel-badge" style="display:none;"></div>
     `;
 
     // Reference elements
     this.gcBalanceEl = document.getElementById('hud-gc-balance');
     this.scBalanceEl = document.getElementById('hud-sc-balance');
     this.betDisplayEl = document.getElementById('hud-bet-display');
-    this.soundBtn = document.getElementById('hud-sound-toggle');
     this.tableBadgeBtn = document.getElementById('hud-table-btn');
 
     // Event listeners
-    this.applyAudioModeIcon();
+    this.updateAudioTogglesUI();
     this.refreshStakeHud();
 
-    // Player name sync & Pilot Dossier modal
-    const syncHudPilotName = () => {
-      const pName = document.getElementById('hud-player-name');
-      const authState = AuthManager.getInstance().getState();
-      if (pName && authState.displayName) {
-        pName.textContent = authState.displayName.toUpperCase();
-      }
-    };
-    syncHudPilotName();
-    AuthManager.getInstance().onChange(syncHudPilotName);
-
-    document.getElementById('hud-player-tag')?.addEventListener('click', () => {
-      showAuthModal(this.modalCtx(), syncHudPilotName);
+    // Sound toggle buttons
+    document.getElementById('hud-sfx-btn')?.addEventListener('click', () => {
+      SoundManager.toggleSound();
+      SoundManager.playUiSound('click');
+      this.updateAudioTogglesUI();
     });
 
-    this.soundBtn?.addEventListener('click', () => this.cycleAudioMode());
-    document.getElementById('hud-currency-toggle')?.addEventListener('click', () => this.toggleCurrency());
-    document.getElementById('hud-bet-minus')?.addEventListener('click', () => this.adjustBet(-1));
-    document.getElementById('hud-bet-plus')?.addEventListener('click', () => this.adjustBet(1));
-    document.getElementById('hud-table-btn')?.addEventListener('click', () => this.showLobby());
-    document.getElementById('hud-paper-rig-btn')?.addEventListener('click', () => {
-      showCutoutRigModal(this.modalCtx(), () => {
-        GameEventBus.getInstance().emit('SPAWN_CUTOUT_FISH', {});
-      });
+    document.getElementById('hud-music-btn')?.addEventListener('click', () => {
+      const current = SoundManager.isBgmEnabled();
+      SoundManager.toggleBgm(!current);
+      if (!current) SoundManager.startBgm();
+      SoundManager.playUiSound('click');
+      this.updateAudioTogglesUI();
     });
-    document.getElementById('hud-store-btn')?.addEventListener('click', () => this.openStore());
+
+    // Theme toggle
     document.getElementById('hud-theme-toggle')?.addEventListener('click', () => {
       this.toggleTheme();
     });
-    document.getElementById('hud-options-btn')?.addEventListener('click', () => {
-      showOptionsModal(this.modalCtx(), (theme) => {
-        this.currentTheme = theme;
-        this.onThemeChangeCallback?.(theme);
-        this.updateThemeToggleUI();
-      });
-    });
-    document.getElementById('hud-diag-btn')?.addEventListener('click', () => {
-      import('./DebugOverlay').then(({ debugOverlay }) => {
-        debugOverlay.toggle();
-      });
-    });
-    document.getElementById('hud-level-btn')?.addEventListener('click', () => showProgressionModal(this.modalCtx()));
 
-    // Subscribe to player progression updates
-    if (!this.progressionUnsub) {
-      this.progressionUnsub = PlayerProgressionManager.getInstance().subscribe((prog) => {
-        this.updateProgressionHud(prog);
-      });
-    }
+    // Currency toggle (SC / GC)
+    document.getElementById('hud-currency-toggle')?.addEventListener('click', () => {
+      this.toggleCurrency();
+    });
+
+    // Stake stepper (+ and -)
+    document.getElementById('hud-bet-plus')?.addEventListener('click', () => this.adjustBet(1));
+    document.getElementById('hud-bet-minus')?.addEventListener('click', () => this.adjustBet(-1));
+
+    // Lobby, Store, Redeem
+    document.getElementById('hud-lobby-btn')?.addEventListener('click', () => this.showLobby());
+    document.getElementById('hud-store-btn')?.addEventListener('click', () => this.openStore());
+    document.getElementById('hud-redeem-btn')?.addEventListener('click', () => {
+      showWithdrawModal(this.modalCtx(), WalletService.getInstance());
+    });
 
     // Subscribe to table changes
     if (!this.tableUnsub) {
@@ -649,6 +863,25 @@ export class UIManager {
         this.showAdminPortalModal();
       }
     });
+  }
+
+  private updateAudioTogglesUI(): void {
+    const sfxBtn = document.getElementById('hud-sfx-btn');
+    const sfxLabel = document.getElementById('hud-sfx-label');
+    const musicBtn = document.getElementById('hud-music-btn');
+    const musicLabel = document.getElementById('hud-music-label');
+
+    const sfxOn = SoundManager.isSoundEnabled();
+    const bgmOn = SoundManager.isBgmEnabled();
+
+    if (sfxBtn && sfxLabel) {
+      sfxLabel.textContent = sfxOn ? 'SFX ON' : 'SFX OFF';
+      sfxBtn.style.opacity = sfxOn ? '1' : '0.55';
+    }
+    if (musicBtn && musicLabel) {
+      musicLabel.textContent = bgmOn ? 'BGM ON' : 'BGM OFF';
+      musicBtn.style.opacity = bgmOn ? '1' : '0.55';
+    }
   }
 
   private updateProgressionHud(prog: PlayerProgressionState): void {
@@ -862,18 +1095,21 @@ export class UIManager {
 
     const bet = this.getCurrentBet();
     const el = document.getElementById('hud-bet-display');
-    if (el) el.textContent = `${bet.toFixed(2)} ${this.activeCurrency}`;
+    if (el) el.textContent = bet.toFixed(2);
 
-    const badge = document.getElementById('hud-bet-badge');
-    if (badge) {
-      badge.textContent = `×${bet.toFixed(2)} ${this.activeCurrency}`;
+    const curLabel = document.getElementById('hud-bet-currency-label');
+    if (curLabel) curLabel.textContent = this.activeCurrency;
+
+    const turretCoin = document.getElementById('hud-turret-coin');
+    if (turretCoin) {
+      turretCoin.textContent = this.activeCurrency;
+      turretCoin.className = `ff-coin-badge ${this.activeCurrency === 'SC' ? 'ff-coin-sc' : 'ff-coin-gc'}`;
     }
 
-    const barrelEl = document.getElementById('hud-barrel-badge');
-    if (barrelEl) {
-      const n = this.getBarrelCount();
-      barrelEl.textContent = n > 1 ? `${n}× BARREL` : '1× BARREL';
-      barrelEl.style.opacity = n > 1 ? '1' : '0.6';
+    const coinBadge = document.getElementById('hud-coin-badge');
+    if (coinBadge) {
+      coinBadge.textContent = this.activeCurrency;
+      coinBadge.className = `ff-coin-badge ${this.activeCurrency === 'SC' ? 'ff-coin-sc' : 'ff-coin-gc'}`;
     }
 
     this.paintBalances();
@@ -960,42 +1196,15 @@ export class UIManager {
     }
   }
 
-  /** Delegate boss overlay directly to StreetFighterBossBar and event bus */
+  /** Clean boss overlay handling without cluttered fighter bars */
   public setBossOverlay(
     active: boolean,
-    secondsLeft?: number,
-    hpPercent?: number,
-    phase?: string,
-    totalDamage?: number
+    _secondsLeft?: number,
+    _hpPercent?: number,
+    _phase?: string,
+    _totalDamage?: number
   ): void {
-    if (this.bossBar) {
-      if (active) {
-        this.bossBar.updateState({
-          bossId: 'abyssal_horror_boss',
-          name: 'ABYSSAL HORROR BOSS',
-          hp: hpPercent ?? 100,
-          maxHp: 100,
-          hpPercent: hpPercent ?? 100,
-          phase: (phase as any) || 'engaged',
-          timeRemainingSec: secondsLeft ?? 35,
-          totalDamage: totalDamage ?? 0,
-          multiplier: 2.5
-        });
-      } else {
-        this.bossBar.hide();
-      }
-    }
-
-    const combatStatus = document.getElementById('hud-combat-status');
-    if (combatStatus) {
-      if (active) {
-        combatStatus.textContent = 'BOSS BATTLE // ENGAGED';
-        combatStatus.style.color = phase === 'enraged' ? '#ef4444' : '#fbbf24';
-      } else {
-        combatStatus.textContent = 'ROUND 1 // COMBAT ACTIVE';
-        combatStatus.style.color = '#38bdf8';
-      }
-    }
+    // Cluttered fighting game boss bars removed per specification
   }
 
   public showBossFrenzyTitle(): void {
@@ -1106,15 +1315,20 @@ export class UIManager {
     const nextTheme = this.currentTheme === 'light' ? 'dark' : 'light';
     this.currentTheme = nextTheme;
     this.onThemeChangeCallback?.(nextTheme);
+    const hudWrapper = document.getElementById('hud-root-wrapper');
+    if (hudWrapper) {
+      hudWrapper.className = nextTheme === 'light' ? 'theme-light' : 'theme-dark';
+    }
     this.updateThemeToggleUI();
   }
 
   private updateThemeToggleUI(): void {
+    const isLight = this.currentTheme === 'light';
     const lobbyToggle = document.getElementById('lobby-theme-toggle');
     if (lobbyToggle) {
-      lobbyToggle.textContent = this.currentTheme === 'light' ? '☀️' : '🌙';
-      lobbyToggle.title = `Switch to ${this.currentTheme === 'light' ? 'Dark' : 'Light'} Mode`;
-      if (this.currentTheme === 'light') {
+      lobbyToggle.textContent = isLight ? '☀️' : '🌙';
+      lobbyToggle.title = `Switch to ${isLight ? 'Dark' : 'Light'} Mode`;
+      if (isLight) {
         lobbyToggle.style.color = '#fde047';
         lobbyToggle.style.borderColor = '#e2e8f0';
       } else {
@@ -1125,15 +1339,11 @@ export class UIManager {
 
     const hudToggle = document.getElementById('hud-theme-toggle');
     if (hudToggle) {
-      hudToggle.textContent = this.currentTheme === 'light' ? '☀️' : '🌙';
-      hudToggle.title = `Switch to ${this.currentTheme === 'light' ? 'Dark' : 'Light'} Mode`;
-      if (this.currentTheme === 'light') {
-        hudToggle.style.color = '#fde047';
-        hudToggle.style.borderColor = '#e2e8f0';
-      } else {
-        hudToggle.style.color = '#a855f7';
-        hudToggle.style.borderColor = '#c084fc';
-      }
+      hudToggle.innerHTML = `
+        <span style="font-size: 14px;">${isLight ? '☀️' : '🌙'}</span>
+        <span class="pill-text" style="font-size: 11px;">${isLight ? 'LIGHT' : 'ABYSS'}</span>
+      `;
+      hudToggle.title = `Switch to ${isLight ? 'Dark' : 'Light'} Mode`;
     }
   }
 }

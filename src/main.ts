@@ -17,7 +17,6 @@ import { showAgeGate } from './ui/AgeGate';
 import { initAppCheck } from './network/AppCheckInit';
 import { FeatureFlags, prefersReducedMotion } from './config/FeatureFlags';
 import { maybeShowOnboarding } from './ui/OnboardingTips';
-import { CombatFeedbackOverlay } from './ui/CombatFeedbackOverlay';
 import { SoundManager } from './audio/SoundManager';
 
 installDarkThemeAudio();
@@ -122,8 +121,6 @@ async function bootstrap() {
     showCrashBanner('GameScene constructor', err);
     throw err;
   }
-
-  new CombatFeedbackOverlay(root);
 
   app.ticker.start();
   app.render();

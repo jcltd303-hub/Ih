@@ -479,10 +479,6 @@ export class WeaponController {
         const hitXp = evalHit.isSuperCrit ? 35 : (evalHit.isCrit ? 18 : (evalHit.isLuckyHit ? 22 : 6));
         PlayerProgressionManager.getInstance().addXp(hitXp);
 
-        // Pay-per-hit payout
-        const hitPayout = evalHit.hitPayout;
-        PayoutEngine.recordPayout(hitPayout);
-
         if (evalHit.isInstantKill) {
           this.particleFX.spawnFloatingText(proj.x, proj.y - 15, '⚡ INSTANT CAPTURE!', 0x00ffcc, true);
           SoundManager.playTurretCrit(proj.turretSkin, 'instant_kill');
@@ -493,7 +489,7 @@ export class WeaponController {
           this.particleFX.spawnFloatingText(proj.x, proj.y - 12, 'CRITICAL HIT', 0xffd700, false);
           SoundManager.playTurretCrit(proj.turretSkin, 'crit');
         } else if (evalHit.isLuckyHit) {
-          this.particleFX.spawnFloatingText(proj.x, proj.y - 12, `LUCKY HIT! +${hitPayout.toFixed(2)}`, 0x34d399, false);
+          this.particleFX.spawnFloatingText(proj.x, proj.y - 12, 'LUCKY SHOT!', 0x34d399, false);
         }
 
         this.particleFX.spawnExplosion(
@@ -503,11 +499,6 @@ export class WeaponController {
         );
         SoundManager.playTurretHit(proj.turretSkin, fishType, fishType === 'boss');
 
-        if (this.onWinCallback && hitPayout > 0) {
-          this.onWinCallback(hitPayout, proj.currencyType);
-          SoundManager.playCoinDrop('small', hitPayout);
-        }
-
         ShotSettlement.settle({
           sessionId: proj.sessionId, currencyType: proj.currencyType, betAmount: proj.betAmount,
           targetId: hitEntity.id, clientHitConfirmed: true, clientKillConfirmed: hitResult.killed,
@@ -515,8 +506,6 @@ export class WeaponController {
         }).then(()=>{}).catch(()=>{});
 
         if (hitResult.killed) {
-          const killGamble = PayoutEngine.evaluateKillMultiplier(hitResult.multiplier, fishType);
-          const winAmount = proj.betAmount * killGamble.finalMultiplier * 0.70;
           // Award kill XP based on fish tier
           const killXp = fishType === 'boss' ? 350 : (fishType === 'medium' ? 70 : 25);
           PlayerProgressionManager.getInstance().addXp(killXp);
@@ -536,40 +525,55 @@ export class WeaponController {
             );
           }
 
+          if (fishType !== 'boss') {
+            const killGamble = PayoutEngine.evaluateKillMultiplier(hitResult.multiplier, fishType);
+            const winAmount = Number((proj.betAmount * killGamble.finalMultiplier).toFixed(2));
 
+            // Emit FISH_KILLED event for Kill Feed and UI
+            const fishName = (fish as any)?.name || (fishType === 'medium' ? 'MUTANT FISH' : 'NEON TETRA');
+            GameEventBus.getInstance().emit('FISH_KILLED', {
+              fishId: hitEntity.id,
+              fishType: fishType as 'small' | 'medium',
+              name: fishName,
+              x: hitResult.x,
+              y: hitResult.y,
+              payout: winAmount,
+              currency: proj.currencyType,
+              multiplier: killGamble.finalMultiplier,
+              isJackpot: killGamble.isJackpot
+            });
 
-          // Emit FISH_KILLED event for Kill Feed and UI
-          const fishName = (fish as any)?.name || (fishType === 'boss' ? 'ABYSSAL HORROR BOSS' : fishType === 'medium' ? 'MUTANT FISH' : 'NEON TETRA');
-          GameEventBus.getInstance().emit('FISH_KILLED', {
-            fishId: hitEntity.id,
-            fishType: fishType as 'small' | 'medium' | 'boss',
-            name: fishName,
-            x: hitResult.x,
-            y: hitResult.y,
-            payout: winAmount,
-            currency: proj.currencyType,
-            multiplier: killGamble.finalMultiplier,
-            isJackpot: killGamble.isJackpot
-          });
+            PayoutEngine.recordPayout(winAmount);
 
-          PayoutEngine.recordPayout(winAmount);
+            this.particleFX.emitCoinExplosion(hitResult.x, hitResult.y, killGamble.isJackpot ? 32 : 16);
+            this.particleFX.spawnExplosion(hitResult.x, hitResult.y, 0xffd700, killGamble.isJackpot ? 40 : 25);
 
-          this.particleFX.emitCoinExplosion(hitResult.x, hitResult.y, killGamble.isJackpot ? 32 : 16);
-          this.particleFX.spawnExplosion(hitResult.x, hitResult.y, 0xffd700, killGamble.isJackpot ? 40 : 25);
+            const killText = `${killGamble.bonusLabel} +${winAmount.toFixed(2)} ${proj.currencyType}`;
+            if (killGamble.isJackpot || winAmount >= proj.betAmount * 12) {
+              SoundManager.playCoinDrop('jackpot', winAmount);
+              this.particleFX.spawnFloatingText(hitResult.x, hitResult.y - 25, killText, 0xffd700, true);
+            } else if (winAmount >= proj.betAmount * 3.5 || fishType === 'medium') {
+              SoundManager.playCoinDrop('medium', winAmount);
+              this.particleFX.spawnFloatingText(hitResult.x, hitResult.y - 15, `+${winAmount.toFixed(2)} ${proj.currencyType}`, 0x34d399, false);
+            } else {
+              SoundManager.playCoinDrop('small', winAmount);
+              this.particleFX.spawnFloatingText(hitResult.x, hitResult.y - 15, `+${winAmount.toFixed(2)} ${proj.currencyType}`, 0x34d399, false);
+            }
 
-          const killText = `${killGamble.bonusLabel} +${winAmount.toFixed(2)} ${proj.currencyType}`;
-          if (killGamble.isJackpot || fishType === 'boss' || winAmount >= proj.betAmount * 12) {
-            SoundManager.playCoinDrop('jackpot', winAmount);
-            this.particleFX.spawnFloatingText(hitResult.x, hitResult.y - 25, killText, 0xffd700, true);
-          } else if (winAmount >= proj.betAmount * 3.5 || fishType === 'medium') {
-            SoundManager.playCoinDrop('medium', winAmount);
-            this.particleFX.spawnFloatingText(hitResult.x, hitResult.y - 15, `+${winAmount.toFixed(2)} ${proj.currencyType}`, 0x34d399, false);
+            if (this.onWinCallback) this.onWinCallback(winAmount, proj.currencyType);
           } else {
-            SoundManager.playCoinDrop('small', winAmount);
-            this.particleFX.spawnFloatingText(hitResult.x, hitResult.y - 15, `+${winAmount.toFixed(2)} ${proj.currencyType}`, 0x34d399, false);
+            GameEventBus.getInstance().emit('FISH_KILLED', {
+              fishId: hitEntity.id,
+              fishType: 'boss',
+              name: 'ABYSSAL HORROR BOSS',
+              x: hitResult.x,
+              y: hitResult.y,
+              payout: 0,
+              currency: proj.currencyType,
+              multiplier: 2.5,
+              isJackpot: true
+            });
           }
-
-          if (this.onWinCallback) this.onWinCallback(winAmount, proj.currencyType);
         }
 
         this.stage.removeChild(proj.container);

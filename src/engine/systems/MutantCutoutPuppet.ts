@@ -1,6 +1,6 @@
 import { Assets, Container, Sprite, Texture, Rectangle, Graphics } from 'pixi.js';
 import { MUTANT_RIG_PARTS, PartRigDef } from './mutantRigData';
-import mutantAtlasPng from '../../assets/images/mutant_cutout_atlas.png';
+import mutantAtlasDataUri from '../../assets/images/mutant_cutout_atlas_data';
 
 export interface RigJointControl {
   jawRotation: number;
@@ -113,21 +113,13 @@ export class MutantCutoutPuppet extends Container {
 
     MutantCutoutPuppet.loadingPromise = (async () => {
       try {
-        const tex = await Assets.load(mutantAtlasPng);
+        const tex = await Assets.load(mutantAtlasDataUri);
         MutantCutoutPuppet.cachedAtlasTexture = tex;
         return tex;
       } catch (e) {
-        // Fallback to public URL or asset URL
-        try {
-          const atlasUrl = new URL('/assets/mutant_cutout_atlas.png', window.location.origin).href;
-          const tex = await Assets.load(atlasUrl);
-          MutantCutoutPuppet.cachedAtlasTexture = tex;
-          return tex;
-        } catch (err) {
-          const tex = Texture.from(mutantAtlasPng);
-          MutantCutoutPuppet.cachedAtlasTexture = tex;
-          return tex;
-        }
+        const tex = Texture.from(mutantAtlasDataUri);
+        MutantCutoutPuppet.cachedAtlasTexture = tex;
+        return tex;
       }
     })();
 
