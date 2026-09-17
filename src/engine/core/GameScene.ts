@@ -19,9 +19,7 @@ import { AuthManager } from '../../network/AuthManager';
 import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
 import { GameEventBus, ScreenShakeEvent } from './GameEvents';
-import { TableSelection } from '../../network/TableSelection';
-import type { TableInfo } from '../../network/TableSelection';
-import { TableSelectionManager } from '../../network/TableSelectionManager';
+import { TableSelectionManager, TableConfig } from '../../network/TableSelectionManager';
 import { WalletService } from '../../network/WalletService';
 import { PayoutEngine } from '../systems/PayoutEngine';
 
@@ -54,7 +52,6 @@ export class GameScene {
   private particlesEnabled = true;
   private bossRaid: BossRaidEvent;
   private lastBossBashActive = false;
-  private tableSelection: TableSelection;
   private bossProgressScore = 0;
   private readonly BOSS_PROGRESS_THRESHOLD = GameConfig.bossProgressThreshold;
   private bossUnlockAtMs = 0;
@@ -83,7 +80,6 @@ export class GameScene {
     this.multiplayerTable = new MultiplayerTableManager();
     this.bossRaid = new BossRaidEvent(this.worldContainer, this.fishManager, this.particleFX);
     this.bossRaid.resize(width, height);
-    this.tableSelection = TableSelection.getInstance();
     this.uiManager = new UIManager(uiRoot, {
       onThemeChange: (theme) => {
         this.themeManager.setTheme(theme);
@@ -146,12 +142,11 @@ export class GameScene {
     void FairnessSession.getInstance().begin().then((sess) => console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…'));
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const name = AuthManager.getInstance().getState().displayName || GameConfig.localDisplayName;
-    const currentTable = this.tableSelection.getCurrentTable();
+    const currentTable = TableSelectionManager.getInstance().getActiveTable();
     this.multiplayerTable.joinSharedTable(currentTable.id, uid, name);
-    this.tableSelection.joinPresence(uid, name);
     this.presenceLayer = new MultiplayerPresenceLayer(this.worldContainer);
     this.presenceLayer.setLocalUserId(uid);
-    const joinTable = (table: TableInfo) => {
+    const joinTable = (table: TableConfig) => {
       if (this.tableUnsub) this.tableUnsub();
       this.activeTableId = table.id;
       this.multiplayerTable.joinSharedTable(table.id, uid, name);
@@ -165,8 +160,8 @@ export class GameScene {
         }
       });
     };
-    joinTable(this.tableSelection.getCurrentTable() as any);
-    if (!this.tableSelectionUnsub) this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => joinTable(tbl as any));
+    joinTable(currentTable);
+    if (!this.tableSelectionUnsub) this.tableSelectionUnsub = TableSelectionManager.getInstance().onTableChange((tbl) => joinTable(tbl));
     this.bossProgressScore = 0;
     this.bossUnlockAtMs = Date.now() + GameConfig.bossGracePeriodMs;
     this.lastBossBashActive = false;
@@ -270,7 +265,7 @@ export class GameScene {
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
     const barrels = this.uiManager.getBarrelCount();
     void this.weaponController.fireCannon(uid, FairnessSession.getInstance().getSessionId(), currency, betAmount, targetX, targetY, barrels);
-    const currentTable = this.tableSelection.getCurrentTable();
+    const currentTable = TableSelectionManager.getInstance().getActiveTable();
     this.multiplayerTable.broadcastTableShot(currentTable.id, uid, targetX, targetY, betAmount);
   }
 
