@@ -41,7 +41,7 @@ export const issueGameplayTarget = onCall(async (request) => {
       throw new HttpsError('resource-exhausted', 'Session target limit reached.');
     }
 
-    const targetId = `target_${nextSequence.toString(36)}_${admin.firestore.Timestamp.now().nanoseconds.toString(36)}`;
+    const targetId = `target_${nextSequence.toString(36)}`;
     const target = getAuthoritativeTarget(serverSeed, targetId);
     const targetRef = privateRef.collection('targets').doc(targetId);
 
