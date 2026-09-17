@@ -9,10 +9,11 @@
     "start": "node dist/server.cjs",
     "preview": "npm run start",
     "test": "vitest",
+    "test:ci": "vitest run",
     "emulators": "firebase emulators:start",
     "cap:sync": "npx cap sync",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "firebase:emulators": "firebase emulators:start",
     "firebase:deploy:rules": "firebase deploy --only firestore:rules,database",
     "firebase:deploy:functions": "firebase deploy --only functions",
@@ -33,7 +34,8 @@
     "motion": "^12.23.24",
     "pixi.js": "^8.20.1",
     "react": "^19.0.1",
-    "react-dom": "^19.0.1"
+    "react-dom": "^19.0.1",
+    "stripe": "^22.6.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
