@@ -37,8 +37,6 @@ export const startGameSession = onCall(async (request) => {
     serverSeed,
     clientSeed,
     nonce: 0,
-    targetSequence: 0,
-    bossKills: 0,
     payoutTable,
     payoutTableVersion: payoutTable.version,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -46,7 +44,7 @@ export const startGameSession = onCall(async (request) => {
   });
 
   await db.runTransaction(async (transaction) => {
-    transaction.create(privateRef, privateState);
+    transaction.create(privateRef, { ...privateState, targetSequence: 0, bossKills: 0 });
     transaction.create(sessionRef, {
       serverSeedHash,
       clientSeed,
