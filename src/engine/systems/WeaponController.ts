@@ -437,7 +437,7 @@ export class WeaponController {
 
         const weaponStats = WeaponController.WEAPON_STATS[proj.turretSkin] ?? WeaponController.WEAPON_STATS.plasma_neon;
         const skinBonus = 1.0 * weaponStats.damageMult;
-        const evalHit = PayoutEngine.evaluateHit(proj.betAmount, fishType, skinBonus);
+        const evalHit = PayoutEngine.evaluateHit(proj.betAmount, fishType, skinBonus, 1.0);
         const hitResult = this.fishManager.inflictDamage(hitEntity.id, evalHit.damage, evalHit.isInstantKill);
 
         // Route boss damage to raid event

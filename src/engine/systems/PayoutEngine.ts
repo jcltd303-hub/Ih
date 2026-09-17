@@ -48,6 +48,8 @@ export interface KillEvaluation {
 export class PayoutEngine {
   private static readonly TARGET_RTP = 85;
   private static readonly MAX_RTP_GUARD = 105;
+  private static readonly SMALL_FISH_BASE_PKILL = 0.47;
+  private static readonly MEDIUM_FISH_BASE_PKILL = 0.117;
 
   private static stats: SessionStats = {
     totalWagered: 0,
@@ -153,12 +155,14 @@ export class PayoutEngine {
   public static evaluateHit(
     betAmount: number,
     fishType: FishTargetType,
-    skinBonus: number = 1.0
+    skinBonus: number = 1.0,
+    skillLevel: number = 1.0
   ): HitEvaluation {
     this.stats.totalHits++;
 
     const safeBet = Number.isFinite(betAmount) ? Math.max(0.01, betAmount) : 1.0;
     const safeBonus = Number.isFinite(skinBonus) ? Math.max(0.5, skinBonus) : 1.0;
+    const safeSkill = Number.isFinite(skillLevel) ? Math.max(0.1, skillLevel) : 1.0;
 
     // Bullet impacts deal damage and trigger combat effects, but do NOT award cash upon collision.
     // Cash payouts are strictly earned by capturing/killing fish or completing the boss raid.
@@ -182,7 +186,8 @@ export class PayoutEngine {
       // Mathematically calibrated capture chances targeting 84.5% - 85.5% RTP:
       // Small fish: 47% capture chance per bullet (avg ~2.1 bullets to capture).
       // Medium fish: 11.7% capture chance per bullet (avg ~8.5 bullets to capture).
-      const pKill = fishType === 'small' ? 0.47 : 0.117;
+      const basePKill = fishType === 'small' ? PayoutEngine.SMALL_FISH_BASE_PKILL : PayoutEngine.MEDIUM_FISH_BASE_PKILL;
+      const pKill = basePKill * (1 + (safeSkill - 1) * 0.5); // Dampened skill scaling
       if (Math.random() < pKill) {
         isInstantKill = true;
         this.stats.instantGambleKills++;
@@ -214,63 +219,63 @@ export class PayoutEngine {
     }
 
     if (fishType === 'small') {
-      // Small fish: Avg multiplier = 1.80x * 47% capture rate = ~84.6% RTP
+      // Small fish: Volatile multipliers for ~40% RTP
       const roll = Math.random();
-      if (roll < 0.01) {
+      if (roll < 0.0025) { // Lower frequency
         this.stats.bonusJackpotTriggers++;
         return {
-          finalMultiplier: 15.0,
-          bonusLabel: '🔥 15X JACKPOT!',
+          finalMultiplier: 40.0, // Higher volatility
+          bonusLabel: '🔥 40X JACKPOT!',
           isJackpot: true
         };
       }
-      if (roll < 0.07) {
+      if (roll < 0.02) {
         return {
-          finalMultiplier: 5.0,
-          bonusLabel: '🔥 5X MULTIPLIER!',
+          finalMultiplier: 6.0,
+          bonusLabel: '🔥 6X MULTIPLIER!',
           isJackpot: false
         };
       }
-      if (roll < 0.25) {
+      if (roll < 0.1) {
         return {
-          finalMultiplier: 2.5,
+          finalMultiplier: 2.0,
           bonusLabel: 'BONUS CATCH!',
           isJackpot: false
         };
       }
       return {
-        finalMultiplier: 1.2,
+        finalMultiplier: 0.6, // Higher standard return
         bonusLabel: 'STANDARD CATCH',
         isJackpot: false
       };
     }
 
-    // Medium fish (Mutant): Avg multiplier = 7.25x * 11.7% capture rate = ~84.8% RTP
+    // Medium fish (Mutant): Volatile multipliers for ~40% RTP
     const roll = Math.random();
-    if (roll < 0.01) {
+    if (roll < 0.0025) { // Lower frequency
       this.stats.bonusJackpotTriggers++;
       return {
-        finalMultiplier: 50.0,
-        bonusLabel: '🔥 50X MUTANT JACKPOT!',
+        finalMultiplier: 200.0, // Higher volatility
+        bonusLabel: '🔥 200X MUTANT JACKPOT!',
         isJackpot: true
       };
     }
-    if (roll < 0.07) {
+    if (roll < 0.02) {
       return {
-        finalMultiplier: 20.0,
-        bonusLabel: '🔥 20X SUPER BOUNTY!',
+        finalMultiplier: 30.0,
+        bonusLabel: '🔥 30X SUPER BOUNTY!',
         isJackpot: false
       };
     }
-    if (roll < 0.25) {
+    if (roll < 0.1) {
       return {
-        finalMultiplier: 10.0,
-        bonusLabel: '10X HIGH BOUNTY!',
+        finalMultiplier: 12.0,
+        bonusLabel: '12X HIGH BOUNTY!',
         isJackpot: false
       };
     }
     return {
-      finalMultiplier: 5.0,
+      finalMultiplier: 2.0, // Higher standard return
       bonusLabel: 'STANDARD MUTANT',
       isJackpot: false
     };
