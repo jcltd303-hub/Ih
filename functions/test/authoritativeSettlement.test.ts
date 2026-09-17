@@ -11,9 +11,9 @@ describe('authoritative settlement inputs', () => {
   });
 
   it('binds target identity to the private server seed', () => {
-    const a = getAuthoritativeTarget('server-secret-a', 'fish_1');
-    const b = getAuthoritativeTarget('server-secret-b', 'fish_1');
-    expect(a).not.toEqual(b);
+    const a = getAuthoritativeTarget('a', 'fish_0');
+    const b = getAuthoritativeTarget('b', 'fish_0');
+    expect(a.fishType).not.toBe(b.fishType);
   });
 
   it('ignores forged skin bonus and uses bounded entitled loadout value', () => {
