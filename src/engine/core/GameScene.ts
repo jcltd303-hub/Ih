@@ -20,7 +20,6 @@ import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
 import { GameEventBus, ScreenShakeEvent } from './GameEvents';
 import { TableSelectionManager, TableConfig } from '../../network/TableSelectionManager';
-import { WalletService } from '../../network/WalletService';
 import { PayoutEngine } from '../systems/PayoutEngine';
 
 export class GameScene {
@@ -136,8 +135,6 @@ export class GameScene {
     if (this.isPlaying) return;
     this.isPlaying = true;
     this.uiManager.hideStartScreen();
-    // If the browser permits autoplay, start immediately. Otherwise the
-    // first real gameplay gesture in setupInputListeners() starts the scheduler.
     if (SoundManager.isBgmEnabled() && SoundManager.isSoundEnabled()) SoundManager.startBgm();
     void FairnessSession.getInstance().begin().then((sess) => console.info('[Fairness] session', sess.status, sess.serverSeedHash.slice(0, 12) + '…'));
     const uid = AuthManager.getInstance().getUid() || GameConfig.localPlayerId;
@@ -180,22 +177,12 @@ export class GameScene {
     this.bossRaid.startRaid(uid, (result) => {
       console.info('[BossRaid] completed', result);
       this.bossUnlockAtMs = Date.now() + GameConfig.bossPacing.cooldownMs;
-      
+      // Boss-raid bounty is deliberately not applied here. This callback is
+      // browser-controlled presentation state, so treating its payout as
+      // wallet authority would recreate a client-side currency mint. A
+      // financial boss reward must come from a trusted server transaction.
       if (result.defeated && result.bountyPayout > 0) {
-        const rewardSc = result.bountyPayout;
-        WalletService.creditRaidReward(0, rewardSc);
-        this.uiManager.addBalance(0, rewardSc);
-        PayoutEngine.recordPayout(rewardSc);
-
-        SoundManager.playCoinDrop('jackpot', rewardSc);
-        this.particleFX.emitCoinExplosion(this.app.screen.width / 2, this.app.screen.height / 2, 48);
-        this.particleFX.spawnFloatingText(
-          this.app.screen.width / 2, 
-          this.app.screen.height / 2 - 100, 
-          `BOSS BOUNTY: +${rewardSc.toFixed(2)} SC!`, 
-          0xffd700, 
-          true
-        );
+        console.info('[BossRaid] client-computed bounty ignored; server settlement is authoritative.');
       }
     });
   }
@@ -220,8 +207,6 @@ export class GameScene {
     });
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.isPlaying) return;
-      // Pointerdown is a genuine user gesture. Use it to unlock/recover audio
-      // without making the player press a separate PLAY button.
       if (SoundManager.isBgmEnabled() && SoundManager.isSoundEnabled()) SoundManager.startBgm();
       canvas.setPointerCapture?.(e.pointerId);
       syncAim(e.clientX, e.clientY);
@@ -272,14 +257,6 @@ export class GameScene {
   public syncWalletBalances(gc: number, sc: number, _source?: string): void { this.uiManager.setBalances(gc, sc); }
   public triggerShake(intensity: number, durationMs: number): void { this.shakeIntensity = intensity; this.shakeDuration = durationMs; }
 
-  /**
-   * Runs fn() and, if it throws, logs it once (per label, not once per
-   * frame) and lets the rest of update() keep going instead of the whole
-   * tick — and every visual system in it — dying because one subsystem
-   * had a bad frame. A silently-eaten exception here would previously
-   * abort the entire game loop with no visible symptom besides "the canvas
-   * never draws anything."
-   */
   private safeStep(label: string, fn: () => void): void {
     try {
       fn();
