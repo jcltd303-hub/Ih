@@ -20,7 +20,6 @@ import { MultiplayerPresenceLayer } from '../systems/MultiplayerPresenceLayer';
 import { BossRaidEvent } from '../systems/BossRaidEvent';
 import { GameEventBus, ScreenShakeEvent } from './GameEvents';
 import { TableSelectionManager, TableConfig } from '../../network/TableSelectionManager';
-import { PayoutEngine } from '../systems/PayoutEngine';
 
 export class GameScene {
   private app: Application;
@@ -107,10 +106,6 @@ export class GameScene {
         }
       }
     );
-    // Keep the gameplay world on the main Pixi render path. The custom
-    // post-processing shader can fail silently on some mobile WebGL stacks;
-    // applying it to the whole world then makes fish/turret sprites vanish.
-    // Impact glitch/dim controls remain available for compatible effects.
     this.lastTargetX = width / 2;
     this.lastTargetY = height / 3;
     this.setupInputListeners();
@@ -125,9 +120,6 @@ export class GameScene {
         this.fishManager.spawnAt('medium', this.app.screen.width / 2, this.app.screen.height / 2);
       })
     );
-    // The arcade cabinet is live immediately. There is intentionally no
-    // blocking PLAY/start screen; browsers will unlock WebAudio on the first
-    // real pointer/keyboard gesture while gameplay is already running.
     this.startPlay();
   }
 
@@ -177,10 +169,9 @@ export class GameScene {
     this.bossRaid.startRaid(uid, (result) => {
       console.info('[BossRaid] completed', result);
       this.bossUnlockAtMs = Date.now() + GameConfig.bossPacing.cooldownMs;
-      // Boss-raid bounty is deliberately not applied here. This callback is
-      // browser-controlled presentation state, so treating its payout as
-      // wallet authority would recreate a client-side currency mint. A
-      // financial boss reward must come from a trusted server transaction.
+      // Boss-raid bounty is presentation-only in the browser. Never turn a
+      // client-computed raid result into wallet currency; trusted server
+      // settlement is the only financial authority.
       if (result.defeated && result.bountyPayout > 0) {
         console.info('[BossRaid] client-computed bounty ignored; server settlement is authoritative.');
       }
