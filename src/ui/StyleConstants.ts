@@ -138,7 +138,7 @@ export const ARCADE = {
       </button>
     `;
   }
-} as const;
+}
 
 // Backward-compatible alias for existing imports
 export const ER = {

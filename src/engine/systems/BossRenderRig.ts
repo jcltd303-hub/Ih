@@ -40,6 +40,19 @@ export class BossRenderRig implements IRenderRig {
     // Boss currently uses procedural transformation instead of animation states
   }
 
+  playHitReaction(amount: number, theme: 'light' | 'dark'): void {
+    this.applyFlash(0xff3333, 0.1);
+    this.applyShudder(10, 0.2);
+  }
+
+  setMotion(speed: number, vy: number, panic: boolean): void {
+    // Boss motion is handled by update() based on internal breathing
+  }
+
+  setHierarchy(hierarchy: 'NORMAL' | 'ELITE' | 'CRITICAL' | 'BOSS'): void {
+    // Boss is always BOSS
+  }
+
   update(dt: number, facing: 'left' | 'right', x: number, y: number): void {
     // Handle flash/shudder timers
     if (this.damageFlashTimer > 0) {

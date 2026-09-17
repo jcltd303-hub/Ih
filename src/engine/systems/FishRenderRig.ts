@@ -25,6 +25,31 @@ export class FishRenderRig implements IRenderRig {
     }, duration);
   }
 
+  setMotion(speed: number, vy: number, panic: boolean): void {
+    if (!this.rig || !this.rig.container) return;
+    this.rig.setSpeed(panic ? speed * 1.8 : speed);
+    // Apply slight tilt based on vertical velocity
+    this.rig.container.rotation = vy * 0.05;
+  }
+
+  setHierarchy(hierarchy: 'NORMAL' | 'ELITE' | 'CRITICAL' | 'BOSS'): void {
+    if (!this.rig || !this.rig.container) return;
+    if (hierarchy === 'ELITE') this.rig.container.scale.set(1.1);
+    else if (hierarchy === 'CRITICAL') this.rig.container.scale.set(1.25);
+  }
+
+  playHitReaction(amount: number, theme: 'light' | 'dark'): void {
+    this.applyFlash(0xffffff, 0.1);
+    if (!this.rig || !this.rig.container) return;
+    // Quick scale punch
+    this.rig.container.scale.set(0.9, 1.1);
+    setTimeout(() => {
+        if (this.rig && this.rig.container && !this.rig.container.destroyed) {
+            this.rig.container.scale.set(1.0, 1.0);
+        }
+    }, 100);
+  }
+
   applyShudder(intensity: number, duration: number): void {
     // Normal fish don't have shudder logic in the rig
   }

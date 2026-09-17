@@ -97,6 +97,16 @@ export class UIManager {
       this.showGameOverModal(data);
     });
 
+    GameEventBus.getInstance().on('TURRET_TRIGGER', (data: any) => {
+      this.applyTurretVisualFeedback('BONUS');
+    });
+    GameEventBus.getInstance().on('TURRET_EXPIRE', (data: any) => {
+      this.applyTurretVisualFeedback('COOLDOWN');
+    });
+    GameEventBus.getInstance().on('TURRET_READY', () => {
+      this.applyTurretVisualFeedback('NORMAL');
+    });
+
     // Seed lifetime deposit ledger once with starting SC (operator P&L baseline)
     try {
       if (!localStorage.getItem('fish_frenzy_deposit_seeded')) {
@@ -107,6 +117,26 @@ export class UIManager {
 
     // HUD starts hidden until Play
     this.container.style.visibility = 'hidden';
+  }
+
+  private applyTurretVisualFeedback(state: 'NORMAL' | 'BONUS' | 'COOLDOWN'): void {
+    const plate = this.container.querySelector('.ff-turret-plate') as HTMLElement;
+    if (!plate) return;
+
+    if (state === 'BONUS') {
+      plate.style.boxShadow = '0 0 20px 5px rgba(251, 191, 36, 0.6)';
+      plate.style.borderColor = '#fbbf24';
+      // Trigger subtle screen shake
+      this.container.style.transition = 'transform 0.05s';
+      this.container.style.transform = 'translate(2px, 2px)';
+      setTimeout(() => { this.container.style.transform = 'translate(0, 0)'; }, 100);
+    } else if (state === 'COOLDOWN') {
+      plate.style.boxShadow = '0 0 10px 2px rgba(239, 68, 68, 0.4)';
+      plate.style.borderColor = '#ef4444';
+    } else {
+      plate.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25)';
+      plate.style.borderColor = ''; // Reverts to CSS class
+    }
   }
 
   /** Full-screen arcade cabinet title screen with Play CTA */

@@ -56,6 +56,7 @@ export class Fish implements Boid {
     }
     this.container.addChild(this.renderRig.container);
     this.container.x = this.x; this.container.y = this.y;
+    this.renderRig.setHierarchy(this.hierarchy);
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
@@ -146,6 +147,7 @@ export class Fish implements Boid {
     }
     this.container.x = this.x; this.container.y = this.y;
     this.bounds.x = this.x - this.width / 2; this.bounds.y = this.y - this.height / 2;
+    this.renderRig.setMotion(Math.sqrt(this.vx * this.vx + this.vy * this.vy), this.vy, this.panicTimer > 0);
   }
 
   public takeDamage(damage: number): boolean {
@@ -162,6 +164,7 @@ export class Fish implements Boid {
     }
     
     this.renderRig.applyFlash(0xff4444, 0.1);
+    this.renderRig.playHitReaction(amount, this.theme);
 
     if (this.health <= 0) {
       return true;

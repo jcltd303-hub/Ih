@@ -309,7 +309,7 @@ export class GameScene {
       this.safeStep('bossRaid.update (hitstop)', () => this.bossRaid.update(frameMs));
       if (this.bossRaid.isActive()) {
         const bossState = this.bossRaid.getState();
-        this.uiManager.setBossOverlay(true, Math.ceil(bossState.timeRemaining / 1000), bossState.maxHp > 0 ? bossState.hp / bossState.maxHp * 100 : 0, bossState.phase, bossState.totalDamage);
+        this.uiManager.setBossOverlay(true, Math.ceil(bossState.timeRemaining / 1000), bossState.maxHp > 0 ? bossState.hp / bossState.maxHp * 100 : 0, bossState.state, bossState.totalDamage);
       }
       return;
     }

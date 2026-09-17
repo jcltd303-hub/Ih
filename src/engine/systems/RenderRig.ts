@@ -10,4 +10,9 @@ export interface IRenderRig {
   destroy(): void;
   // Unified container reference
   container: Container;
+
+  // New arcade responsiveness methods
+  setMotion(speed: number, vy: number, panic: boolean): void;
+  setHierarchy(hierarchy: 'NORMAL' | 'ELITE' | 'CRITICAL' | 'BOSS'): void;
+  playHitReaction(amount: number, theme: 'light' | 'dark'): void;
 }

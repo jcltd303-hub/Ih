@@ -19,6 +19,7 @@ export enum BossState {
 
 export interface BossRaidState {
   state: BossState;
+  phase?: string;
   hp: number;
   maxHp: number;
   timeRemaining: number;
@@ -60,6 +61,7 @@ export class BossRaidEvent {
     this.particleFX = particleFX;
     this.state = {
       state: BossState.IDLE,
+      phase: 'normal',
       hp: 0,
       maxHp: 0,
       timeRemaining: 0,
@@ -142,6 +144,7 @@ export class BossRaidEvent {
     const maxHp = 150 + Math.floor(Math.random() * 100);
     this.state = {
       state: BossState.ACTIVE,
+      phase: 'normal',
       hp: maxHp,
       maxHp,
       timeRemaining: this.RAID_DURATION_MS,
@@ -180,6 +183,7 @@ export class BossRaidEvent {
 
     if (this.state.hp < this.state.maxHp * 0.4) {
       this.state.state = BossState.PHASE_SHIFT;
+      this.state.phase = 'enraged';
       GameEventBus.getInstance().emit('BOSS_PHASE_CHANGE', { phase: 'ENRAGED' });
       SoundManager.setBossMusic(true, true);
     }
@@ -279,7 +283,7 @@ export class BossRaidEvent {
 
     this.hpBarFill.clear();
     this.hpBarFill.rect(barX + 1, barY + 1, (barWidth - 2) * hpPct, 8);
-    this.hpBarFill.fill({ color: this.state.phase === 'enraged' ? 0xff3300 : 0x00ffcc, alpha: 0.95 });
+    this.hpBarFill.fill({ color: this.state.state === BossState.PHASE_SHIFT ? 0xff3300 : 0x00ffcc, alpha: 0.95 });
 
     this.stateEmitAccumulatorMs += deltaTime;
     if (this.stateEmitAccumulatorMs >= 100) {
