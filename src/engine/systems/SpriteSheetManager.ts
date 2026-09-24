@@ -1,4 +1,4 @@
-import { Texture, Rectangle, AnimatedSprite, Container, Graphics } from 'pixi.js';
+import { Texture, Rectangle, AnimatedSprite, Container, Graphics, Assets } from 'pixi.js';
 
 export type FishAnimState = 'swim_left' | 'swim_right' | 'turn_left' | 'turn_right';
 export type FishSpecies = 'small' | 'medium' | 'angler' | 'boss';
@@ -79,15 +79,13 @@ export class SpriteSheetManager {
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    // Generate high-resolution procedural sprite sheets matching the mechanical lionfish
-    // and sci-fi dual-barrel cannon turret
-    this.buildFishSpriteSheets();
+    // Build only metadata/fallback state, then replace every gameplay frame
+    // with authored raster artwork before any Pixi rig can be created.
     this.buildTurretSpriteSheets();
-
-    // The authored turret sheets are the source of truth. Await them before
-    // exposing the manager so createTurretRig() never captures procedural
-    // fallback textures and keeps them for the lifetime of the rig.
-    await this.loadExternalSpriteSheets();
+    await Promise.all([
+      this.loadAuthoredFishSpriteSheets(),
+      this.loadExternalSpriteSheets()
+    ]);
 
     this.isInitialized = true;
     console.log('[SpriteSheetManager] Initialized animated sprite sheets successfully.');
@@ -876,16 +874,51 @@ export class SpriteSheetManager {
     // Authored raster sheets are loaded (and awaited) by initialize().
   }
 
+  private assetUrl(path: string): string {
+    const base = import.meta.env.BASE_URL || '/';
+    return `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+  }
+
+  private async loadAuthoredFishSpriteSheets(): Promise<void> {
+    // Use committed raster artwork directly. Direction/turn states reuse the
+    // same texture with Pixi transforms instead of synthesizing vector/canvas fish.
+    const authored: Record<'small' | 'medium' | 'angler', string> = {
+      small: 'tetra_fish.png',
+      medium: 'mutant_cutout_atlas.png',
+      angler: 'fish_swim_sheet.jpg'
+    };
+
+    for (const [species, path] of Object.entries(authored) as Array<['small' | 'medium' | 'angler', string]>) {
+      const texture = await Assets.load(this.assetUrl(path)) as Texture;
+      const frames = Array.from({ length: 8 }, () => texture);
+      const set: FishFrameset = {
+        swimLeft: frames.slice(),
+        swimRight: frames.slice(),
+        turnLeft: frames.slice(),
+        turnRight: frames.slice()
+      };
+      this.fishFrameSets.set(`${species}_light`, set);
+      this.fishFrameSets.set(`${species}_dark`, set);
+    }
+
+    const defaultSet = this.fishFrameSets.get('medium_light')!;
+    this.fishSwimLeftFrames = defaultSet.swimLeft;
+    this.fishSwimRightFrames = defaultSet.swimRight;
+    this.fishTurnLeftFrames = defaultSet.turnLeft;
+    this.fishTurnRightFrames = defaultSet.turnRight;
+  }
+
   private async loadExternalSpriteSheets(): Promise<void> {
     const skins: { id: TurretSkinId; file: string }[] = [
-      { id: 'plasma_neon', file: '/skins/plasma_neon_sheet.png' },
-      { id: 'cyber_gold', file: '/skins/cyber_gold_sheet.png' },
-      { id: 'abyssal_dread', file: '/skins/abyssal_dread_sheet.png' },
-      { id: 'default', file: '/skins/default_sheet.png' }
+      { id: 'plasma_neon', file: 'skins/plasma_neon_sheet.png' },
+      { id: 'cyber_gold', file: 'skins/cyber_gold_sheet.png' },
+      { id: 'abyssal_dread', file: 'skins/abyssal_dread_sheet.png' },
+      { id: 'default', file: 'skins/default_sheet.png' }
     ];
 
     for (const item of skins) {
-      this.loadCalibratedSheet(item.file).then((frames) => {
+      const frames = await this.loadCalibratedSheet(this.assetUrl(item.file));
+      try {
         if (frames.length >= 12) {
           const skin = this.turretSkins.get(item.id);
           if (skin) {
@@ -899,9 +932,9 @@ export class SpriteSheetManager {
             console.log(`[SpriteSheetManager] Loaded calibrated high-res sprite sheet for ${item.id}`);
           }
         }
-      }).catch((e) => {
+      } catch (e) {
         console.warn(`[SpriteSheetManager] Fallback active for ${item.id}`, e);
-      });
+      }
     }
   }
 
@@ -1623,12 +1656,11 @@ export class SpriteSheetManager {
 
   public getFishFrameset(species: 'small' | 'medium' | 'angler', theme: 'light' | 'dark'): FishFrameset {
     if (this.fishFrameSets.size === 0) {
-      this.buildFishSpriteSheets();
+      throw new Error('Authored fish textures were not loaded before rig creation');
     }
     const set = this.fishFrameSets.get(`${species}_${theme}`) || this.fishFrameSets.get('medium_light') || this.fishFrameSets.get('small_light');
     if (!set) {
-      this.buildFishSpriteSheets();
-      return this.fishFrameSets.get(`${species}_${theme}`) || this.fishFrameSets.values().next().value!;
+      throw new Error(`Missing authored fish frameset: ${species}_${theme}`);
     }
     return set;
   }
