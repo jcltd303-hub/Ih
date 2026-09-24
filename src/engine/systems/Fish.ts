@@ -57,6 +57,7 @@ export class Fish implements Boid {
     this.container.addChild(this.renderRig.container);
     this.container.x = this.x; this.container.y = this.y;
     this.renderRig.setHierarchy(this.hierarchy);
+    this.resizeForViewport(screenWidth, screenHeight);
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
@@ -201,30 +202,26 @@ export class Fish implements Boid {
   }
 
   public resizeForViewport(screenWidth: number, screenHeight: number): void {
-    // Keep gameplay sprites proportional when a phone rotates. Portrait uses the
-    // short side as its sizing reference; landscape gets a small readability bump.
-    const shortSide = Math.max(320, Math.min(screenWidth, screenHeight));
-    const orientationFactor = screenWidth > screenHeight ? 1.08 : 1;
-    const viewportScale = Math.max(0.72, Math.min(1.18, shortSide / 430)) * orientationFactor;
-    // Preserve the rig's intrinsic texture-normalization scale; resize only as
-    // an additional viewport factor instead of replacing it on rotation.
-    const rig = this.renderRig.container;
-    const baseScaleX = Math.abs(rig.scale.x) || 1;
-    const baseScaleY = Math.abs(rig.scale.y) || baseScaleX;
-    rig.scale.set(baseScaleX * viewportScale, baseScaleY * viewportScale);
+    // Responsive fish size is a percentage of the viewport short side.
+    // No accumulated scale: every resize/rotation recomputes from texture size.
+    const shortSide = Math.max(1, Math.min(screenWidth, screenHeight));
+    const percent = this.typeId === 'boss' ? 0.24 : this.typeId === 'medium' ? 0.12 : 0.075;
+    const targetWidth = shortSide * percent;
+    const local = this.renderRig.container.getLocalBounds();
+    const sourceWidth = Math.max(1, local.width);
+    const aspect = local.width > 0 ? local.height / local.width : 0.65;
+    const scale = targetWidth / sourceWidth;
+    this.renderRig.container.scale.set(scale);
 
-    const baseWidth = this.typeId === 'boss' ? 260 : this.typeId === 'medium' ? 128 : 82;
-    const baseHeight = this.typeId === 'boss' ? 150 : this.typeId === 'medium' ? 82 : 52;
-    this.width = baseWidth * viewportScale;
-    this.height = baseHeight * viewportScale;
+    this.width = targetWidth;
+    this.height = Math.max(targetWidth * 0.45, targetWidth * aspect);
     this.bounds.width = this.width;
     this.bounds.height = this.height;
     this.bounds.x = this.x - this.width / 2;
     this.bounds.y = this.y - this.height / 2;
 
-    // Re-home fish that became off-screen after an orientation change.
     this.x = Math.max(-this.width, Math.min(screenWidth + this.width, this.x));
-    this.y = Math.max(50, Math.min(screenHeight - 50, this.y));
+    this.y = Math.max(40, Math.min(screenHeight - 40, this.y));
     this.container.position.set(this.x, this.y);
   }
 
