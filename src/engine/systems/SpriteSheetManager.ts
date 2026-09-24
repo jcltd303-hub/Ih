@@ -84,6 +84,11 @@ export class SpriteSheetManager {
     this.buildFishSpriteSheets();
     this.buildTurretSpriteSheets();
 
+    // The authored turret sheets are the source of truth. Await them before
+    // exposing the manager so createTurretRig() never captures procedural
+    // fallback textures and keeps them for the lifetime of the rig.
+    await this.loadExternalSpriteSheets();
+
     this.isInitialized = true;
     console.log('[SpriteSheetManager] Initialized animated sprite sheets successfully.');
   }
@@ -868,16 +873,15 @@ export class SpriteSheetManager {
     // 4. Tactical Navy (Standard Dual-Barrel)
     this.buildDefaultSkin();
 
-    // Attempt background high-res sprite sheet enhancement
-    this.loadExternalSpriteSheets();
+    // Authored raster sheets are loaded (and awaited) by initialize().
   }
 
   private async loadExternalSpriteSheets(): Promise<void> {
     const skins: { id: TurretSkinId; file: string }[] = [
-      { id: 'plasma_neon', file: 'skins/plasma_neon_sheet.png' },
-      { id: 'cyber_gold', file: 'skins/cyber_gold_sheet.png' },
-      { id: 'abyssal_dread', file: 'skins/abyssal_dread_sheet.png' },
-      { id: 'default', file: 'skins/default_sheet.png' }
+      { id: 'plasma_neon', file: '/skins/plasma_neon_sheet.png' },
+      { id: 'cyber_gold', file: '/skins/cyber_gold_sheet.png' },
+      { id: 'abyssal_dread', file: '/skins/abyssal_dread_sheet.png' },
+      { id: 'default', file: '/skins/default_sheet.png' }
     ];
 
     for (const item of skins) {
