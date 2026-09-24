@@ -207,15 +207,17 @@ export class Fish implements Boid {
     const shortSide = Math.max(1, Math.min(screenWidth, screenHeight));
     const percent = this.typeId === 'boss' ? 0.24 : this.typeId === 'medium' ? 0.12 : 0.075;
     const targetWidth = shortSide * percent;
-    const visible = this.renderRig.container.getBounds();
-    const renderedWidth = Math.max(1, visible.width);
-    const renderedHeight = Math.max(1, visible.height);
-    const correction = Math.max(0.25, Math.min(4, targetWidth / renderedWidth));
-    this.renderRig.container.scale.x *= correction;
-    this.renderRig.container.scale.y *= correction;
+    // Size from the authored sprite texture itself. World bounds are invalid here:
+    // during construction the parent fish container is still positioned/scaled,
+    // so getBounds() can feed our own previous transform back into the calculation.
+    const sprite = (this.renderRig as any).rig?.sprite;
+    const sourceWidth = Math.max(1, sprite?.texture?.width ?? 1536);
+    const sourceHeight = Math.max(1, sprite?.texture?.height ?? 1024);
+    const scale = targetWidth / sourceWidth;
+    this.renderRig.container.scale.set(scale);
 
     this.width = targetWidth;
-    this.height = targetWidth * Math.max(0.35, Math.min(1.2, renderedHeight / renderedWidth));
+    this.height = targetWidth * Math.max(0.35, Math.min(1.2, sourceHeight / sourceWidth));
     this.bounds.width = this.width;
     this.bounds.height = this.height;
     this.bounds.x = this.x - this.width / 2;
