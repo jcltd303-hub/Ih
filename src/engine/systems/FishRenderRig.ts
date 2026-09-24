@@ -32,8 +32,10 @@ export class FishRenderRig implements IRenderRig {
 
   setMotion(speed: number, vy: number, panic: boolean): void {
     if (!this.rig || !this.rig.container) return;
-    this.rig.setSpeed(panic ? speed * 1.8 : speed);
-    // Apply slight tilt based on vertical velocity
+    const motionSpeed = panic ? speed * 1.8 : speed;
+    this.rig.setSpeed(motionSpeed);
+    this.rig.updatePose(1 / 60);
+    // Root bone follows travel direction while the authored cutout deforms.
     this.rig.container.rotation = vy * 0.05;
   }
 
