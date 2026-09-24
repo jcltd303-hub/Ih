@@ -1,7 +1,6 @@
 import { Texture, Assets } from 'pixi.js';
 import { SpriteSheetManager } from './SpriteSheetManager';
 import { Tetra } from './Tetra';
-import { SpineTetraRenderRig } from './SpineTetraRenderRig';
 import mutantAtlasDataUri from '../../assets/images/mutant_cutout_atlas_data';
 
 export class AssetLoader {
@@ -13,7 +12,7 @@ export class AssetLoader {
       return;
     }
 
-    const steps = 8;
+    const steps = 7;
     let completed = 0;
     const reportStep = () => {
       completed++;
@@ -80,13 +79,6 @@ export class AssetLoader {
       await Tetra.prepare();
     } catch (err) {
       console.warn('[AssetLoader] Tetra prepare failed, using fallback', err);
-    }
-    reportStep();
-
-    try {
-      await SpineTetraRenderRig.prepare();
-    } catch (err) {
-      console.warn('[AssetLoader] Native Spine tetra unavailable; raster fallback remains active', err);
     }
     reportStep();
 
