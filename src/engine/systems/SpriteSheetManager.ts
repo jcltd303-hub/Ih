@@ -105,9 +105,9 @@ export class SpriteSheetManager {
     // containers (body/root + tail/fin motion) rather than chopping the source
     // artwork into arbitrary atlas cells.
     const authored: Record<'small' | 'medium' | 'angler', string> = {
-      small: 'tetra_fish.png',
-      medium: 'Untitled design_20260924_033554_0000.png',
-      angler: 'Untitled design_20260924_032338_0000.png'
+      small: 'Untitled design_20260924_033437_0000.png',
+      medium: 'file_000000005b7481f58b53685838851dcc.png',
+      angler: 'Untitled design_20260924_033554_0000.png'
     };
 
     for (const [species, path] of Object.entries(authored) as Array<['small' | 'medium' | 'angler', string]>) {
