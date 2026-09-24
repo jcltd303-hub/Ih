@@ -207,14 +207,15 @@ export class Fish implements Boid {
     const shortSide = Math.max(1, Math.min(screenWidth, screenHeight));
     const percent = this.typeId === 'boss' ? 0.24 : this.typeId === 'medium' ? 0.12 : 0.075;
     const targetWidth = shortSide * percent;
-    const local = this.renderRig.container.getLocalBounds();
-    const sourceWidth = Math.max(1, local.width);
-    const aspect = local.width > 0 ? local.height / local.width : 0.65;
-    const scale = targetWidth / sourceWidth;
-    this.renderRig.container.scale.set(scale);
+    const visible = this.renderRig.container.getBounds();
+    const renderedWidth = Math.max(1, visible.width);
+    const renderedHeight = Math.max(1, visible.height);
+    const correction = Math.max(0.25, Math.min(4, targetWidth / renderedWidth));
+    this.renderRig.container.scale.x *= correction;
+    this.renderRig.container.scale.y *= correction;
 
     this.width = targetWidth;
-    this.height = Math.max(targetWidth * 0.45, targetWidth * aspect);
+    this.height = targetWidth * Math.max(0.35, Math.min(1.2, renderedHeight / renderedWidth));
     this.bounds.width = this.width;
     this.bounds.height = this.height;
     this.bounds.x = this.x - this.width / 2;
