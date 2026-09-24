@@ -1,0 +1,51 @@
+name: Apply tetra Spine asset bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "spine-rig (2).zip"
+      - ".github/workflows/apply-tetra-spine.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Extract authored tetra Spine export
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf public/spine/tetra
+          mkdir -p public/spine/tetra
+          unzip -o "spine-rig (2).zip" -d public/spine/tetra
+          json="$(find public/spine/tetra -type f -name '*.json' | head -1)"
+          atlas="$(find public/spine/tetra -type f -name '*.atlas' | head -1)"
+          test -n "$json"
+          test -n "$atlas"
+          if [ "$json" != "public/spine/tetra/rig.json" ]; then cp "$json" public/spine/tetra/rig.json; fi
+          if [ "$atlas" != "public/spine/tetra/rig.atlas" ]; then cp "$atlas" public/spine/tetra/rig.atlas; fi
+          echo "Tetra bundle:"
+          find public/spine/tetra -maxdepth 3 -type f -print
+      - name: Refresh dependency lock
+        run: npm install --package-lock-only
+      - name: Commit generated runtime assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/spine/tetra package-lock.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "assets: apply tetra Spine export"
+          git push
