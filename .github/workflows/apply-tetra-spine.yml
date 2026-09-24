@@ -1,10 +1,11 @@
-name: Apply tetra Spine asset bundle
+name: Apply Spine asset bundles
 
 on:
   push:
     branches: [main]
     paths:
       - "spine-rig (2).zip"
+      - "spine-rig (3).zip"
       - ".github/workflows/apply-tetra-spine.yml"
 
 permissions:
@@ -22,21 +23,30 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Extract authored tetra Spine export
+      - name: Extract authored Spine exports
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf public/spine/tetra
-          mkdir -p public/spine/tetra
-          unzip -o "spine-rig (2).zip" -d public/spine/tetra
-          json="$(find public/spine/tetra -type f -name '*.json' | head -1)"
-          atlas="$(find public/spine/tetra -type f -name '*.atlas' | head -1)"
-          test -n "$json"
-          test -n "$atlas"
-          if [ "$json" != "public/spine/tetra/rig.json" ]; then cp "$json" public/spine/tetra/rig.json; fi
-          if [ "$atlas" != "public/spine/tetra/rig.atlas" ]; then cp "$atlas" public/spine/tetra/rig.atlas; fi
-          echo "Tetra bundle:"
-          find public/spine/tetra -maxdepth 3 -type f -print
+
+          apply_bundle() {
+            zip="$1"
+            dest="$2"
+            rm -rf "$dest"
+            mkdir -p "$dest"
+            unzip -o "$zip" -d "$dest"
+            json="$(find "$dest" -type f -name '*.json' | head -1)"
+            atlas="$(find "$dest" -type f -name '*.atlas' | head -1)"
+            test -n "$json"
+            test -n "$atlas"
+            if [ "$json" != "$dest/rig.json" ]; then cp "$json" "$dest/rig.json"; fi
+            if [ "$atlas" != "$dest/rig.atlas" ]; then cp "$atlas" "$dest/rig.atlas"; fi
+            echo "$zip -> $dest"
+            find "$dest" -maxdepth 3 -type f -print
+          }
+
+          apply_bundle "spine-rig (2).zip" public/spine/tetra
+          apply_bundle "spine-rig (3).zip" public/spine/boss
+
       - name: Refresh dependency lock
         run: npm install --package-lock-only
       - name: Commit generated runtime assets
@@ -45,7 +55,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/spine/tetra package-lock.json
+          git add public/spine/tetra public/spine/boss package-lock.json
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "assets: apply tetra Spine export"
+          git commit -m "assets: apply Spine exports"
           git push
