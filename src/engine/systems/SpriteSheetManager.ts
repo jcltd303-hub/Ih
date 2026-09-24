@@ -14,6 +14,7 @@ export interface FishFrameset {
 export interface FishAnimationRig {
   container: Container;
   sprite: AnimatedSprite;
+  effectContainer: Container;
   currentState: FishAnimState;
   currentTheme: 'light' | 'dark';
   species: FishSpecies;
@@ -903,7 +904,11 @@ export class SpriteSheetManager {
     sprite.anchor.set(0.5, 0.5);
     sprite.animationSpeed = 0.22;
     sprite.play();
-    container.addChild(sprite);
+    // Responsive size lives on the outer container only. All animation/effect
+    // transforms live below it so hits/hierarchy can never overwrite sizing.
+    const effectContainer = new Container();
+    effectContainer.addChild(sprite);
+    container.addChild(effectContainer);
 
     // Lightweight skeletal-style root deformation: the authored cutout remains
     // the only visual source while the root bone bends/squashes the fish.
@@ -919,6 +924,7 @@ export class SpriteSheetManager {
     const rig: FishAnimationRig = {
       container,
       sprite,
+      effectContainer,
       currentState: 'swim_right',
       currentTheme,
       species,
