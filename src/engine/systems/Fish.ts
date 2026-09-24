@@ -5,6 +5,7 @@ import { EntityBounds, SpatialHashGrid } from './SpatialHashGrid';
 import { IRenderRig } from './RenderRig';
 import { FishRenderRig } from './FishRenderRig';
 import { BossRenderRig } from './BossRenderRig';
+import { SpineTetraRenderRig } from './SpineTetraRenderRig';
 
 export class Fish implements Boid {
   public id: string;
@@ -46,8 +47,12 @@ export class Fish implements Boid {
     if (isBoss) {
       this.renderRig = new BossRenderRig(this.width, this.height, theme);
     } else {
-      const animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
-      this.renderRig = new FishRenderRig(animRig);
+      if (isSmall && SpineTetraRenderRig.isReady()) {
+        this.renderRig = new SpineTetraRenderRig(theme);
+      } else {
+        const animRig = SpriteSheetManager.getInstance().createFishAnimationRig(type, theme);
+        this.renderRig = new FishRenderRig(animRig);
+      }
       if (this.facing === 'left') {
         this.renderRig.playState('swim_left');
       } else {
