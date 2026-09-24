@@ -82,7 +82,10 @@ export class SpriteSheetManager {
 
     // Build only metadata/fallback state, then replace every gameplay frame
     // with authored raster artwork before any Pixi rig can be created.
-    this.buildTurretSpriteSheets();
+    this.buildPlasmaNeonSkin();
+    this.buildAbyssalDreadSkin();
+    this.buildCyberGoldSkin();
+    this.buildDefaultSkin();
     await Promise.all([
       this.loadAuthoredFishSpriteSheets(),
       this.loadExternalSpriteSheets()
