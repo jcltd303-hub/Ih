@@ -880,25 +880,23 @@ export class SpriteSheetManager {
   }
 
   private async loadAuthoredFishSpriteSheets(): Promise<void> {
-    // Authored sources are sprite sheets/atlases, not single gameplay sprites.
-    // Slice them into frame textures so the full source image (and its
-    // checkerboard preview background) is never rendered as one giant sprite.
-    const authored: Record<'small' | 'medium' | 'angler', { path: string; frameW: number; frameH: number; maxFrames: number }> = {
-      small: { path: 'tetra_fish.png', frameW: 192, frameH: 192, maxFrames: 16 },
-      medium: { path: 'assets/mutant_cutout_atlas.png', frameW: 192, frameH: 192, maxFrames: 16 },
-      angler: { path: 'fish_swim_sheet.jpg', frameW: 192, frameH: 192, maxFrames: 16 }
+    // These are single authored raster cutouts. Pixi animates them as articulated
+    // containers (body/root + tail/fin motion) rather than chopping the source
+    // artwork into arbitrary atlas cells.
+    const authored: Record<'small' | 'medium' | 'angler', string> = {
+      small: 'tetra_fish.png',
+      medium: 'Untitled design_20260924_033554_0000.png',
+      angler: 'Untitled design_20260924_032338_0000.png'
     };
 
-    for (const [species, spec] of Object.entries(authored) as Array<['small' | 'medium' | 'angler', typeof authored['small']]>) {
-      const frames = await this.loadRasterGrid(this.assetUrl(spec.path), spec.frameW, spec.frameH, spec.maxFrames);
-      if (frames.length === 0) throw new Error(`No raster frames extracted from ${spec.path}`);
-
-      const cycle = (offset: number) => Array.from({ length: 8 }, (_, i) => frames[(offset + i) % frames.length]);
+    for (const [species, path] of Object.entries(authored) as Array<['small' | 'medium' | 'angler', string]>) {
+      const texture = await Assets.load(this.assetUrl(path)) as Texture;
+      const frames = Array.from({ length: 8 }, () => texture);
       const set: FishFrameset = {
-        swimRight: cycle(0),
-        swimLeft: cycle(Math.min(8, Math.max(0, frames.length - 1))),
-        turnRight: cycle(Math.min(4, Math.max(0, frames.length - 1))),
-        turnLeft: cycle(Math.min(12, Math.max(0, frames.length - 1)))
+        swimLeft: frames.slice(),
+        swimRight: frames.slice(),
+        turnLeft: frames.slice(),
+        turnRight: frames.slice()
       };
       this.fishFrameSets.set(`${species}_light`, set);
       this.fishFrameSets.set(`${species}_dark`, set);
@@ -909,29 +907,6 @@ export class SpriteSheetManager {
     this.fishSwimRightFrames = defaultSet.swimRight;
     this.fishTurnLeftFrames = defaultSet.turnLeft;
     this.fishTurnRightFrames = defaultSet.turnRight;
-  }
-
-  private loadRasterGrid(url: string, frameW: number, frameH: number, maxFrames: number): Promise<Texture[]> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const cols = Math.max(1, Math.floor(img.naturalWidth / frameW));
-        const rows = Math.max(1, Math.floor(img.naturalHeight / frameH));
-        const base = Texture.from(img);
-        const textures: Texture[] = [];
-        const count = Math.min(cols * rows, maxFrames);
-        for (let i = 0; i < count; i++) {
-          const x = (i % cols) * frameW;
-          const y = Math.floor(i / cols) * frameH;
-          if (x + frameW > img.naturalWidth || y + frameH > img.naturalHeight) break;
-          textures.push(new Texture({ source: base.source, frame: new Rectangle(x, y, frameW, frameH) }));
-        }
-        resolve(textures);
-      };
-      img.onerror = () => reject(new Error(`Failed to load raster sprite sheet: ${url}`));
-      img.src = url;
-    });
   }
 
   private async loadExternalSpriteSheets(): Promise<void> {
