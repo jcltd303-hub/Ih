@@ -911,13 +911,10 @@ export class SpriteSheetManager {
     let swimSpeed = 1;
 
     // Scaling based on fish type
-    // Normalize authored images by their actual texture dimensions. Source PNGs
-    // are ~1.5K wide, so fixed multipliers make them gigantic on mobile.
-    // Target widths are gameplay pixels before viewport/orientation scaling.
-    const targetWidth = type === 'boss' ? 260 : type === 'angler' ? 150 : type === 'medium' ? 128 : 82;
-    const textureWidth = Math.max(1, sprite.texture.width);
-    const normalizedScale = targetWidth / textureWidth;
-    container.scale.set(normalizedScale);
+    // Normalize each authored texture to a percentage of the viewport later.
+    // Keep the rig at native-normalized scale here; Fish.resizeForViewport owns
+    // responsive sizing so rotation never compounds or randomizes the result.
+    container.scale.set(1);
 
     const rig: FishAnimationRig = {
       container,
