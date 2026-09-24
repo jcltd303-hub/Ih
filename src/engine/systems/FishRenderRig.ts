@@ -54,11 +54,15 @@ export class FishRenderRig implements IRenderRig {
   playHitReaction(amount: number, theme: 'light' | 'dark'): void {
     this.applyFlash(0xffffff, 0.1);
     if (!this.rig || !this.rig.container) return;
-    // Quick scale punch
-    this.rig.container.scale.set(0.9, 1.1);
+    // Hit feedback must never overwrite responsive sizing. Animate the
+    // sprite locally so the viewport-owned container scale remains unchanged.
+    const sprite = this.rig.sprite;
+    const baseX = sprite.scale.x;
+    const baseY = sprite.scale.y;
+    sprite.scale.set(baseX * 0.94, baseY * 1.06);
     setTimeout(() => {
-        if (this.rig && this.rig.container && !this.rig.container.destroyed) {
-            this.rig.container.scale.set(1.0, 1.0);
+        if (this.rig && this.rig.sprite && !this.rig.container.destroyed) {
+            this.rig.sprite.scale.set(baseX, baseY);
         }
     }, 100);
   }
