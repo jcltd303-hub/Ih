@@ -911,7 +911,7 @@ export class SpriteSheetManager {
     let swimSpeed = 1;
 
     // Scaling based on fish type
-    const scale = type === 'boss' ? 2.2 : type === 'angler' ? 1.4 : type === 'medium' ? 1.15 : 0.85;
+    const scale = type === 'boss' ? 0.72 : type === 'angler' ? 0.52 : type === 'medium' ? 0.44 : 0.30;
     container.scale.set(scale);
 
     const rig: FishAnimationRig = {
