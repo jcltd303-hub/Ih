@@ -20,6 +20,7 @@ export interface FishAnimationRig {
   isTurning: boolean;
   playState: (state: FishAnimState, onComplete?: () => void) => void;
   setSpeed: (speedMultiplier: number) => void;
+  updatePose: (deltaSeconds: number) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   tint: (color: number) => void;
   resetTint: () => void;
@@ -901,6 +902,11 @@ export class SpriteSheetManager {
     sprite.play();
     container.addChild(sprite);
 
+    // Lightweight skeletal-style root deformation: the authored cutout remains
+    // the only visual source while the root bone bends/squashes the fish.
+    let swimClock = Math.random() * Math.PI * 2;
+    let swimSpeed = 1;
+
     // Scaling based on fish type
     const scale = type === 'boss' ? 2.2 : type === 'angler' ? 1.4 : type === 'medium' ? 1.15 : 0.85;
     container.scale.set(scale);
@@ -969,9 +975,16 @@ export class SpriteSheetManager {
         }
       },
       setSpeed: (mult: number) => {
-        if (!rig.isTurning) {
-          rig.sprite.animationSpeed = 0.18 * mult;
-        }
+        swimSpeed = Math.max(0.2, mult);
+        if (!rig.isTurning) rig.sprite.animationSpeed = 0.18 * mult;
+      },
+      updatePose: (dt: number) => {
+        swimClock += dt * (5.5 + swimSpeed * 2.5);
+        const wave = Math.sin(swimClock);
+        const bend = species === 'small' ? 0.055 : species === 'medium' ? 0.04 : 0.028;
+        sprite.skew.y = wave * bend;
+        sprite.scale.y = 1 + Math.abs(wave) * 0.018;
+        sprite.scale.x = 1 - Math.abs(wave) * 0.012;
       },
       tint: (color: number) => {
         rig.sprite.tint = color;
