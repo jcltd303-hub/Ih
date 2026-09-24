@@ -30,15 +30,16 @@ export class FishManager {
     const w = this.screenWidth > 0 ? this.screenWidth : 800;
     const h = this.screenHeight > 0 ? this.screenHeight : 600;
 
-    // Spawn 3 medium mutant fish nicely spaced across the tank
-    for (let i = 0; i < 3; i++) {
+    // Start light; waves populate the tank after load.
+    // Spawn 1 medium lionfish.
+    for (let i = 0; i < 1; i++) {
       const x = 50 + Math.random() * Math.max(80, w - 100);
       const y = 90 + Math.random() * Math.max(80, h * 0.55);
       this.spawnAt('medium', x, y);
     }
 
-    // Spawn 6 small tetra fish spread across the water
-    for (let i = 0; i < 6; i++) {
+    // Spawn 3 small tetra fish spread across the water.
+    for (let i = 0; i < 3; i++) {
       const x = 40 + Math.random() * Math.max(80, w - 80);
       const y = 80 + Math.random() * Math.max(80, h * 0.6);
       this.spawnAt('small', x, y);
