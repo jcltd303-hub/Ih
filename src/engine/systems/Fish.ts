@@ -210,7 +210,7 @@ export class Fish implements Boid {
     // Responsive fish size is a percentage of the viewport short side.
     // No accumulated scale: every resize/rotation recomputes from texture size.
     const shortSide = Math.max(1, Math.min(screenWidth, screenHeight));
-    const percent = this.typeId === 'boss' ? 0.24 : this.typeId === 'medium' ? 0.12 : 0.075;
+    const percent = this.typeId === 'boss' ? 0.24 : this.typeId === 'medium' ? 0.12 : 0.05;
     const targetWidth = shortSide * percent;
     const visible = this.renderRig.container.getBounds();
     const renderedWidth = Math.max(1, visible.width);
