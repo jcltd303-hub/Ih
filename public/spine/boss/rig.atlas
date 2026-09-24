@@ -1,0 +1,9 @@
+artwork.png
+size: 1536,1024
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+pma: false
+artwork
+bounds: 0,0,1536,1024
+rotate: false
