@@ -1,4 +1,4 @@
-import { Container, Sprite, Texture, Assets } from 'pixi.js';
+import { Container, Sprite, Texture, Assets, Text } from 'pixi.js';
 import { SpriteSheetManager } from './SpriteSheetManager';
 import { BoidSwarmManager, Boid } from './BoidSwarmManager';
 import { EntityBounds, SpatialHashGrid } from './SpatialHashGrid';
@@ -23,6 +23,7 @@ export class Fish implements Boid {
   private maxSpeed: number; private maxForce: number;
   private panicTimer = 0; private lodCounter = Math.floor(Math.random() * 3);
   private cachedAx = 0; private cachedAy = 0;
+  private readonly scaleLabel: Text;
 
   constructor(id: string, type: 'small' | 'medium' | 'boss', startX: number, startY: number,
     screenWidth: number, screenHeight: number, theme: 'light' | 'dark' = 'light', maxHpOverride?: number) {
@@ -42,6 +43,8 @@ export class Fish implements Boid {
     this.maxHealth = this.health; this.multiplier = isBoss ? 25 : isSmall ? 1.2 : 4; this.worth = this.multiplier;
     this.bounds = { id, x: this.x - this.width / 2, y: this.y - this.height / 2, width: this.width, height: this.height };
     this.container = new Container();
+    this.scaleLabel = new Text({ text: '', style: { fontFamily: 'monospace', fontSize: 8, fill: 0xffffff, stroke: { color: 0x000000, width: 2 } } });
+    this.scaleLabel.anchor.set(0.5, 1);
 
     if (isBoss) {
       this.renderRig = new BossRenderRig(this.width, this.height, theme);
@@ -55,6 +58,7 @@ export class Fish implements Boid {
       }
     }
     this.container.addChild(this.renderRig.container);
+    this.container.addChild(this.scaleLabel);
     this.container.x = this.x; this.container.y = this.y;
     this.renderRig.setHierarchy(this.hierarchy);
     this.resizeForViewport(screenWidth, screenHeight);
@@ -216,6 +220,9 @@ export class Fish implements Boid {
 
     this.width = targetWidth;
     this.height = targetWidth * Math.max(0.35, Math.min(1.2, renderedHeight / renderedWidth));
+    const exactScale = Math.abs(this.renderRig.container.scale.x);
+    this.scaleLabel.text = `${exactScale.toFixed(4)}x`;
+    this.scaleLabel.position.set(0, -this.height * 0.5 - 3);
     this.bounds.width = this.width;
     this.bounds.height = this.height;
     this.bounds.x = this.x - this.width / 2;
