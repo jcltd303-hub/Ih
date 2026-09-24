@@ -40,26 +40,23 @@ export class FishRenderRig implements IRenderRig {
   }
 
   setHierarchy(hierarchy: 'NORMAL' | 'ELITE' | 'CRITICAL' | 'BOSS'): void {
-    if (!this.rig || !this.rig.container || !this.rig.sprite) return;
-    if (hierarchy === 'ELITE') {
-        this.rig.container.scale.set(1.1);
-        this.rig.sprite.tint = 0xaaaaff; // Faint blue-ish tint
-    }
-    else if (hierarchy === 'CRITICAL') {
-        this.rig.container.scale.set(1.25);
-        this.rig.sprite.tint = 0xffaaaa; // Brighter red-ish tint
-    }
+    if (!this.rig || !this.rig.effectContainer || !this.rig.sprite) return;
+    const hierarchyScale = hierarchy === 'CRITICAL' ? 1.12 : hierarchy === 'ELITE' ? 1.06 : 1;
+    this.rig.effectContainer.scale.set(hierarchyScale);
+    if (hierarchy === 'ELITE') this.rig.sprite.tint = 0xaaaaff;
+    else if (hierarchy === 'CRITICAL') this.rig.sprite.tint = 0xffaaaa;
+    else this.rig.sprite.tint = 0xffffff;
   }
 
   playHitReaction(amount: number, theme: 'light' | 'dark'): void {
     this.applyFlash(0xffffff, 0.1);
-    if (!this.rig || !this.rig.container) return;
-    // Quick scale punch
-    this.rig.container.scale.set(0.9, 1.1);
+    if (!this.rig || !this.rig.effectContainer) return;
+    const fx = this.rig.effectContainer;
+    const baseX = fx.scale.x;
+    const baseY = fx.scale.y;
+    fx.scale.set(baseX * 0.94, baseY * 1.06);
     setTimeout(() => {
-        if (this.rig && this.rig.container && !this.rig.container.destroyed) {
-            this.rig.container.scale.set(1.0, 1.0);
-        }
+        if (this.rig && fx && !fx.destroyed) fx.scale.set(baseX, baseY);
     }, 100);
   }
 
