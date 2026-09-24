@@ -200,5 +200,27 @@ export class Fish implements Boid {
     this.container.destroy({ children: true });
   }
 
-  public getCollisionRadius(): number { return this.typeId === 'boss' ? 135 : this.typeId === 'medium' ? 52 : 41; }
+  public resizeForViewport(screenWidth: number, screenHeight: number): void {
+    // Keep gameplay sprites proportional when a phone rotates. Portrait uses the
+    // short side as its sizing reference; landscape gets a small readability bump.
+    const shortSide = Math.max(320, Math.min(screenWidth, screenHeight));
+    const orientationFactor = screenWidth > screenHeight ? 1.08 : 1;
+    const viewportScale = Math.max(0.72, Math.min(1.18, shortSide / 430)) * orientationFactor;
+    this.renderRig.container.scale.set(viewportScale);
+
+    const baseRadius = this.typeId === 'boss' ? 135 : this.typeId === 'medium' ? 52 : 41;
+    this.width = baseRadius * 2 * viewportScale;
+    this.height = baseRadius * 1.3 * viewportScale;
+    this.bounds.width = this.width;
+    this.bounds.height = this.height;
+    this.bounds.x = this.x - this.width / 2;
+    this.bounds.y = this.y - this.height / 2;
+
+    // Re-home fish that became off-screen after an orientation change.
+    this.x = Math.max(-this.width, Math.min(screenWidth + this.width, this.x));
+    this.y = Math.max(50, Math.min(screenHeight - 50, this.y));
+    this.container.position.set(this.x, this.y);
+  }
+
+  public getCollisionRadius(): number { return Math.max(this.width, this.height) * 0.5; }
 }
