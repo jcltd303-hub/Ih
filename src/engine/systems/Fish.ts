@@ -206,11 +206,17 @@ export class Fish implements Boid {
     const shortSide = Math.max(320, Math.min(screenWidth, screenHeight));
     const orientationFactor = screenWidth > screenHeight ? 1.08 : 1;
     const viewportScale = Math.max(0.72, Math.min(1.18, shortSide / 430)) * orientationFactor;
-    this.renderRig.container.scale.set(viewportScale);
+    // Preserve the rig's intrinsic texture-normalization scale; resize only as
+    // an additional viewport factor instead of replacing it on rotation.
+    const rig = this.renderRig.container;
+    const baseScaleX = Math.abs(rig.scale.x) || 1;
+    const baseScaleY = Math.abs(rig.scale.y) || baseScaleX;
+    rig.scale.set(baseScaleX * viewportScale, baseScaleY * viewportScale);
 
-    const baseRadius = this.typeId === 'boss' ? 135 : this.typeId === 'medium' ? 52 : 41;
-    this.width = baseRadius * 2 * viewportScale;
-    this.height = baseRadius * 1.3 * viewportScale;
+    const baseWidth = this.typeId === 'boss' ? 260 : this.typeId === 'medium' ? 128 : 82;
+    const baseHeight = this.typeId === 'boss' ? 150 : this.typeId === 'medium' ? 82 : 52;
+    this.width = baseWidth * viewportScale;
+    this.height = baseHeight * viewportScale;
     this.bounds.width = this.width;
     this.bounds.height = this.height;
     this.bounds.x = this.x - this.width / 2;
