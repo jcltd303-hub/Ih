@@ -55,6 +55,7 @@ export class FishManager {
   public resize(width: number, height: number): void {
     this.screenWidth = width;
     this.screenHeight = height;
+    for (const fish of this.activeFishList) fish.resizeForViewport(width, height);
   }
 
   public spawnFish(type: 'small' | 'medium' = 'small', maxHpOverride?: number): Fish {

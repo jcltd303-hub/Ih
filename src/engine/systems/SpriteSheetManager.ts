@@ -911,8 +911,10 @@ export class SpriteSheetManager {
     let swimSpeed = 1;
 
     // Scaling based on fish type
-    const scale = type === 'boss' ? 0.72 : type === 'angler' ? 0.52 : type === 'medium' ? 0.44 : 0.30;
-    container.scale.set(scale);
+    // Normalize each authored texture to a percentage of the viewport later.
+    // Keep the rig at native-normalized scale here; Fish.resizeForViewport owns
+    // responsive sizing so rotation never compounds or randomizes the result.
+    container.scale.set(1);
 
     const rig: FishAnimationRig = {
       container,

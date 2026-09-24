@@ -57,6 +57,7 @@ export class Fish implements Boid {
     this.container.addChild(this.renderRig.container);
     this.container.x = this.x; this.container.y = this.y;
     this.renderRig.setHierarchy(this.hierarchy);
+    this.resizeForViewport(screenWidth, screenHeight);
   }
 
   public setTheme(theme: 'light' | 'dark'): void {
@@ -200,5 +201,29 @@ export class Fish implements Boid {
     this.container.destroy({ children: true });
   }
 
-  public getCollisionRadius(): number { return this.typeId === 'boss' ? 135 : this.typeId === 'medium' ? 52 : 41; }
+  public resizeForViewport(screenWidth: number, screenHeight: number): void {
+    // Responsive fish size is a percentage of the viewport short side.
+    // No accumulated scale: every resize/rotation recomputes from texture size.
+    const shortSide = Math.max(1, Math.min(screenWidth, screenHeight));
+    const percent = this.typeId === 'boss' ? 0.24 : this.typeId === 'medium' ? 0.12 : 0.075;
+    const targetWidth = shortSide * percent;
+    const local = this.renderRig.container.getLocalBounds();
+    const sourceWidth = Math.max(1, local.width);
+    const aspect = local.width > 0 ? local.height / local.width : 0.65;
+    const scale = targetWidth / sourceWidth;
+    this.renderRig.container.scale.set(scale);
+
+    this.width = targetWidth;
+    this.height = Math.max(targetWidth * 0.45, targetWidth * aspect);
+    this.bounds.width = this.width;
+    this.bounds.height = this.height;
+    this.bounds.x = this.x - this.width / 2;
+    this.bounds.y = this.y - this.height / 2;
+
+    this.x = Math.max(-this.width, Math.min(screenWidth + this.width, this.x));
+    this.y = Math.max(40, Math.min(screenHeight - 40, this.y));
+    this.container.position.set(this.x, this.y);
+  }
+
+  public getCollisionRadius(): number { return Math.max(this.width, this.height) * 0.5; }
 }
